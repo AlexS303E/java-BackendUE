@@ -43,6 +43,7 @@ Implemented now:
 - `GET /me/presets` with `X-Player-Id`
 - `PUT /me/presets/weapons/{classTag}/{presetSlot}` with `X-Player-Id` and `If-Match`
 - `POST /server/match-profile/build`
+- `POST /server/runtime-preset-changes` with `Idempotency-Key == operation_id`
 
 Smoke check after `bootRun`:
 

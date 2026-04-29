@@ -78,8 +78,83 @@ if ($staleRevisionStatus -ne 412) {
     throw "Expected stale If-Match to return 412, got $staleRevisionStatus"
 }
 
+$matchId = [Guid]::NewGuid().ToString()
+$runtimeOperationId = [Guid]::NewGuid().ToString()
+$runtimeBody = @{
+    operation_id = $runtimeOperationId
+    operation_seq = 1
+    match_id = $matchId
+    player_id = $playerId
+    class_tag = "class.assault"
+    weapon_preset_slot = 1
+    base_weapon_preset_revision = $savedPreset.revision
+    runtime_change_payload = @{
+        schema_version = 1
+        changes = @(
+            @{
+                op = "set_module"
+                weapon_slot_id = "primary"
+                weapon_id = "weapon.ak12"
+                mount_id = "weapon.ak12.mount.scope.01"
+                module_id = "module.scope.red_dot_01"
+            }
+        )
+    }
+} | ConvertTo-Json -Depth 10
+
+$runtimeApplied = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/server/runtime-preset-changes" `
+    -Headers @{ "Idempotency-Key" = $runtimeOperationId } `
+    -Body $runtimeBody `
+    -ContentType "application/json"
+
+if ($runtimeApplied.status -ne "applied" -or $runtimeApplied.result_revision -ne ($savedPreset.revision + 1)) {
+    throw "Expected runtime change to apply and increment revision"
+}
+
+$runtimeConflictStatus = $null
+$runtimeConflictOperationId = [Guid]::NewGuid().ToString()
+$runtimeConflictBody = @{
+    operation_id = $runtimeConflictOperationId
+    operation_seq = 2
+    match_id = $matchId
+    player_id = $playerId
+    class_tag = "class.assault"
+    weapon_preset_slot = 1
+    base_weapon_preset_revision = $savedPreset.revision
+    runtime_change_payload = @{
+        schema_version = 1
+        changes = @(
+            @{
+                op = "clear_module"
+                weapon_slot_id = "primary"
+                weapon_id = "weapon.ak12"
+                mount_id = "weapon.ak12.mount.scope.01"
+            }
+        )
+    }
+} | ConvertTo-Json -Depth 10
+
+try {
+    Invoke-RestMethod `
+        -Method Post `
+        -Uri "$BaseUrl/server/runtime-preset-changes" `
+        -Headers @{ "Idempotency-Key" = $runtimeConflictOperationId } `
+        -Body $runtimeConflictBody `
+        -ContentType "application/json" | Out-Null
+} catch {
+    if ($null -ne $_.Exception.Response) {
+        $runtimeConflictStatus = [int]$_.Exception.Response.StatusCode
+    }
+}
+
+if ($runtimeConflictStatus -ne 409) {
+    throw "Expected runtime revision conflict to return 409, got $runtimeConflictStatus"
+}
+
 $matchBody = @{
-    match_id = [Guid]::NewGuid().ToString()
+    match_id = $matchId
     player_id = $playerId
     realm_id = "global"
     class_tag = "class.assault"
@@ -111,6 +186,8 @@ if ($null -eq $primary -or $primary.weapon_id -ne "weapon.ak12") {
     weapon_presets = $presets.weapon_presets.Count
     saved_revision = $savedPreset.revision
     stale_revision_status = $staleRevisionStatus
+    runtime_applied_revision = $runtimeApplied.result_revision
+    runtime_conflict_status = $runtimeConflictStatus
     outfit_presets = $presets.outfit_presets.Count
     primary_weapon = $primary.weapon_id
     primary_module = $primary.modules[0].module_id

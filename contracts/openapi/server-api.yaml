@@ -32,9 +32,19 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RuntimePresetChangeRequest"
       responses:
         "200":
           description: Runtime change applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuntimePresetChangeResponse"
         "409":
           description: Revision conflict
 components:
@@ -123,3 +133,84 @@ components:
             type: string
         dependency_revisions:
           type: object
+    RuntimePresetChangeRequest:
+      type: object
+      required:
+        - operation_id
+        - operation_seq
+        - match_id
+        - player_id
+        - class_tag
+        - weapon_preset_slot
+        - base_weapon_preset_revision
+        - runtime_change_payload
+      properties:
+        operation_id:
+          type: string
+          format: uuid
+        operation_seq:
+          type: integer
+          format: int64
+        match_id:
+          type: string
+          format: uuid
+        player_id:
+          type: string
+          format: uuid
+        class_tag:
+          type: string
+        weapon_preset_slot:
+          type: integer
+        base_weapon_preset_revision:
+          type: integer
+          format: int64
+        runtime_change_payload:
+          $ref: "#/components/schemas/RuntimePresetChangePayload"
+    RuntimePresetChangePayload:
+      type: object
+      required: [schema_version, changes]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        changes:
+          type: array
+          items:
+            type: object
+            required: [op, weapon_slot_id]
+            properties:
+              op:
+                enum: [set_weapon, clear_weapon, set_module, clear_module]
+              weapon_slot_id:
+                type: string
+              weapon_id:
+                type: string
+              mount_id:
+                type: string
+              module_id:
+                type: string
+    RuntimePresetChangeResponse:
+      type: object
+      required: [operation_id, status, duplicate]
+      properties:
+        operation_id:
+          type: string
+          format: uuid
+        status:
+          enum: [applied, conflict, duplicate, rejected, failed]
+        result_revision:
+          type:
+            - integer
+            - "null"
+          format: int64
+        pending_change_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        duplicate:
+          type: boolean
+        error_code:
+          type:
+            - string
+            - "null"

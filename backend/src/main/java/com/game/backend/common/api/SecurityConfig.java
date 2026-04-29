@@ -23,7 +23,8 @@ public class SecurityConfig {
                     "/auth/**",
                     "/catalog/**",
                     "/me/**",
-                    "/server/match-profile/build"
+                    "/server/match-profile/build",
+                    "/server/runtime-preset-changes"
                 ).permitAll()
                 .anyRequest().authenticated()
             )
