@@ -16,6 +16,7 @@ import java.sql.Array;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -26,9 +27,11 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
     private static final String CERTIFICATE_FINGERPRINT_HEADER = "X-Server-Certificate-Fingerprint";
 
     private final JdbcTemplate jdbcTemplate;
+    private final ServerAuditService serverAuditService;
 
-    public ServerAuthenticationFilter(JdbcTemplate jdbcTemplate) {
+    public ServerAuthenticationFilter(JdbcTemplate jdbcTemplate, ServerAuditService serverAuditService) {
         this.jdbcTemplate = jdbcTemplate;
+        this.serverAuditService = serverAuditService;
     }
 
     @Override
@@ -70,6 +73,17 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
         }
 
         if (!identity.hasScope(requiredScope)) {
+            serverAuditService.record(
+                identity,
+                null,
+                "server_auth.scope_denied",
+                requiredScope,
+                "denied",
+                Map.of(
+                    "method", request.getMethod(),
+                    "path", request.getRequestURI()
+                )
+            );
             writeProblem(response, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Server identity does not have required scope: " + requiredScope);
             return;
         }

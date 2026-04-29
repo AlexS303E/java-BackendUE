@@ -22,6 +22,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * Управляет чтением и сохранением player presets с проверкой каталога и доступа.
+ */
 @Service
 public class PresetsService {
     private final JdbcTemplate jdbcTemplate;
@@ -30,6 +33,9 @@ public class PresetsService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * Полностью сохраняет weapon preset, если If-Match совпал с текущей ревизией.
+     */
     @Transactional
     public WeaponPresetSaveResponse saveWeaponPreset(
         UUID playerId,
@@ -40,6 +46,7 @@ public class PresetsService {
     ) {
         long expectedRevision = parseIfMatch(ifMatch);
         long catalogVersion = request.catalogVersion();
+        // FOR UPDATE удерживает текущую ревизию до конца транзакции и защищает от гонок сохранения.
         PresetHeader current = lockWeaponPreset(playerId, classTag, presetSlot, catalogVersion);
 
         if (current.revision() != expectedRevision) {
@@ -91,6 +98,9 @@ public class PresetsService {
         );
     }
 
+    /**
+     * Возвращает все presets игрока для страницы loadout.
+     */
     public PlayerPresetsResponse getPlayerPresets(UUID playerId) {
         return new PlayerPresetsResponse(
             playerId,
@@ -99,6 +109,9 @@ public class PresetsService {
         );
     }
 
+    /**
+     * Читает weapon presets вместе с выбранными slots/modules.
+     */
     public List<WeaponPresetDto> weaponPresets(UUID playerId) {
         return jdbcTemplate.query(
             """
@@ -124,6 +137,9 @@ public class PresetsService {
         );
     }
 
+    /**
+     * Читает outfit presets вместе с выбранными clothing slots.
+     */
     public List<OutfitPresetDto> outfitPresets(UUID playerId) {
         return jdbcTemplate.query(
             """
@@ -237,6 +253,9 @@ public class PresetsService {
         );
     }
 
+    /**
+     * Парсит HTTP If-Match как ожидаемую ревизию preset.
+     */
     private long parseIfMatch(String ifMatch) {
         if (ifMatch == null || ifMatch.isBlank()) {
             throw new ApiException(
@@ -292,6 +311,9 @@ public class PresetsService {
         return presets.getFirst();
     }
 
+    /**
+     * Валидирует структуру save-запроса, доступность предметов и совместимость модулей с mount.
+     */
     private void validateSaveRequest(UUID playerId, String classTag, WeaponPresetSaveRequest request) {
         Set<String> weaponSlotIds = new HashSet<>();
         for (SaveWeaponSlotRequest slot : request.slots()) {
@@ -514,6 +536,9 @@ public class PresetsService {
         );
     }
 
+    /**
+     * Заменяет набор модулей целиком, чтобы сохранить запрос идемпотентным по содержимому slot.
+     */
     private void replaceModulesForWeaponConfig(
         UUID playerId,
         String classTag,

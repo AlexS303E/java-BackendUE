@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * Сервис чтения каталога и выбора активной версии для матчей.
+ */
 @Service
 public class CatalogService {
     private final JdbcTemplate jdbcTemplate;
@@ -19,6 +22,9 @@ public class CatalogService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * Собирает клиентский snapshot активной версии каталога для realm.
+     */
     public CatalogSnapshotResponse getSnapshot(String realmId) {
         long catalogVersion = activeCatalogVersion(realmId);
         return new CatalogSnapshotResponse(
@@ -30,6 +36,9 @@ public class CatalogService {
         );
     }
 
+    /**
+     * Находит активную версию каталога, разрешенную для новых матчей.
+     */
     public long activeCatalogVersion(String realmId) {
         List<Long> versions = jdbcTemplate.queryForList(
             """
@@ -50,6 +59,9 @@ public class CatalogService {
         return versions.getFirst();
     }
 
+    /**
+     * Проверяет, может ли DS использовать указанную версию каталога для нового матча.
+     */
     public boolean catalogVersionAllowsNewMatches(String realmId, long catalogVersion) {
         Boolean exists = jdbcTemplate.queryForObject(
             """

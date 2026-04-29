@@ -10,6 +10,9 @@ import com.game.backend.matchprofile.api.MatchModuleDto;
 import com.game.backend.matchprofile.api.MatchOutfitItemDto;
 import com.game.backend.matchprofile.api.MatchProfileResponse;
 import com.game.backend.matchprofile.api.MatchWeaponDto;
+import com.game.backend.serverauth.application.ServerAuditService;
+import com.game.backend.serverauth.application.ServerIdentity;
+import com.game.backend.serverauth.application.ServerMatchService;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -18,59 +21,141 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Собирает server-ready match profile из presets, access projection и правил каталога.
+ */
 @Service
 public class MatchProfileService {
+    private static final String AUDIT_ACTION = "match_profile.build";
+    private static final String AUDIT_SCOPE = "match_profile:read";
+
     private final JdbcTemplate jdbcTemplate;
     private final CatalogService catalogService;
     private final ObjectMapper objectMapper;
+    private final ServerMatchService serverMatchService;
+    private final ServerAuditService serverAuditService;
 
     public MatchProfileService(
         JdbcTemplate jdbcTemplate,
         CatalogService catalogService,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        ServerMatchService serverMatchService,
+        ServerAuditService serverAuditService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.catalogService = catalogService;
         this.objectMapper = objectMapper;
+        this.serverMatchService = serverMatchService;
+        this.serverAuditService = serverAuditService;
     }
 
+    /**
+     * Привязывает матч к DS, выбирает совместимую версию каталога и сохраняет snapshot профиля.
+     */
     @Transactional
-    public MatchProfileResponse build(BuildMatchProfileRequest request) {
-        long catalogVersion = chooseCatalogVersion(request);
-        PresetHeader weaponPreset = weaponPreset(request, catalogVersion);
-        PresetHeader outfitPreset = outfitPreset(request, catalogVersion);
-        long accessRevision = accessRevision(request.playerId());
-        long profileRevision = System.currentTimeMillis();
+    public MatchProfileResponse build(ServerIdentity server, BuildMatchProfileRequest request) {
+        boolean matchAssigned = false;
+        try {
+            serverMatchService.ensureAssignedForBuild(server, request);
+            matchAssigned = true;
 
-        List<MatchWeaponDto> weapons = weapons(request, catalogVersion);
-        List<MatchOutfitItemDto> outfit = outfit(request, catalogVersion);
-        validateLoadout(request, catalogVersion, weapons, outfit);
+            long catalogVersion = chooseCatalogVersion(request);
+            PresetHeader weaponPreset = weaponPreset(request, catalogVersion);
+            PresetHeader outfitPreset = outfitPreset(request, catalogVersion);
+            long accessRevision = accessRevision(request.playerId());
+            long profileRevision = System.currentTimeMillis();
 
-        MatchProfileResponse response = new MatchProfileResponse(
-            1,
-            request.playerId(),
-            request.realmId(),
-            catalogVersion,
-            request.classTag(),
-            request.teamTag(),
-            request.weaponPresetSlot(),
-            request.outfitPresetSlot(),
-            weapons,
-            outfit,
-            List.of(),
-            new DependencyRevisionsDto(
-                weaponPreset.revision(),
-                outfitPreset.revision(),
-                accessRevision,
-                profileRevision
+            List<MatchWeaponDto> weapons = weapons(request, catalogVersion);
+            List<MatchOutfitItemDto> outfit = outfit(request, catalogVersion);
+            validateLoadout(request, catalogVersion, weapons, outfit);
+
+            MatchProfileResponse response = new MatchProfileResponse(
+                1,
+                request.playerId(),
+                request.realmId(),
+                catalogVersion,
+                request.classTag(),
+                request.teamTag(),
+                request.weaponPresetSlot(),
+                request.outfitPresetSlot(),
+                weapons,
+                outfit,
+                List.of(),
+                new DependencyRevisionsDto(
+                    weaponPreset.revision(),
+                    outfitPreset.revision(),
+                    accessRevision,
+                    profileRevision
+                )
+            );
+            persistProfile(request, response);
+            auditSuccess(server, request, response);
+            return response;
+        } catch (ApiException exception) {
+            auditFailure(server, request, matchAssigned, auditResult(exception), exception.code(), exception.status().value());
+            throw exception;
+        } catch (RuntimeException exception) {
+            auditFailure(server, request, matchAssigned, "failed", exception.getClass().getSimpleName(), 500);
+            throw exception;
+        }
+    }
+
+    private void auditSuccess(ServerIdentity server, BuildMatchProfileRequest request, MatchProfileResponse response) {
+        serverAuditService.record(
+            server,
+            request.matchId(),
+            AUDIT_ACTION,
+            AUDIT_SCOPE,
+            "success",
+            Map.of(
+                "match_id", request.matchId(),
+                "player_id", request.playerId(),
+                "realm_id", request.realmId(),
+                "class_tag", request.classTag(),
+                "team_tag", request.teamTag(),
+                "catalog_version", response.catalogVersion(),
+                "weapon_preset_revision", response.dependencyRevisions().weaponPresetRevision(),
+                "outfit_preset_revision", response.dependencyRevisions().outfitPresetRevision()
             )
         );
-        persistProfile(request, response);
-        return response;
     }
 
+    private void auditFailure(
+        ServerIdentity server,
+        BuildMatchProfileRequest request,
+        boolean matchAssigned,
+        String result,
+        String code,
+        int status
+    ) {
+        serverAuditService.record(
+            server,
+            matchAssigned ? request.matchId() : null,
+            AUDIT_ACTION,
+            AUDIT_SCOPE,
+            result,
+            Map.of(
+                "match_id", request.matchId(),
+                "player_id", request.playerId(),
+                "realm_id", request.realmId(),
+                "class_tag", request.classTag(),
+                "team_tag", request.teamTag(),
+                "code", code,
+                "status", status
+            )
+        );
+    }
+
+    private String auditResult(ApiException exception) {
+        return exception.status() == HttpStatus.FORBIDDEN ? "denied" : "failed";
+    }
+
+    /**
+     * Выбирает лучшую версию каталога из списка, который поддерживает Dedicated Server.
+     */
     private long chooseCatalogVersion(BuildMatchProfileRequest request) {
         return request.supportedCatalogVersions()
             .stream()
@@ -234,6 +319,9 @@ public class MatchProfileService {
         );
     }
 
+    /**
+     * Проверяет, что все выбранные предметы доступны игроку и разрешены для class/team/mount.
+     */
     private void validateLoadout(
         BuildMatchProfileRequest request,
         long catalogVersion,
@@ -366,6 +454,9 @@ public class MatchProfileService {
         }
     }
 
+    /**
+     * Сохраняет сгенерированный профиль как кэшируемый snapshot с ревизиями зависимостей.
+     */
     private void persistProfile(BuildMatchProfileRequest request, MatchProfileResponse response) {
         OffsetDateTime now = OffsetDateTime.now();
         String payload = toJson(response);

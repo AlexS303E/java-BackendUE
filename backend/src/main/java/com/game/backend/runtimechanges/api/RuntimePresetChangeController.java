@@ -1,10 +1,12 @@
 package com.game.backend.runtimechanges.api;
 
 import com.game.backend.runtimechanges.application.RuntimePresetChangeService;
+import com.game.backend.serverauth.application.CurrentServer;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -20,10 +22,15 @@ public class RuntimePresetChangeController {
 
     @PostMapping("/server/runtime-preset-changes")
     ResponseEntity<?> submitRuntimePresetChanges(
+        Authentication authentication,
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody RuntimePresetChangeRequest request
     ) {
-        RuntimePresetChangeResponse response = runtimePresetChangeService.submit(idempotencyKey, request);
+        RuntimePresetChangeResponse response = runtimePresetChangeService.submit(
+            CurrentServer.require(authentication),
+            idempotencyKey,
+            request
+        );
         if ("conflict".equals(response.status())) {
             ProblemDetail detail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,

@@ -7,6 +7,9 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Запрос Dedicated Server на сборку match profile игрока перед входом в матч.
+ */
 public record BuildMatchProfileRequest(
     @NotNull
     UUID matchId,

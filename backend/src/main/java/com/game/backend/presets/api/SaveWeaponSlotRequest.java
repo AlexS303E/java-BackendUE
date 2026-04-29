@@ -6,6 +6,9 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
+/**
+ * Содержимое одного weapon slot при полном сохранении weapon preset.
+ */
 public record SaveWeaponSlotRequest(
     @NotBlank
     String weaponSlotId,

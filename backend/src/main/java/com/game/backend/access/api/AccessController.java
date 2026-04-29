@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Player API для получения текущей проекции доступных предметов.
+ */
 @RestController
 public class AccessController {
     private final AccessService accessService;
@@ -15,6 +18,9 @@ public class AccessController {
         this.accessService = accessService;
     }
 
+    /**
+     * Возвращает access projection для авторизованного игрока, realm и версии каталога.
+     */
     @GetMapping("/me/access")
     AccessResponse getMyAccess(
         Authentication authentication,

@@ -2,6 +2,9 @@ package com.game.backend.access.api;
 
 import java.util.Map;
 
+/**
+ * Состояние доступа игрока к одному предмету каталога.
+ */
 public record AccessItemDto(
     String itemId,
     String itemType,

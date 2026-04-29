@@ -14,6 +14,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Проверяет Bearer JWT для player endpoints и кладет AuthenticatedPlayer в SecurityContext.
+ */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenService jwtTokenService;
@@ -43,6 +46,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Spring Security дальше видит endpoint как вызванный игроком с ролью ROLE_PLAYER.
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
             player.get(),
             token,

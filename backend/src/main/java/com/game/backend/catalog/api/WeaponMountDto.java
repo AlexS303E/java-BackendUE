@@ -1,5 +1,8 @@
 package com.game.backend.catalog.api;
 
+/**
+ * Описание точки крепления модуля на оружии.
+ */
 public record WeaponMountDto(
     String mountId,
     long catalogVersion,

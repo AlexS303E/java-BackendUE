@@ -12,9 +12,15 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
+/**
+ * Общая настройка безопасности: публичные endpoints, player JWT и server identity фильтры.
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+    /**
+     * Делает приложение stateless и подключает оба типа аутентификации до стандартного Spring фильтра.
+     */
     @Bean
     SecurityFilterChain securityFilterChain(
         HttpSecurity http,
@@ -39,6 +45,9 @@ public class SecurityConfig {
             .build();
     }
 
+    /**
+     * BCrypt используется для хранения паролей игроков.
+     */
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();

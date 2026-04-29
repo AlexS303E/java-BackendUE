@@ -10,8 +10,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Преобразует доменные и validation-ошибки в единый problem+json формат.
+ */
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    /**
+     * Возвращает клиенту статус и код, заданные бизнес-слоем через ApiException.
+     */
     @ExceptionHandler(ApiException.class)
     ProblemDetail handleApiException(ApiException exception) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(exception.status(), exception.getMessage());
@@ -20,6 +26,9 @@ public class ApiExceptionHandler {
         return detail;
     }
 
+    /**
+     * Собирает ошибки Bean Validation в список полей для удобной отладки клиента.
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ProblemDetail handleValidation(MethodArgumentNotValidException exception) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Request validation failed");

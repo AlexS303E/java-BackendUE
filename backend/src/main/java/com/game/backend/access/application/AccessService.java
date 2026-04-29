@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Читает готовую проекцию доступа игрока к предметам каталога.
+ */
 @Service
 public class AccessService {
     private static final TypeReference<Map<String, Object>> JSON_MAP = new TypeReference<>() {
@@ -29,6 +32,9 @@ public class AccessService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * Возвращает доступы игрока для конкретного realm и версии каталога.
+     */
     public AccessResponse getAccess(UUID playerId, String realmId, Long requestedCatalogVersion) {
         long catalogVersion = requestedCatalogVersion == null
             ? catalogService.activeCatalogVersion(realmId)
@@ -101,6 +107,9 @@ public class AccessService {
         );
     }
 
+    /**
+     * Парсит JSONB payload из БД в структуру, которую можно вернуть клиенту.
+     */
     private Map<String, Object> parsePayload(String payload) {
         if (payload == null || payload.isBlank()) {
             return null;

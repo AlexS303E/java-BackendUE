@@ -9,6 +9,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Создает стартовые access/preset записи для нового игрока.
+ */
 @Service
 public class PlayerBootstrapService {
     private static final String DEFAULT_REALM_ID = "global";
@@ -26,6 +29,9 @@ public class PlayerBootstrapService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * Заполняет минимальный набор данных, чтобы игрок сразу прошел smoke-путь loadout -> match profile.
+     */
     public void bootstrapNewPlayer(UUID playerId, OffsetDateTime now) {
         long catalogVersion = activeCatalogVersion();
         bootstrapAccess(playerId, catalogVersion, now);
@@ -53,6 +59,9 @@ public class PlayerBootstrapService {
         return versions.getFirst();
     }
 
+    /**
+     * Открывает игроку все enabled items активного MVP-каталога и фиксирует это в ledger.
+     */
     private void bootstrapAccess(UUID playerId, long catalogVersion, OffsetDateTime now) {
         jdbcTemplate.update(
             """
@@ -130,6 +139,9 @@ public class PlayerBootstrapService {
         );
     }
 
+    /**
+     * Создает дефолтный weapon preset для class.assault.
+     */
     private void bootstrapWeaponPreset(UUID playerId, long catalogVersion, OffsetDateTime now) {
         jdbcTemplate.update(
             """
@@ -229,6 +241,9 @@ public class PlayerBootstrapService {
         );
     }
 
+    /**
+     * Создает стартовые outfit presets для доступных команд.
+     */
     private void bootstrapOutfitPresets(UUID playerId, long catalogVersion, OffsetDateTime now) {
         List<String> teamTags = jdbcTemplate.queryForList(
             "SELECT team_tag FROM outfit_preset_rules WHERE class_tag = ? ORDER BY team_tag",

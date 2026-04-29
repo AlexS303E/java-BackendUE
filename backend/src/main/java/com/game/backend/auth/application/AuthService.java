@@ -20,6 +20,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Оркестрирует регистрацию игрока, выдачу JWT и lifecycle refresh-сессий.
+ */
 @Service
 public class AuthService {
     private final JdbcTemplate jdbcTemplate;
@@ -45,6 +48,9 @@ public class AuthService {
         this.refreshTokenTtl = Duration.parse(refreshTokenTtl);
     }
 
+    /**
+     * Создает player_account и сразу bootstrap-ит базовые access/preset данные.
+     */
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
         UUID playerId = UUID.randomUUID();
@@ -78,6 +84,9 @@ public class AuthService {
         return new RegisterResponse(playerId, request.loginName(), "active", false);
     }
 
+    /**
+     * Проверяет пароль активного аккаунта и открывает новую refresh-сессию.
+     */
     @Transactional
     public AuthTokenResponse login(LoginRequest request) {
         Account account = accountByLoginName(request.loginName());
@@ -88,6 +97,9 @@ public class AuthService {
         return issueTokenPair(account.playerId(), account.loginName(), OffsetDateTime.now());
     }
 
+    /**
+     * Делает refresh rotation: старый refresh token отзывается, новая пара токенов сохраняется как новая сессия.
+     */
     @Transactional
     public AuthTokenResponse refresh(RefreshRequest request) {
         String refreshTokenHash = refreshTokenService.hashRefreshToken(request.refreshToken());
@@ -137,6 +149,9 @@ public class AuthService {
         return issueTokenPair(session.playerId(), session.loginName(), now);
     }
 
+    /**
+     * Идемпотентно отзывает refresh token, если он еще активен.
+     */
     @Transactional
     public void logout(LogoutRequest request) {
         String refreshTokenHash = refreshTokenService.hashRefreshToken(request.refreshToken());
@@ -180,6 +195,9 @@ public class AuthService {
         }
     }
 
+    /**
+     * Создает access token и сохраняет только SHA-256 hash refresh token.
+     */
     private AuthTokenResponse issueTokenPair(UUID playerId, String loginName, OffsetDateTime now) {
         String accessToken = jwtTokenService.issueAccessToken(playerId, loginName);
         String refreshToken = refreshTokenService.generateRefreshToken();

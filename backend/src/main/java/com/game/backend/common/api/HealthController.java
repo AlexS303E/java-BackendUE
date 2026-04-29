@@ -5,6 +5,9 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Легкий health endpoint для smoke-проверок и ручной диагностики.
+ */
 @RestController
 public class HealthController {
     @GetMapping("/api/health")

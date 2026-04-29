@@ -6,6 +6,9 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
+/**
+ * Запрос полного сохранения weapon preset для указанной версии каталога.
+ */
 public record WeaponPresetSaveRequest(
     @NotNull
     Long catalogVersion,

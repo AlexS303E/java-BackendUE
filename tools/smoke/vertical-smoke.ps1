@@ -103,6 +103,48 @@ if ($staleRevisionStatus -ne 412) {
 }
 
 $matchId = [Guid]::NewGuid().ToString()
+$matchBody = @{
+    match_id = $matchId
+    player_id = $playerId
+    realm_id = "global"
+    class_tag = "class.assault"
+    team_tag = "team.red"
+    weapon_preset_slot = 1
+    outfit_preset_slot = 1
+    supported_catalog_versions = @(1)
+    preferred_catalog_version = 1
+    server_build_id = "ds-dev-smoke"
+} | ConvertTo-Json -Depth 8
+
+$serverUnauthenticatedStatus = $null
+try {
+    Invoke-RestMethod `
+        -Method Post `
+        -Uri "$BaseUrl/server/match-profile/build" `
+        -Body $matchBody `
+        -ContentType "application/json" | Out-Null
+} catch {
+    if ($null -ne $_.Exception.Response) {
+        $serverUnauthenticatedStatus = [int]$_.Exception.Response.StatusCode
+    }
+}
+
+if ($serverUnauthenticatedStatus -ne 401) {
+    throw "Expected /server call without server identity to return 401, got $serverUnauthenticatedStatus"
+}
+
+$profile = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/server/match-profile/build" `
+    -Headers $serverHeaders `
+    -Body $matchBody `
+    -ContentType "application/json"
+
+$primary = $profile.weapons | Where-Object { $_.weapon_slot_id -eq "primary" } | Select-Object -First 1
+if ($null -eq $primary -or $primary.weapon_id -ne "weapon.ak12") {
+    throw "Expected primary weapon.ak12 in match profile"
+}
+
 $runtimeOperationId = [Guid]::NewGuid().ToString()
 $runtimeBody = @{
     operation_id = $runtimeOperationId
@@ -250,48 +292,6 @@ $rotatedAccess = Invoke-RestMethod `
 
 if ($rotatedAccess.player_id -ne $playerId) {
     throw "Expected refreshed access token to authenticate player"
-}
-
-$matchBody = @{
-    match_id = $matchId
-    player_id = $playerId
-    realm_id = "global"
-    class_tag = "class.assault"
-    team_tag = "team.red"
-    weapon_preset_slot = 1
-    outfit_preset_slot = 1
-    supported_catalog_versions = @(1)
-    preferred_catalog_version = 1
-    server_build_id = "ds-dev-smoke"
-} | ConvertTo-Json -Depth 8
-
-$serverUnauthenticatedStatus = $null
-try {
-    Invoke-RestMethod `
-        -Method Post `
-        -Uri "$BaseUrl/server/match-profile/build" `
-        -Body $matchBody `
-        -ContentType "application/json" | Out-Null
-} catch {
-    if ($null -ne $_.Exception.Response) {
-        $serverUnauthenticatedStatus = [int]$_.Exception.Response.StatusCode
-    }
-}
-
-if ($serverUnauthenticatedStatus -ne 401) {
-    throw "Expected /server call without server identity to return 401, got $serverUnauthenticatedStatus"
-}
-
-$profile = Invoke-RestMethod `
-    -Method Post `
-    -Uri "$BaseUrl/server/match-profile/build" `
-    -Headers $serverHeaders `
-    -Body $matchBody `
-    -ContentType "application/json"
-
-$primary = $profile.weapons | Where-Object { $_.weapon_slot_id -eq "primary" } | Select-Object -First 1
-if ($null -eq $primary -or $primary.weapon_id -ne "weapon.ak12") {
-    throw "Expected primary weapon.ak12 in match profile"
 }
 
 [PSCustomObject]@{

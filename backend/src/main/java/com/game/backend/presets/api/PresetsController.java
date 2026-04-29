@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+/**
+ * Player API для чтения и сохранения loadout presets.
+ */
 @RestController
 public class PresetsController {
     private final PresetsService presetsService;
@@ -22,11 +25,17 @@ public class PresetsController {
         this.presetsService = presetsService;
     }
 
+    /**
+     * Возвращает presets текущего игрока из Bearer JWT.
+     */
     @GetMapping("/me/presets")
     PlayerPresetsResponse getMyPresets(Authentication authentication) {
         return presetsService.getPlayerPresets(CurrentPlayer.require(authentication).playerId());
     }
 
+    /**
+     * Сохраняет weapon preset с optimistic locking через If-Match revision.
+     */
     @PutMapping("/me/presets/weapons/{classTag}/{presetSlot}")
     ResponseEntity<WeaponPresetSaveResponse> saveWeaponPreset(
         Authentication authentication,

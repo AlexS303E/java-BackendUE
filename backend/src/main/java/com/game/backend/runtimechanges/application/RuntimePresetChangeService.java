@@ -7,6 +7,9 @@ import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeResponse;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
+import com.game.backend.serverauth.application.ServerAuditService;
+import com.game.backend.serverauth.application.ServerIdentity;
+import com.game.backend.serverauth.application.ServerMatchService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -18,6 +21,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -25,75 +29,181 @@ import java.util.UUID;
 @Service
 public class RuntimePresetChangeService {
     private static final int PENDING_TTL_DAYS = 7;
+    private static final String AUDIT_ACTION = "runtime_preset_change.submit";
+    private static final String AUDIT_SCOPE = "runtime_preset_change:write";
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final ServerMatchService serverMatchService;
+    private final ServerAuditService serverAuditService;
 
-    public RuntimePresetChangeService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
+    public RuntimePresetChangeService(
+        JdbcTemplate jdbcTemplate,
+        ObjectMapper objectMapper,
+        ServerMatchService serverMatchService,
+        ServerAuditService serverAuditService
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
+        this.serverMatchService = serverMatchService;
+        this.serverAuditService = serverAuditService;
     }
 
     @Transactional
-    public RuntimePresetChangeResponse submit(String idempotencyKey, RuntimePresetChangeRequest request) {
-        validateIdempotencyKey(idempotencyKey, request);
-        validatePayload(request.runtimeChangePayload());
+    public RuntimePresetChangeResponse submit(
+        ServerIdentity server,
+        String idempotencyKey,
+        RuntimePresetChangeRequest request
+    ) {
+        boolean matchAssigned = false;
+        try {
+            validateIdempotencyKey(idempotencyKey, request);
+            validatePayload(request.runtimeChangePayload());
 
-        String requestHash = requestHash(request);
-        ExistingOperation existing = existingOperation(request.operationId());
-        if (existing != null) {
-            return replayExistingOperation(request, requestHash, existing);
-        }
-        ensureOperationSequenceIsUnused(request);
+            String requestHash = requestHash(request);
+            serverMatchService.ensureAssignedForRuntimeChange(server, request);
+            matchAssigned = true;
 
-        OffsetDateTime now = OffsetDateTime.now();
-        PresetHeader preset = lockWeaponPreset(request);
-        if (preset.revision() != request.baseWeaponPresetRevision()) {
-            UUID pendingChangeId = createPendingChange(request, preset.revision(), now);
-            insertOperation(request, "conflict", null, pendingChangeId, requestHash, now);
-            return new RuntimePresetChangeResponse(
-                request.operationId(),
-                "conflict",
-                null,
-                pendingChangeId,
-                false,
-                "PRESET_REVISION_CONFLICT"
+            ExistingOperation existing = existingOperation(request.operationId());
+            if (existing != null) {
+                return auditedResponse(server, request, replayExistingOperation(request, requestHash, existing));
+            }
+            ensureOperationSequenceIsUnused(request);
+
+            OffsetDateTime now = OffsetDateTime.now();
+            PresetHeader preset = lockWeaponPreset(request);
+            if (preset.revision() != request.baseWeaponPresetRevision()) {
+                UUID pendingChangeId = createPendingChange(request, preset.revision(), now);
+                insertOperation(request, "conflict", null, pendingChangeId, requestHash, now);
+                return auditedResponse(
+                    server,
+                    request,
+                    new RuntimePresetChangeResponse(
+                        request.operationId(),
+                        "conflict",
+                        null,
+                        pendingChangeId,
+                        false,
+                        "PRESET_REVISION_CONFLICT"
+                    )
+                );
+            }
+
+            for (RuntimePresetChangeStep change : request.runtimeChangePayload().changes()) {
+                applyChange(request, preset.catalogVersion(), change, now);
+            }
+
+            long resultRevision = preset.revision() + 1;
+            jdbcTemplate.update(
+                """
+                    UPDATE player_weapon_presets
+                    SET revision = ?,
+                        sanitized = false,
+                        updated_at = ?
+                    WHERE player_id = ?
+                      AND class_tag = ?
+                      AND preset_slot = ?
+                      AND catalog_version = ?
+                    """,
+                resultRevision,
+                now,
+                request.playerId(),
+                request.classTag(),
+                request.weaponPresetSlot(),
+                preset.catalogVersion()
             );
+
+            insertOperation(request, "applied", resultRevision, null, requestHash, now);
+            return auditedResponse(
+                server,
+                request,
+                new RuntimePresetChangeResponse(
+                    request.operationId(),
+                    "applied",
+                    resultRevision,
+                    null,
+                    false,
+                    null
+                )
+            );
+        } catch (ApiException exception) {
+            auditFailure(server, request, matchAssigned, auditResult(exception), exception.code(), exception.status().value());
+            throw exception;
+        } catch (RuntimeException exception) {
+            auditFailure(server, request, matchAssigned, "failed", exception.getClass().getSimpleName(), 500);
+            throw exception;
+        }
+    }
+
+    private RuntimePresetChangeResponse auditedResponse(
+        ServerIdentity server,
+        RuntimePresetChangeRequest request,
+        RuntimePresetChangeResponse response
+    ) {
+        auditSuccess(server, request, response);
+        return response;
+    }
+
+    private void auditSuccess(
+        ServerIdentity server,
+        RuntimePresetChangeRequest request,
+        RuntimePresetChangeResponse response
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("match_id", request.matchId());
+        payload.put("operation_id", request.operationId());
+        payload.put("operation_seq", request.operationSeq());
+        payload.put("player_id", request.playerId());
+        payload.put("class_tag", request.classTag());
+        payload.put("weapon_preset_slot", request.weaponPresetSlot());
+        payload.put("status", response.status());
+        payload.put("duplicate", response.duplicate());
+        if (response.resultRevision() != null) {
+            payload.put("result_revision", response.resultRevision());
+        }
+        if (response.pendingChangeId() != null) {
+            payload.put("pending_change_id", response.pendingChangeId());
         }
 
-        for (RuntimePresetChangeStep change : request.runtimeChangePayload().changes()) {
-            applyChange(request, preset.catalogVersion(), change, now);
-        }
-
-        long resultRevision = preset.revision() + 1;
-        jdbcTemplate.update(
-            """
-                UPDATE player_weapon_presets
-                SET revision = ?,
-                    sanitized = false,
-                    updated_at = ?
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                """,
-            resultRevision,
-            now,
-            request.playerId(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            preset.catalogVersion()
+        serverAuditService.record(
+            server,
+            request.matchId(),
+            AUDIT_ACTION,
+            AUDIT_SCOPE,
+            "success",
+            payload
         );
+    }
 
-        insertOperation(request, "applied", resultRevision, null, requestHash, now);
-        return new RuntimePresetChangeResponse(
-            request.operationId(),
-            "applied",
-            resultRevision,
-            null,
-            false,
-            null
+    private void auditFailure(
+        ServerIdentity server,
+        RuntimePresetChangeRequest request,
+        boolean matchAssigned,
+        String result,
+        String code,
+        int status
+    ) {
+        serverAuditService.record(
+            server,
+            matchAssigned ? request.matchId() : null,
+            AUDIT_ACTION,
+            AUDIT_SCOPE,
+            result,
+            Map.of(
+                "match_id", request.matchId(),
+                "operation_id", request.operationId(),
+                "operation_seq", request.operationSeq(),
+                "player_id", request.playerId(),
+                "class_tag", request.classTag(),
+                "weapon_preset_slot", request.weaponPresetSlot(),
+                "code", code,
+                "status", status
+            )
         );
+    }
+
+    private String auditResult(ApiException exception) {
+        return exception.status() == HttpStatus.FORBIDDEN ? "denied" : "failed";
     }
 
     private void validateIdempotencyKey(String idempotencyKey, RuntimePresetChangeRequest request) {

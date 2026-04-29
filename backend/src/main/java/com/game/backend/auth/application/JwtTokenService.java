@@ -17,6 +17,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * Минимальный HMAC-SHA256 JWT сервис для access token MVP.
+ */
 @Service
 public class JwtTokenService {
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
@@ -36,6 +39,9 @@ public class JwtTokenService {
         this.accessTokenTtl = Duration.parse(accessTokenTtl);
     }
 
+    /**
+     * Формирует JWT с player_id в sub, login_name и временем истечения.
+     */
     public String issueAccessToken(UUID playerId, String loginName) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(accessTokenTtl);
@@ -56,6 +62,9 @@ public class JwtTokenService {
         return signingInput + "." + base64Url(sign(signingInput));
     }
 
+    /**
+     * Проверяет подпись, срок действия и извлекает AuthenticatedPlayer.
+     */
     public Optional<AuthenticatedPlayer> validate(String token) {
         String[] parts = token.split("\\.");
         if (parts.length != 3) {
@@ -71,6 +80,7 @@ public class JwtTokenService {
             return Optional.empty();
         }
 
+        // Константное сравнение защищает подпись от timing-утечек.
         if (!MessageDigest.isEqual(expectedSignature, actualSignature)) {
             return Optional.empty();
         }
@@ -92,6 +102,9 @@ public class JwtTokenService {
         }
     }
 
+    /**
+     * Возвращает TTL access token в секундах для auth response.
+     */
     public long accessTokenTtlSeconds() {
         return accessTokenTtl.toSeconds();
     }

@@ -3,6 +3,9 @@ package com.game.backend.matchprofile.api;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Готовый loadout snapshot игрока, который можно отдать Dedicated Server.
+ */
 public record MatchProfileResponse(
     int schemaVersion,
     UUID playerId,
