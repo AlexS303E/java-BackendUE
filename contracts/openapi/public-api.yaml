@@ -14,9 +14,19 @@ paths:
   /auth/register:
     post:
       operationId: registerPlayer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
       responses:
         "201":
           description: Player registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterResponse"
   /auth/login:
     post:
       operationId: loginPlayer
@@ -26,23 +36,146 @@ paths:
   /catalog/snapshot:
     get:
       operationId: getCatalogSnapshot
+      parameters:
+        - name: realm_id
+          in: query
+          required: false
+          schema:
+            type: string
+            default: global
       responses:
         "200":
           description: Catalog snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogSnapshot"
   /me/access:
     get:
       operationId: getMyAccess
+      parameters:
+        - name: X-Player-Id
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: realm_id
+          in: query
+          required: false
+          schema:
+            type: string
+            default: global
+        - name: catalog_version
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
       responses:
         "200":
           description: Access projection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessProjection"
   /me/presets:
     get:
       operationId: getMyPresets
+      parameters:
+        - name: X-Player-Id
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
         "200":
           description: Player presets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerPresets"
 components:
   schemas:
+    RegisterRequest:
+      type: object
+      required: [login_name, password]
+      properties:
+        login_name:
+          type: string
+          minLength: 3
+          maxLength: 64
+        password:
+          type: string
+          minLength: 8
+          maxLength: 256
+    RegisterResponse:
+      type: object
+      required: [player_id, login_name, status, needs_bootstrap]
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        login_name:
+          type: string
+        status:
+          type: string
+        needs_bootstrap:
+          type: boolean
+    CatalogSnapshot:
+      type: object
+      required: [realm_id, catalog_version, items, weapon_mounts, allowed_modules]
+      properties:
+        realm_id:
+          type: string
+        catalog_version:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            type: object
+        weapon_mounts:
+          type: array
+          items:
+            type: object
+        allowed_modules:
+          type: array
+          items:
+            type: object
+    PlayerPresets:
+      type: object
+      required: [player_id, weapon_presets, outfit_presets]
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        weapon_presets:
+          type: array
+          items:
+            type: object
+        outfit_presets:
+          type: array
+          items:
+            type: object
+    AccessProjection:
+      type: object
+      required: [player_id, catalog_version, access_revision, items]
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        catalog_version:
+          type: integer
+          format: int64
+        access_revision:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            type: object
     Problem:
       type: object
       properties:

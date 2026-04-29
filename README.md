@@ -32,3 +32,19 @@ The first implementation target should be the vertical flow:
 3. Save weapon preset with revision precondition.
 4. Build match profile for Dedicated Server.
 5. Submit runtime preset change with idempotency.
+
+## Current MVP Slice
+
+Implemented now:
+
+- `POST /auth/register`
+- `GET /catalog/snapshot`
+- `GET /me/access` with `X-Player-Id`
+- `GET /me/presets` with `X-Player-Id`
+- `POST /server/match-profile/build`
+
+Smoke check after `bootRun`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\smoke\vertical-smoke.ps1
+```

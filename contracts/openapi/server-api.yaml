@@ -8,9 +8,19 @@ paths:
   /server/match-profile/build:
     post:
       operationId: buildMatchProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuildMatchProfileRequest"
       responses:
         "200":
           description: Authoritative match profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchProfile"
         "409":
           description: Catalog version is not supported
   /server/runtime-preset-changes:
@@ -27,3 +37,89 @@ paths:
           description: Runtime change applied
         "409":
           description: Revision conflict
+components:
+  schemas:
+    BuildMatchProfileRequest:
+      type: object
+      required:
+        - match_id
+        - player_id
+        - realm_id
+        - class_tag
+        - team_tag
+        - weapon_preset_slot
+        - outfit_preset_slot
+        - supported_catalog_versions
+        - server_build_id
+      properties:
+        match_id:
+          type: string
+          format: uuid
+        player_id:
+          type: string
+          format: uuid
+        realm_id:
+          type: string
+        class_tag:
+          type: string
+        team_tag:
+          type: string
+        weapon_preset_slot:
+          type: integer
+        outfit_preset_slot:
+          type: integer
+        supported_catalog_versions:
+          type: array
+          items:
+            type: integer
+            format: int64
+        preferred_catalog_version:
+          type: integer
+          format: int64
+        server_build_id:
+          type: string
+    MatchProfile:
+      type: object
+      required:
+        - schema_version
+        - player_id
+        - realm_id
+        - catalog_version
+        - class_tag
+        - team_tag
+        - weapons
+        - outfit
+        - dependency_revisions
+      properties:
+        schema_version:
+          type: integer
+        player_id:
+          type: string
+          format: uuid
+        realm_id:
+          type: string
+        catalog_version:
+          type: integer
+          format: int64
+        class_tag:
+          type: string
+        team_tag:
+          type: string
+        weapon_preset_slot:
+          type: integer
+        outfit_preset_slot:
+          type: integer
+        weapons:
+          type: array
+          items:
+            type: object
+        outfit:
+          type: array
+          items:
+            type: object
+        sanitized_warnings:
+          type: array
+          items:
+            type: string
+        dependency_revisions:
+          type: object
