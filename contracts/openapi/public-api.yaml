@@ -96,6 +96,52 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PlayerPresets"
+  /me/presets/weapons/{class_tag}/{preset_slot}:
+    put:
+      operationId: saveWeaponPreset
+      parameters:
+        - name: X-Player-Id
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: class_tag
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: preset_slot
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeaponPresetSaveRequest"
+      responses:
+        "200":
+          description: Weapon preset saved
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeaponPresetSaveResponse"
+        "412":
+          description: Preset revision mismatch
+        "428":
+          description: If-Match header required
 components:
   schemas:
     RegisterRequest:
@@ -156,6 +202,56 @@ components:
           items:
             type: object
         outfit_presets:
+          type: array
+          items:
+            type: object
+    WeaponPresetSaveRequest:
+      type: object
+      required: [catalog_version, slots]
+      properties:
+        catalog_version:
+          type: integer
+          format: int64
+        slots:
+          type: array
+          items:
+            type: object
+            required: [weapon_slot_id, modules]
+            properties:
+              weapon_slot_id:
+                type: string
+              weapon_id:
+                type:
+                  - string
+                  - "null"
+              modules:
+                type: array
+                items:
+                  type: object
+                  required: [mount_id, module_id]
+                  properties:
+                    mount_id:
+                      type: string
+                    module_id:
+                      type: string
+    WeaponPresetSaveResponse:
+      type: object
+      required: [player_id, class_tag, preset_slot, catalog_version, revision, slots]
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        class_tag:
+          type: string
+        preset_slot:
+          type: integer
+        catalog_version:
+          type: integer
+          format: int64
+        revision:
+          type: integer
+          format: int64
+        slots:
           type: array
           items:
             type: object

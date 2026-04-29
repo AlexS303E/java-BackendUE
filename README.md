@@ -41,6 +41,7 @@ Implemented now:
 - `GET /catalog/snapshot`
 - `GET /me/access` with `X-Player-Id`
 - `GET /me/presets` with `X-Player-Id`
+- `PUT /me/presets/weapons/{classTag}/{presetSlot}` with `X-Player-Id` and `If-Match`
 - `POST /server/match-profile/build`
 
 Smoke check after `bootRun`:
