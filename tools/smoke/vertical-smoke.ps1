@@ -376,20 +376,20 @@ $adminAccessBody = @{
     locked_in_shop = $false
     locked_by_quest = $false
     disabled = $true
-    disabled_reason = "smoke_admin_disabled"
-    unlock_hint_code = "admin_disabled"
+    disabled_reason = "smoke_admin_disabled_weapon"
+    unlock_hint_code = "admin_disabled_weapon"
     unlock_hint_payload = @{
         source = "vertical_smoke"
         ticket = $adminAccessIdempotencyKey
     }
-    reason = "vertical_smoke_disable_item"
+    reason = "vertical_smoke_disable_weapon"
 } | ConvertTo-Json -Depth 8
 
 $adminUnauthenticatedStatus = $null
 try {
     Invoke-RestMethod `
         -Method Post `
-        -Uri "$BaseUrl/admin/players/$playerId/access/items/module.scope.red_dot_01" `
+        -Uri "$BaseUrl/admin/players/$playerId/access/items/weapon.ak12" `
         -Headers @{ "Idempotency-Key" = $adminAccessIdempotencyKey } `
         -Body $adminAccessBody `
         -ContentType "application/json" | Out-Null
@@ -405,13 +405,17 @@ if ($adminUnauthenticatedStatus -ne 401) {
 
 $adminAccess = Invoke-RestMethod `
     -Method Post `
-    -Uri "$BaseUrl/admin/players/$playerId/access/items/module.scope.red_dot_01" `
+    -Uri "$BaseUrl/admin/players/$playerId/access/items/weapon.ak12" `
     -Headers ($adminHeaders + @{ "Idempotency-Key" = $adminAccessIdempotencyKey }) `
     -Body $adminAccessBody `
     -ContentType "application/json"
 
 if ($adminAccess.disabled -ne $true -or $adminAccess.player_can_use -ne $false) {
-    throw "Expected admin access update to disable module.scope.red_dot_01"
+    throw "Expected admin access update to disable weapon.ak12"
+}
+
+if ($adminAccess.sanitized_weapon_presets -ne 1 -or $adminAccess.sanitized_outfit_presets -ne 0) {
+    throw "Expected admin access update to sanitize one weapon preset"
 }
 
 if ($adminAccess.access_revision -le $rotatedAccess.access_revision) {
@@ -420,7 +424,7 @@ if ($adminAccess.access_revision -le $rotatedAccess.access_revision) {
 
 $adminAccessReplay = Invoke-RestMethod `
     -Method Post `
-    -Uri "$BaseUrl/admin/players/$playerId/access/items/module.scope.red_dot_01" `
+    -Uri "$BaseUrl/admin/players/$playerId/access/items/weapon.ak12" `
     -Headers ($adminHeaders + @{ "Idempotency-Key" = $adminAccessIdempotencyKey }) `
     -Body $adminAccessBody `
     -ContentType "application/json"
@@ -429,16 +433,77 @@ if ($adminAccessReplay.duplicate -ne $true -or $adminAccessReplay.access_revisio
     throw "Expected admin access update replay to be idempotent"
 }
 
+if ($adminAccessReplay.sanitized_weapon_presets -ne $adminAccess.sanitized_weapon_presets) {
+    throw "Expected admin access replay to return original sanitization result"
+}
+
 $accessAfterAdmin = Invoke-RestMethod `
     -Uri "$BaseUrl/me/access" `
     -Headers @{ "Authorization" = "Bearer $($rotatedTokens.access_token)" }
 
 $disabledModule = $accessAfterAdmin.items |
-    Where-Object { $_.item_id -eq "module.scope.red_dot_01" } |
+    Where-Object { $_.item_id -eq "weapon.ak12" } |
     Select-Object -First 1
 
 if ($null -eq $disabledModule -or $disabledModule.disabled -ne $true -or $disabledModule.player_can_use -ne $false) {
-    throw "Expected disabled module to be visible in /me/access"
+    throw "Expected disabled weapon to be visible in /me/access"
+}
+
+$presetsAfterAdmin = Invoke-RestMethod `
+    -Uri "$BaseUrl/me/presets" `
+    -Headers @{ "Authorization" = "Bearer $($rotatedTokens.access_token)" }
+
+$weaponPresetAfterAdmin = $presetsAfterAdmin.weapon_presets |
+    Where-Object { $_.class_tag -eq "class.assault" -and $_.preset_slot -eq 1 } |
+    Select-Object -First 1
+
+if ($null -eq $weaponPresetAfterAdmin -or $weaponPresetAfterAdmin.sanitized -ne $true) {
+    throw "Expected weapon preset to be marked sanitized after admin disabled module"
+}
+
+if ($weaponPresetAfterAdmin.revision -ne ($resolvedPendingChange.result_revision + 1)) {
+    throw "Expected sanitized weapon preset revision to increment"
+}
+
+$primaryAfterAdmin = $weaponPresetAfterAdmin.slots |
+    Where-Object { $_.weapon_slot_id -eq "primary" } |
+    Select-Object -First 1
+
+if ($null -ne $primaryAfterAdmin.selected_weapon_id -or $primaryAfterAdmin.modules.Count -ne 0) {
+    throw "Expected disabled weapon to be removed from sanitized weapon preset"
+}
+
+$sanitizedMatchId = [Guid]::NewGuid().ToString()
+$sanitizedMatchBody = @{
+    match_id = $sanitizedMatchId
+    player_id = $playerId
+    realm_id = "global"
+    class_tag = "class.assault"
+    team_tag = "team.red"
+    weapon_preset_slot = 1
+    outfit_preset_slot = 1
+    supported_catalog_versions = @(1)
+    preferred_catalog_version = 1
+    server_build_id = "ds-dev-smoke"
+} | ConvertTo-Json -Depth 8
+
+$sanitizedProfile = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/server/match-profile/build" `
+    -Headers $serverHeaders `
+    -Body $sanitizedMatchBody `
+    -ContentType "application/json"
+
+$sanitizedPrimary = $sanitizedProfile.weapons |
+    Where-Object { $_.weapon_slot_id -eq "primary" } |
+    Select-Object -First 1
+
+if ($null -eq $sanitizedPrimary -or $null -ne $sanitizedPrimary.weapon_id -or $sanitizedPrimary.modules.Count -ne 0) {
+    throw "Expected sanitized match profile to omit disabled weapon"
+}
+
+if ($sanitizedProfile.dependency_revisions.weapon_preset_revision -ne $weaponPresetAfterAdmin.revision) {
+    throw "Expected sanitized match profile to use sanitized weapon preset revision"
 }
 
 [PSCustomObject]@{
@@ -461,6 +526,9 @@ if ($null -eq $disabledModule -or $disabledModule.disabled -ne $true -or $disabl
     admin_access_revision = $adminAccess.access_revision
     admin_access_duplicate = $adminAccessReplay.duplicate
     admin_disabled_can_use = $disabledModule.player_can_use
+    sanitized_weapon_presets = $adminAccess.sanitized_weapon_presets
+    sanitized_weapon_revision = $weaponPresetAfterAdmin.revision
+    sanitized_profile_modules = $sanitizedPrimary.modules.Count
     refresh_rotated = ($rotatedTokens.refresh_token -ne $tokens.refresh_token)
     outfit_presets = $presets.outfit_presets.Count
     primary_weapon = $primary.weapon_id

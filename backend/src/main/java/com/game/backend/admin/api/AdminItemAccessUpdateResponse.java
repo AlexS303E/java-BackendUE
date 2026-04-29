@@ -20,6 +20,8 @@ public record AdminItemAccessUpdateResponse(
     Map<String, Object> unlockHintPayload,
     boolean playerCanUse,
     UUID ledgerEventId,
+    int sanitizedWeaponPresets,
+    int sanitizedOutfitPresets,
     boolean duplicate
 ) {
 }

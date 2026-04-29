@@ -7,6 +7,8 @@ import com.game.backend.admin.api.AdminItemAccessUpdateRequest;
 import com.game.backend.admin.api.AdminItemAccessUpdateResponse;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.outbox.application.OutboxService;
+import com.game.backend.presets.application.LoadoutSanitizationResult;
+import com.game.backend.presets.application.LoadoutSanitizationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -35,17 +37,20 @@ public class AdminPlayerAccessService {
     private final ObjectMapper objectMapper;
     private final AdminAuditService adminAuditService;
     private final OutboxService outboxService;
+    private final LoadoutSanitizationService loadoutSanitizationService;
 
     public AdminPlayerAccessService(
         JdbcTemplate jdbcTemplate,
         ObjectMapper objectMapper,
         AdminAuditService adminAuditService,
-        OutboxService outboxService
+        OutboxService outboxService,
+        LoadoutSanitizationService loadoutSanitizationService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         this.adminAuditService = adminAuditService;
         this.outboxService = outboxService;
+        this.loadoutSanitizationService = loadoutSanitizationService;
     }
 
     /**
@@ -66,6 +71,10 @@ public class AdminPlayerAccessService {
             validateRequest(request);
             requestHash = requestHash(playerId, itemId, request);
 
+            ensurePlayerExists(playerId);
+            ensureCatalogItemExists(itemId, request.catalogVersion());
+            long currentRevision = lockAccessProjection(playerId);
+
             ExistingLedgerEvent existing = existingLedgerEvent(playerId, idempotencyKey);
             if (existing != null) {
                 if (!requestHash.equals(existing.requestHash())) {
@@ -80,16 +89,13 @@ public class AdminPlayerAccessService {
                 return response;
             }
 
-            ensurePlayerExists(playerId);
-            ensureCatalogItemExists(itemId, request.catalogVersion());
-            long currentRevision = lockAccessProjection(playerId);
-
             OffsetDateTime now = OffsetDateTime.now();
             UUID ledgerEventId = UUID.randomUUID();
             long accessRevision = currentRevision + 1;
-            insertLedgerEvent(admin, playerId, itemId, idempotencyKey, requestHash, ledgerEventId, accessRevision, request, now);
             upsertProjection(playerId, itemId, request, now);
             updateAccessRevision(playerId, accessRevision, ledgerEventId, now);
+            LoadoutSanitizationResult sanitization = sanitizeIfUnavailable(playerId, itemId, request, ledgerEventId, now);
+            insertLedgerEvent(admin, playerId, itemId, idempotencyKey, requestHash, ledgerEventId, accessRevision, sanitization, request, now);
             recordOutboxEvent(admin, playerId, itemId, request, accessRevision, ledgerEventId, now);
 
             AdminItemAccessUpdateResponse response = new AdminItemAccessUpdateResponse(
@@ -106,6 +112,8 @@ public class AdminPlayerAccessService {
                 request.unlockHintPayload(),
                 canUse(request),
                 ledgerEventId,
+                sanitization.sanitizedWeaponPresets(),
+                sanitization.sanitizedOutfitPresets(),
                 false
             );
             auditSuccess(admin, targetId, requestHash, request, response);
@@ -145,7 +153,9 @@ public class AdminPlayerAccessService {
                 SELECT
                   ledger_event_id,
                   payload->>'request_hash' AS request_hash,
-                  (payload->>'result_access_revision')::bigint AS result_access_revision
+                  (payload->>'result_access_revision')::bigint AS result_access_revision,
+                  (payload->>'sanitized_weapon_presets')::int AS sanitized_weapon_presets,
+                  (payload->>'sanitized_outfit_presets')::int AS sanitized_outfit_presets
                 FROM entitlement_ledger
                 WHERE player_id = ?
                   AND idempotency_key = ?
@@ -153,7 +163,9 @@ public class AdminPlayerAccessService {
             (rs, rowNum) -> new ExistingLedgerEvent(
                 rs.getObject("ledger_event_id", UUID.class),
                 rs.getString("request_hash"),
-                rs.getObject("result_access_revision", Long.class)
+                rs.getObject("result_access_revision", Long.class),
+                rs.getObject("sanitized_weapon_presets", Integer.class),
+                rs.getObject("sanitized_outfit_presets", Integer.class)
             ),
             playerId,
             idempotencyKey
@@ -216,6 +228,7 @@ public class AdminPlayerAccessService {
         String requestHash,
         UUID ledgerEventId,
         long accessRevision,
+        LoadoutSanitizationResult sanitization,
         AdminItemAccessUpdateRequest request,
         OffsetDateTime now
     ) {
@@ -244,7 +257,7 @@ public class AdminPlayerAccessService {
             request.reason(),
             admin.actorId(),
             idempotencyKey,
-            toJson(ledgerPayload(admin, requestHash, accessRevision, request)),
+            toJson(ledgerPayload(admin, requestHash, accessRevision, sanitization, request)),
             now
         );
     }
@@ -341,6 +354,8 @@ public class AdminPlayerAccessService {
             request.unlockHintPayload(),
             canUse(request),
             existing.ledgerEventId(),
+            sanitizedWeaponPresets(existing),
+            sanitizedOutfitPresets(existing),
             true
         );
     }
@@ -429,6 +444,8 @@ public class AdminPlayerAccessService {
             row.unlockHintPayload(),
             !row.hidden() && !row.lockedInShop() && !row.lockedByQuest() && !row.disabled(),
             ledgerEventId,
+            0,
+            0,
             duplicate
         );
     }
@@ -451,6 +468,8 @@ public class AdminPlayerAccessService {
                 "catalog_version", response.catalogVersion(),
                 "access_revision", response.accessRevision(),
                 "ledger_event_id", response.ledgerEventId(),
+                "sanitized_weapon_presets", response.sanitizedWeaponPresets(),
+                "sanitized_outfit_presets", response.sanitizedOutfitPresets(),
                 "duplicate", response.duplicate(),
                 "reason", request.reason()
             )
@@ -485,6 +504,7 @@ public class AdminPlayerAccessService {
         AdminIdentity admin,
         String requestHash,
         long accessRevision,
+        LoadoutSanitizationResult sanitization,
         AdminItemAccessUpdateRequest request
     ) {
         Map<String, Object> flags = new LinkedHashMap<>();
@@ -500,10 +520,40 @@ public class AdminPlayerAccessService {
         payload.put("schema_version", 1);
         payload.put("request_hash", requestHash);
         payload.put("result_access_revision", accessRevision);
+        payload.put("sanitized_weapon_presets", sanitization.sanitizedWeaponPresets());
+        payload.put("sanitized_outfit_presets", sanitization.sanitizedOutfitPresets());
         payload.put("actor_id", admin.actorId());
         payload.put("reason", request.reason());
         payload.put("flags", flags);
         return payload;
+    }
+
+    private LoadoutSanitizationResult sanitizeIfUnavailable(
+        UUID playerId,
+        String itemId,
+        AdminItemAccessUpdateRequest request,
+        UUID ledgerEventId,
+        OffsetDateTime now
+    ) {
+        if (canUse(request)) {
+            return LoadoutSanitizationResult.empty();
+        }
+        return loadoutSanitizationService.sanitizeUnavailableItem(
+            playerId,
+            itemId,
+            request.catalogVersion(),
+            "admin_access_update",
+            ledgerEventId,
+            now
+        );
+    }
+
+    private int sanitizedWeaponPresets(ExistingLedgerEvent existing) {
+        return existing.sanitizedWeaponPresets() == null ? 0 : existing.sanitizedWeaponPresets();
+    }
+
+    private int sanitizedOutfitPresets(ExistingLedgerEvent existing) {
+        return existing.sanitizedOutfitPresets() == null ? 0 : existing.sanitizedOutfitPresets();
     }
 
     private String requestHash(UUID playerId, String itemId, AdminItemAccessUpdateRequest request) {
@@ -562,7 +612,13 @@ public class AdminPlayerAccessService {
         }
     }
 
-    private record ExistingLedgerEvent(UUID ledgerEventId, String requestHash, Long resultAccessRevision) {
+    private record ExistingLedgerEvent(
+        UUID ledgerEventId,
+        String requestHash,
+        Long resultAccessRevision,
+        Integer sanitizedWeaponPresets,
+        Integer sanitizedOutfitPresets
+    ) {
     }
 
     private record ProjectionRow(
