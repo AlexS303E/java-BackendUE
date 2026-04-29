@@ -41,6 +41,10 @@ $serverHeaders = @{
     "X-Server-Id" = $serverId
     "X-Server-Certificate-Fingerprint" = $serverFingerprint
 }
+$adminHeaders = @{
+    "X-Admin-Token" = "dev-admin-token"
+    "X-Admin-Id" = "smoke-admin"
+}
 $catalog = Invoke-RestMethod -Uri "$BaseUrl/catalog/snapshot?realm_id=global"
 $access = Invoke-RestMethod -Uri "$BaseUrl/me/access" -Headers $authHeaders
 $presets = Invoke-RestMethod -Uri "$BaseUrl/me/presets" -Headers $authHeaders
@@ -143,6 +147,33 @@ $profile = Invoke-RestMethod `
 $primary = $profile.weapons | Where-Object { $_.weapon_slot_id -eq "primary" } | Select-Object -First 1
 if ($null -eq $primary -or $primary.weapon_id -ne "weapon.ak12") {
     throw "Expected primary weapon.ak12 in match profile"
+}
+
+$runtimeEventId = [Guid]::NewGuid().ToString()
+$runtimeEventBody = @{
+    event_id = $runtimeEventId
+    event_seq = 1
+    match_id = $matchId
+    event_type = "loadout_applied"
+    player_id = $playerId
+    payload_schema_version = 1
+    occurred_at = (Get-Date).ToUniversalTime().ToString("o")
+    payload = @{
+        class_tag = "class.assault"
+        weapon_preset_slot = 1
+        profile_revision = $profile.dependency_revisions.profile_revision
+    }
+} | ConvertTo-Json -Depth 8
+
+$runtimeEvent = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/server/runtime-events" `
+    -Headers $serverHeaders `
+    -Body $runtimeEventBody `
+    -ContentType "application/json"
+
+if ($runtimeEvent.status -ne "recorded" -or $runtimeEvent.event_id -ne $runtimeEventId) {
+    throw "Expected runtime event to be recorded"
 }
 
 $runtimeOperationId = [Guid]::NewGuid().ToString()
@@ -338,6 +369,78 @@ if ($rotatedAccess.player_id -ne $playerId) {
     throw "Expected refreshed access token to authenticate player"
 }
 
+$adminAccessIdempotencyKey = [Guid]::NewGuid().ToString()
+$adminAccessBody = @{
+    catalog_version = $catalog.catalog_version
+    hidden = $false
+    locked_in_shop = $false
+    locked_by_quest = $false
+    disabled = $true
+    disabled_reason = "smoke_admin_disabled"
+    unlock_hint_code = "admin_disabled"
+    unlock_hint_payload = @{
+        source = "vertical_smoke"
+        ticket = $adminAccessIdempotencyKey
+    }
+    reason = "vertical_smoke_disable_item"
+} | ConvertTo-Json -Depth 8
+
+$adminUnauthenticatedStatus = $null
+try {
+    Invoke-RestMethod `
+        -Method Post `
+        -Uri "$BaseUrl/admin/players/$playerId/access/items/module.scope.red_dot_01" `
+        -Headers @{ "Idempotency-Key" = $adminAccessIdempotencyKey } `
+        -Body $adminAccessBody `
+        -ContentType "application/json" | Out-Null
+} catch {
+    if ($null -ne $_.Exception.Response) {
+        $adminUnauthenticatedStatus = [int]$_.Exception.Response.StatusCode
+    }
+}
+
+if ($adminUnauthenticatedStatus -ne 401) {
+    throw "Expected /admin call without admin token to return 401, got $adminUnauthenticatedStatus"
+}
+
+$adminAccess = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/admin/players/$playerId/access/items/module.scope.red_dot_01" `
+    -Headers ($adminHeaders + @{ "Idempotency-Key" = $adminAccessIdempotencyKey }) `
+    -Body $adminAccessBody `
+    -ContentType "application/json"
+
+if ($adminAccess.disabled -ne $true -or $adminAccess.player_can_use -ne $false) {
+    throw "Expected admin access update to disable module.scope.red_dot_01"
+}
+
+if ($adminAccess.access_revision -le $rotatedAccess.access_revision) {
+    throw "Expected admin access update to increment access revision"
+}
+
+$adminAccessReplay = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/admin/players/$playerId/access/items/module.scope.red_dot_01" `
+    -Headers ($adminHeaders + @{ "Idempotency-Key" = $adminAccessIdempotencyKey }) `
+    -Body $adminAccessBody `
+    -ContentType "application/json"
+
+if ($adminAccessReplay.duplicate -ne $true -or $adminAccessReplay.access_revision -ne $adminAccess.access_revision) {
+    throw "Expected admin access update replay to be idempotent"
+}
+
+$accessAfterAdmin = Invoke-RestMethod `
+    -Uri "$BaseUrl/me/access" `
+    -Headers @{ "Authorization" = "Bearer $($rotatedTokens.access_token)" }
+
+$disabledModule = $accessAfterAdmin.items |
+    Where-Object { $_.item_id -eq "module.scope.red_dot_01" } |
+    Select-Object -First 1
+
+if ($null -eq $disabledModule -or $disabledModule.disabled -ne $true -or $disabledModule.player_can_use -ne $false) {
+    throw "Expected disabled module to be visible in /me/access"
+}
+
 [PSCustomObject]@{
     status = "VERTICAL_SMOKE_OK"
     player_id = $playerId
@@ -348,11 +451,16 @@ if ($rotatedAccess.player_id -ne $playerId) {
     saved_revision = $savedPreset.revision
     stale_revision_status = $staleRevisionStatus
     runtime_applied_revision = $runtimeApplied.result_revision
+    runtime_event_status = $runtimeEvent.status
     runtime_conflict_status = $runtimeConflictStatus
     post_match_pending_status = $resolvedPendingChange.status
     post_match_pending_revision = $resolvedPendingChange.result_revision
     server_unauthenticated_status = $serverUnauthenticatedStatus
     server_forbidden_status = $serverForbiddenStatus
+    admin_unauthenticated_status = $adminUnauthenticatedStatus
+    admin_access_revision = $adminAccess.access_revision
+    admin_access_duplicate = $adminAccessReplay.duplicate
+    admin_disabled_can_use = $disabledModule.player_can_use
     refresh_rotated = ($rotatedTokens.refresh_token -ne $tokens.refresh_token)
     outfit_presets = $presets.outfit_presets.Count
     primary_weapon = $primary.weapon_id

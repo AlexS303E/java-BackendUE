@@ -31,6 +31,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         HttpServletResponse response,
         FilterChain filterChain
     ) throws ServletException, IOException {
+        // Server/admin фильтры могут поставить свою identity раньше JWT; не перетираем ее player principal.
+        if (SecurityContextHolder.getContext().getAuthentication() != null) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String authorization = request.getHeader("Authorization");
         if (authorization == null || !authorization.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);

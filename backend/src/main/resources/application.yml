@@ -24,6 +24,8 @@ management:
         include: health,info,metrics,prometheus
 
 app:
+  admin:
+    token: ${ADMIN_TOKEN:dev-admin-token}
   auth:
     jwt-secret: ${JWT_SECRET:dev-only-change-me-dev-only-change-me}
     access-token-ttl: ${ACCESS_TOKEN_TTL:PT15M}

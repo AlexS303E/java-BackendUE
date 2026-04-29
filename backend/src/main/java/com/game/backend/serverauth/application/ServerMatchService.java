@@ -64,12 +64,20 @@ public class ServerMatchService {
      */
     @Transactional(readOnly = true)
     public void ensureAssignedForRuntimeChange(ServerIdentity identity, RuntimePresetChangeRequest request) {
-        ServerMatch match = loadMatch(request.matchId());
+        ensureAssignedForServerOperation(identity, request.matchId(), "Runtime preset changes");
+    }
+
+    /**
+     * Проверяет, что server operation пришла от DS, которому назначен match_id.
+     */
+    @Transactional(readOnly = true)
+    public void ensureAssignedForServerOperation(ServerIdentity identity, UUID matchId, String operationName) {
+        ServerMatch match = loadMatch(matchId);
         if (match == null) {
             throw new ApiException(
                 HttpStatus.FORBIDDEN,
                 "MATCH_NOT_ASSIGNED",
-                "Runtime preset changes are allowed only for matches assigned to this server"
+                operationName + " are allowed only for matches assigned to this server"
             );
         }
         ensureOwnedBy(identity, match);

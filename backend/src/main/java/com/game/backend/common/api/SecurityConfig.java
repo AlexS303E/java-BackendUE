@@ -1,5 +1,6 @@
 package com.game.backend.common.api;
 
+import com.game.backend.admin.application.AdminAuthenticationFilter;
 import com.game.backend.auth.application.JwtAuthenticationFilter;
 import com.game.backend.serverauth.application.ServerAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
@@ -13,7 +14,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Общая настройка безопасности: публичные endpoints, player JWT и server identity фильтры.
+ * Общая настройка безопасности: публичные endpoints, player JWT, server identity и admin token фильтры.
  */
 @Configuration
 @EnableWebSecurity
@@ -25,7 +26,8 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(
         HttpSecurity http,
         JwtAuthenticationFilter jwtAuthenticationFilter,
-        ServerAuthenticationFilter serverAuthenticationFilter
+        ServerAuthenticationFilter serverAuthenticationFilter,
+        AdminAuthenticationFilter adminAuthenticationFilter
     ) throws Exception {
         return http
             .csrf(csrf -> csrf.disable())
@@ -40,6 +42,7 @@ public class SecurityConfig {
                 ).permitAll()
                 .anyRequest().authenticated()
             )
+            .addFilterBefore(adminAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(serverAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .build();

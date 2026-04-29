@@ -119,6 +119,9 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
         if ("POST".equals(method) && "/server/runtime-preset-changes".equals(path)) {
             return "runtime_preset_change:write";
         }
+        if ("POST".equals(method) && "/server/runtime-events".equals(path)) {
+            return "runtime_event:write";
+        }
         return null;
     }
 
