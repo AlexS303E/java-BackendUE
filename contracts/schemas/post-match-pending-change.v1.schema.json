@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.local/post-match-pending-change.v1.schema.json",
+  "title": "PostMatchPendingChangePayloadV1",
+  "type": "object",
+  "required": ["schema_version", "runtime_change_payload", "conflict", "resolution_options"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "runtime_change_payload": { "type": "object" },
+    "conflict": { "type": "object" },
+    "resolution_options": {
+      "type": "array",
+      "items": { "enum": ["apply_if_still_valid", "discard", "manual_merge"] }
+    }
+  },
+  "additionalProperties": false
+}

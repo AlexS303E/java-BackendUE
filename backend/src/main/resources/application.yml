@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: backend-for-ue
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ue_backend}
+    username: ${DB_USER:ue_backend}
+    password: ${DB_PASSWORD:ue_backend}
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

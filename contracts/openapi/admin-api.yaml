@@ -1,0 +1,17 @@
+openapi: 3.1.0
+info:
+  title: Backend For UE Admin API
+  version: 0.1.0
+paths:
+  /admin/catalog/publish:
+    post:
+      operationId: publishCatalog
+      responses:
+        "202":
+          description: Catalog publish accepted
+  /admin/catalog/rollback:
+    post:
+      operationId: rollbackCatalog
+      responses:
+        "202":
+          description: Catalog rollback accepted

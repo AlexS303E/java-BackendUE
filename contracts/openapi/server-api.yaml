@@ -1,0 +1,29 @@
+openapi: 3.1.0
+info:
+  title: Backend For UE Server API
+  version: 0.1.0
+servers:
+  - url: https://localhost:8443
+paths:
+  /server/match-profile/build:
+    post:
+      operationId: buildMatchProfile
+      responses:
+        "200":
+          description: Authoritative match profile
+        "409":
+          description: Catalog version is not supported
+  /server/runtime-preset-changes:
+    post:
+      operationId: submitRuntimePresetChanges
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Runtime change applied
+        "409":
+          description: Revision conflict

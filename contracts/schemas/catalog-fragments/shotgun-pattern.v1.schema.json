@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.local/catalog-fragments/shotgun-pattern.v1.schema.json",
+  "title": "ShotgunPatternFragmentV1",
+  "type": "object",
+  "required": ["schema_version", "pellet_count", "spread_angle", "damage_per_pellet"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "pellet_count": { "type": "integer", "minimum": 1 },
+    "spread_angle": { "type": "number" },
+    "damage_per_pellet": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,56 @@
+openapi: 3.1.0
+info:
+  title: Backend For UE Public API
+  version: 0.1.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service health
+  /auth/register:
+    post:
+      operationId: registerPlayer
+      responses:
+        "201":
+          description: Player registered
+  /auth/login:
+    post:
+      operationId: loginPlayer
+      responses:
+        "200":
+          description: Login success
+  /catalog/snapshot:
+    get:
+      operationId: getCatalogSnapshot
+      responses:
+        "200":
+          description: Catalog snapshot
+  /me/access:
+    get:
+      operationId: getMyAccess
+      responses:
+        "200":
+          description: Access projection
+  /me/presets:
+    get:
+      operationId: getMyPresets
+      responses:
+        "200":
+          description: Player presets
+components:
+  schemas:
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string

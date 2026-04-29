@@ -1,0 +1,8 @@
+.gradle/
+build/
+out/
+
+*.class
+*.log
+
+application-local.override.yml

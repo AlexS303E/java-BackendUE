@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.local/match-profile.v1.schema.json",
+  "title": "MatchProfileV1",
+  "type": "object",
+  "required": ["schema_version", "player_id", "realm_id", "catalog_version", "class_tag", "team_tag", "weapons", "outfit", "dependency_revisions"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "player_id": { "type": "string", "format": "uuid" },
+    "realm_id": { "type": "string" },
+    "catalog_version": { "type": "integer" },
+    "class_tag": { "type": "string" },
+    "team_tag": { "type": "string" },
+    "weapon_preset_slot": { "type": "integer" },
+    "outfit_preset_slot": { "type": "integer" },
+    "weapons": { "type": "array" },
+    "outfit": { "type": "array" },
+    "sanitized_warnings": { "type": "array" },
+    "dependency_revisions": { "type": "object" }
+  },
+  "additionalProperties": false
+}

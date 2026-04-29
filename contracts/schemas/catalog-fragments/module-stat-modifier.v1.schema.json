@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.local/catalog-fragments/module-stat-modifier.v1.schema.json",
+  "title": "ModuleStatModifierFragmentV1",
+  "type": "object",
+  "required": ["schema_version", "modifiers"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "modifiers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target_stat", "operation", "value"],
+        "properties": {
+          "target_stat": { "type": "string" },
+          "operation": { "enum": ["add", "add_percent", "multiply", "override"] },
+          "value": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

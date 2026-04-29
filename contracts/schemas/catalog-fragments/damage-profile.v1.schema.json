@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.local/catalog-fragments/damage-profile.v1.schema.json",
+  "title": "DamageProfileFragmentV1",
+  "type": "object",
+  "required": ["schema_version", "damage_mode", "base_damage", "damage_type"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "damage_mode": { "enum": ["flat", "distance_curve_multiplier", "distance_curve_absolute"] },
+    "base_damage": { "type": "number" },
+    "damage_curve_id": { "type": ["string", "null"] },
+    "min_damage": { "type": ["number", "null"] },
+    "max_damage": { "type": ["number", "null"] },
+    "range_unit": { "type": "string" },
+    "damage_type": { "type": "string" }
+  },
+  "additionalProperties": false
+}

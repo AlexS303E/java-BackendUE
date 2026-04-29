@@ -1,0 +1,7 @@
+spring:
+  flyway:
+    clean-disabled: false
+
+logging:
+  level:
+    com.game.backend: DEBUG

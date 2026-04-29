@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.local/runtime-preset-change.v1.schema.json",
+  "title": "RuntimePresetChangePayloadV1",
+  "type": "object",
+  "required": ["schema_version", "changes"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["op", "weapon_slot_id"],
+        "properties": {
+          "op": { "enum": ["set_weapon", "clear_weapon", "set_module", "clear_module"] },
+          "weapon_slot_id": { "type": "string" },
+          "weapon_id": { "type": "string" },
+          "mount_id": { "type": "string" },
+          "module_id": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
