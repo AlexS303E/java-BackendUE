@@ -45,8 +45,13 @@ Implemented now:
 - `GET /me/access` with Bearer access token
 - `GET /me/presets` with Bearer access token
 - `PUT /me/presets/weapons/{classTag}/{presetSlot}` with Bearer access token and `If-Match`
-- `POST /server/match-profile/build`
-- `POST /server/runtime-preset-changes` with `Idempotency-Key == operation_id`
+- `POST /server/match-profile/build` with server identity headers
+- `POST /server/runtime-preset-changes` with server identity headers and `Idempotency-Key == operation_id`
+
+Dev Dedicated Server identity for local smoke tests:
+
+- `X-Server-Id: 10000000-0000-0000-0000-000000000001`
+- `X-Server-Certificate-Fingerprint: dev-ds-fingerprint`
 
 Smoke check after `bootRun`:
 

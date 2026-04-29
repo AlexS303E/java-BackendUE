@@ -35,6 +35,12 @@ if ($tokens.player_id -ne $playerId -or [string]::IsNullOrWhiteSpace($tokens.acc
 }
 
 $authHeaders = @{ "Authorization" = "Bearer $($tokens.access_token)" }
+$serverId = "10000000-0000-0000-0000-000000000001"
+$serverFingerprint = "dev-ds-fingerprint"
+$serverHeaders = @{
+    "X-Server-Id" = $serverId
+    "X-Server-Certificate-Fingerprint" = $serverFingerprint
+}
 $catalog = Invoke-RestMethod -Uri "$BaseUrl/catalog/snapshot?realm_id=global"
 $access = Invoke-RestMethod -Uri "$BaseUrl/me/access" -Headers $authHeaders
 $presets = Invoke-RestMethod -Uri "$BaseUrl/me/presets" -Headers $authHeaders
@@ -123,12 +129,61 @@ $runtimeBody = @{
 $runtimeApplied = Invoke-RestMethod `
     -Method Post `
     -Uri "$BaseUrl/server/runtime-preset-changes" `
-    -Headers @{ "Idempotency-Key" = $runtimeOperationId } `
+    -Headers @{
+        "X-Server-Id" = $serverId
+        "X-Server-Certificate-Fingerprint" = $serverFingerprint
+        "Idempotency-Key" = $runtimeOperationId
+    } `
     -Body $runtimeBody `
     -ContentType "application/json"
 
 if ($runtimeApplied.status -ne "applied" -or $runtimeApplied.result_revision -ne ($savedPreset.revision + 1)) {
     throw "Expected runtime change to apply and increment revision"
+}
+
+$serverForbiddenStatus = $null
+$limitedRuntimeOperationId = [Guid]::NewGuid().ToString()
+$limitedRuntimeBody = @{
+    operation_id = $limitedRuntimeOperationId
+    operation_seq = 99
+    match_id = $matchId
+    player_id = $playerId
+    class_tag = "class.assault"
+    weapon_preset_slot = 1
+    base_weapon_preset_revision = $runtimeApplied.result_revision
+    runtime_change_payload = @{
+        schema_version = 1
+        changes = @(
+            @{
+                op = "set_module"
+                weapon_slot_id = "primary"
+                weapon_id = "weapon.ak12"
+                mount_id = "weapon.ak12.mount.scope.01"
+                module_id = "module.scope.red_dot_01"
+            }
+        )
+    }
+} | ConvertTo-Json -Depth 10
+
+try {
+    Invoke-RestMethod `
+        -Method Post `
+        -Uri "$BaseUrl/server/runtime-preset-changes" `
+        -Headers @{
+            "X-Server-Id" = "10000000-0000-0000-0000-000000000002"
+            "X-Server-Certificate-Fingerprint" = "dev-ds-limited-fingerprint"
+            "Idempotency-Key" = $limitedRuntimeOperationId
+        } `
+        -Body $limitedRuntimeBody `
+        -ContentType "application/json" | Out-Null
+} catch {
+    if ($null -ne $_.Exception.Response) {
+        $serverForbiddenStatus = [int]$_.Exception.Response.StatusCode
+    }
+}
+
+if ($serverForbiddenStatus -ne 403) {
+    throw "Expected limited server identity to return 403 for runtime changes, got $serverForbiddenStatus"
 }
 
 $runtimeConflictStatus = $null
@@ -158,7 +213,11 @@ try {
     Invoke-RestMethod `
         -Method Post `
         -Uri "$BaseUrl/server/runtime-preset-changes" `
-        -Headers @{ "Idempotency-Key" = $runtimeConflictOperationId } `
+        -Headers @{
+            "X-Server-Id" = $serverId
+            "X-Server-Certificate-Fingerprint" = $serverFingerprint
+            "Idempotency-Key" = $runtimeConflictOperationId
+        } `
         -Body $runtimeConflictBody `
         -ContentType "application/json" | Out-Null
 } catch {
@@ -206,9 +265,27 @@ $matchBody = @{
     server_build_id = "ds-dev-smoke"
 } | ConvertTo-Json -Depth 8
 
+$serverUnauthenticatedStatus = $null
+try {
+    Invoke-RestMethod `
+        -Method Post `
+        -Uri "$BaseUrl/server/match-profile/build" `
+        -Body $matchBody `
+        -ContentType "application/json" | Out-Null
+} catch {
+    if ($null -ne $_.Exception.Response) {
+        $serverUnauthenticatedStatus = [int]$_.Exception.Response.StatusCode
+    }
+}
+
+if ($serverUnauthenticatedStatus -ne 401) {
+    throw "Expected /server call without server identity to return 401, got $serverUnauthenticatedStatus"
+}
+
 $profile = Invoke-RestMethod `
     -Method Post `
     -Uri "$BaseUrl/server/match-profile/build" `
+    -Headers $serverHeaders `
     -Body $matchBody `
     -ContentType "application/json"
 
@@ -228,6 +305,8 @@ if ($null -eq $primary -or $primary.weapon_id -ne "weapon.ak12") {
     stale_revision_status = $staleRevisionStatus
     runtime_applied_revision = $runtimeApplied.result_revision
     runtime_conflict_status = $runtimeConflictStatus
+    server_unauthenticated_status = $serverUnauthenticatedStatus
+    server_forbidden_status = $serverForbiddenStatus
     refresh_rotated = ($rotatedTokens.refresh_token -ne $tokens.refresh_token)
     outfit_presets = $presets.outfit_presets.Count
     primary_weapon = $primary.weapon_id

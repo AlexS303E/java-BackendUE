@@ -1,6 +1,7 @@
 package com.game.backend.common.api;
 
 import com.game.backend.auth.application.JwtAuthenticationFilter;
+import com.game.backend.serverauth.application.ServerAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -15,7 +16,11 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableWebSecurity
 public class SecurityConfig {
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+    SecurityFilterChain securityFilterChain(
+        HttpSecurity http,
+        JwtAuthenticationFilter jwtAuthenticationFilter,
+        ServerAuthenticationFilter serverAuthenticationFilter
+    ) throws Exception {
         return http
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -25,12 +30,11 @@ public class SecurityConfig {
                     "/actuator/health",
                     "/actuator/info",
                     "/auth/**",
-                    "/catalog/**",
-                    "/server/match-profile/build",
-                    "/server/runtime-preset-changes"
+                    "/catalog/**"
                 ).permitAll()
                 .anyRequest().authenticated()
             )
+            .addFilterBefore(serverAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .build();
     }

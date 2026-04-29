@@ -8,6 +8,9 @@ paths:
   /server/match-profile/build:
     post:
       operationId: buildMatchProfile
+      security:
+        - serverId: []
+          serverCertificateFingerprint: []
       requestBody:
         required: true
         content:
@@ -26,6 +29,9 @@ paths:
   /server/runtime-preset-changes:
     post:
       operationId: submitRuntimePresetChanges
+      security:
+        - serverId: []
+          serverCertificateFingerprint: []
       parameters:
         - name: Idempotency-Key
           in: header
@@ -48,6 +54,15 @@ paths:
         "409":
           description: Revision conflict
 components:
+  securitySchemes:
+    serverId:
+      type: apiKey
+      in: header
+      name: X-Server-Id
+    serverCertificateFingerprint:
+      type: apiKey
+      in: header
+      name: X-Server-Certificate-Fingerprint
   schemas:
     BuildMatchProfileRequest:
       type: object
