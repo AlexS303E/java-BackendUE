@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Server API для фиксации runtime-изменений loadout, сделанных прямо во время матча.
+ */
 @RestController
 public class RuntimePresetChangeController {
     private final RuntimePresetChangeService runtimePresetChangeService;
@@ -20,6 +23,9 @@ public class RuntimePresetChangeController {
         this.runtimePresetChangeService = runtimePresetChangeService;
     }
 
+    /**
+     * Принимает идемпотентную операцию от DS и возвращает applied либо conflict.
+     */
     @PostMapping("/server/runtime-preset-changes")
     ResponseEntity<?> submitRuntimePresetChanges(
         Authentication authentication,
@@ -32,6 +38,7 @@ public class RuntimePresetChangeController {
             request
         );
         if ("conflict".equals(response.status())) {
+            // Конфликт ревизии отдаем как problem+json, но сохраняем pending change для post-match решения.
             ProblemDetail detail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,
                 "Runtime preset change conflicts with a newer durable preset revision"

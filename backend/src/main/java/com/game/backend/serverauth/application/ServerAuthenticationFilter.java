@@ -21,6 +21,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Аутентифицирует /server/* запросы по server_id и certificate fingerprint.
+ */
 @Component
 public class ServerAuthenticationFilter extends OncePerRequestFilter {
     private static final String SERVER_ID_HEADER = "X-Server-Id";
@@ -39,6 +42,9 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
         return !request.getRequestURI().startsWith("/server/");
     }
 
+    /**
+     * Проверяет server identity, required scope и кладет ServerIdentity в SecurityContext.
+     */
     @Override
     protected void doFilterInternal(
         HttpServletRequest request,
@@ -73,6 +79,7 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
         }
 
         if (!identity.hasScope(requiredScope)) {
+            // Если identity валидна, но scope недостаточен, сохраняем denied audit event.
             serverAuditService.record(
                 identity,
                 null,
@@ -100,6 +107,9 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    /**
+     * Жесткая route -> scope матрица для текущего MVP набора server endpoints.
+     */
     private String requiredScope(HttpServletRequest request) {
         String method = request.getMethod();
         String path = request.getRequestURI();
@@ -112,6 +122,9 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 
+    /**
+     * Загружает только active server identity с совпавшим fingerprint и неистекшим сроком.
+     */
     private ServerIdentity loadServerIdentity(UUID serverId, String fingerprint) {
         List<ServerIdentity> identities = jdbcTemplate.query(
             """

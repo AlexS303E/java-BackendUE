@@ -13,6 +13,9 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Пишет аудит server endpoints в server_audit_events.
+ */
 @Service
 public class ServerAuditService {
     private static final Logger log = LoggerFactory.getLogger(ServerAuditService.class);
@@ -25,6 +28,9 @@ public class ServerAuditService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * Пишет audit event в отдельной транзакции, чтобы аудит сохранялся даже при rollback бизнес-операции.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(
         ServerIdentity identity,
@@ -59,6 +65,7 @@ public class ServerAuditService {
                 OffsetDateTime.now()
             );
         } catch (RuntimeException exception) {
+            // Аудит не должен ломать пользовательский сценарий; сбой виден в логах.
             log.warn("Unable to write server audit event action={} result={}", action, result, exception);
         }
     }

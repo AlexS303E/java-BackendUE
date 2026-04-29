@@ -13,6 +13,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Отвечает за привязку match_id к DS и проверку, что DS работает только со своими матчами.
+ */
 @Service
 public class ServerMatchService {
     private final JdbcTemplate jdbcTemplate;
@@ -21,6 +24,9 @@ public class ServerMatchService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * Создает assignment для match profile build или проверяет уже существующий assignment.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void ensureAssignedForBuild(ServerIdentity identity, BuildMatchProfileRequest request) {
         ensureRealmMatchesIdentity(identity, request.realmId());
@@ -53,6 +59,9 @@ public class ServerMatchService {
         ensureMatchIsActive(match);
     }
 
+    /**
+     * Проверяет, что runtime operation пришла от DS, которому назначен этот match_id.
+     */
     @Transactional(readOnly = true)
     public void ensureAssignedForRuntimeChange(ServerIdentity identity, RuntimePresetChangeRequest request) {
         ServerMatch match = loadMatch(request.matchId());
@@ -86,6 +95,9 @@ public class ServerMatchService {
         return matches.isEmpty() ? null : matches.getFirst();
     }
 
+    /**
+     * Не дает одному DS читать или менять данные матча другого DS.
+     */
     private void ensureOwnedBy(ServerIdentity identity, ServerMatch match) {
         if (!match.serverId().equals(identity.serverId())) {
             throw new ApiException(

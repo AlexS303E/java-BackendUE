@@ -26,6 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Применяет runtime preset changes от DS и фиксирует conflict как post-match pending change.
+ */
 @Service
 public class RuntimePresetChangeService {
     private static final int PENDING_TTL_DAYS = 7;
@@ -36,19 +39,25 @@ public class RuntimePresetChangeService {
     private final ObjectMapper objectMapper;
     private final ServerMatchService serverMatchService;
     private final ServerAuditService serverAuditService;
+    private final WeaponPresetRuntimeChangeApplier runtimeChangeApplier;
 
     public RuntimePresetChangeService(
         JdbcTemplate jdbcTemplate,
         ObjectMapper objectMapper,
         ServerMatchService serverMatchService,
-        ServerAuditService serverAuditService
+        ServerAuditService serverAuditService,
+        WeaponPresetRuntimeChangeApplier runtimeChangeApplier
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         this.serverMatchService = serverMatchService;
         this.serverAuditService = serverAuditService;
+        this.runtimeChangeApplier = runtimeChangeApplier;
     }
 
+    /**
+     * Проверяет идемпотентность, владение матчем, ревизию preset и применяет операцию.
+     */
     @Transactional
     public RuntimePresetChangeResponse submit(
         ServerIdentity server,
@@ -61,6 +70,7 @@ public class RuntimePresetChangeService {
             validatePayload(request.runtimeChangePayload());
 
             String requestHash = requestHash(request);
+            // Runtime operation разрешена только DS, которому ранее назначили match_id.
             serverMatchService.ensureAssignedForRuntimeChange(server, request);
             matchAssigned = true;
 
@@ -73,6 +83,7 @@ public class RuntimePresetChangeService {
             OffsetDateTime now = OffsetDateTime.now();
             PresetHeader preset = lockWeaponPreset(request);
             if (preset.revision() != request.baseWeaponPresetRevision()) {
+                // Durable preset уже изменился: операцию нельзя применить автоматически, переносим в post-match queue.
                 UUID pendingChangeId = createPendingChange(request, preset.revision(), now);
                 insertOperation(request, "conflict", null, pendingChangeId, requestHash, now);
                 return auditedResponse(
@@ -89,9 +100,14 @@ public class RuntimePresetChangeService {
                 );
             }
 
-            for (RuntimePresetChangeStep change : request.runtimeChangePayload().changes()) {
-                applyChange(request, preset.catalogVersion(), change, now);
-            }
+            runtimeChangeApplier.apply(
+                request.playerId(),
+                request.classTag(),
+                request.weaponPresetSlot(),
+                preset.catalogVersion(),
+                request.runtimeChangePayload(),
+                now
+            );
 
             long resultRevision = preset.revision() + 1;
             jdbcTemplate.update(
@@ -233,6 +249,9 @@ public class RuntimePresetChangeService {
         }
     }
 
+    /**
+     * Возвращает результат уже записанной операции, если operation_id повторили с тем же request hash.
+     */
     private RuntimePresetChangeResponse replayExistingOperation(
         RuntimePresetChangeRequest request,
         String requestHash,
@@ -273,6 +292,9 @@ public class RuntimePresetChangeService {
         return operations.isEmpty() ? null : operations.getFirst();
     }
 
+    /**
+     * Защищает DS от повторного sequence number внутри одного match/player.
+     */
     private void ensureOperationSequenceIsUnused(RuntimePresetChangeRequest request) {
         Boolean exists = jdbcTemplate.queryForObject(
             """
@@ -298,6 +320,9 @@ public class RuntimePresetChangeService {
         }
     }
 
+    /**
+     * Блокирует weapon preset до конца транзакции, чтобы ревизия и запись операции были согласованы.
+     */
     private PresetHeader lockWeaponPreset(RuntimePresetChangeRequest request) {
         List<PresetHeader> presets = jdbcTemplate.query(
             """
@@ -326,6 +351,9 @@ public class RuntimePresetChangeService {
         return presets.getFirst();
     }
 
+    /**
+     * Создает pending change для ручного или автоматического post-match resolution.
+     */
     private UUID createPendingChange(RuntimePresetChangeRequest request, long currentRevision, OffsetDateTime now) {
         UUID changeId = UUID.randomUUID();
         jdbcTemplate.update(
@@ -375,6 +403,9 @@ public class RuntimePresetChangeService {
         return toJson(payload);
     }
 
+    /**
+     * Выбирает обработчик атомарного runtime change по op.
+     */
     private void applyChange(
         RuntimePresetChangeRequest request,
         long catalogVersion,
@@ -394,6 +425,9 @@ public class RuntimePresetChangeService {
         }
     }
 
+    /**
+     * Ставит оружие в slot и обновляет/создает weapon config.
+     */
     private void setWeapon(
         RuntimePresetChangeRequest request,
         long catalogVersion,
@@ -412,6 +446,9 @@ public class RuntimePresetChangeService {
         upsertSelectedSlot(request, catalogVersion, change.weaponSlotId(), null);
     }
 
+    /**
+     * Ставит или заменяет один модуль на выбранном weapon mount.
+     */
     private void setModule(
         RuntimePresetChangeRequest request,
         long catalogVersion,
@@ -732,6 +769,9 @@ public class RuntimePresetChangeService {
         );
     }
 
+    /**
+     * Записывает итог operation log: именно эта таблица обеспечивает replay и idempotency.
+     */
     private void insertOperation(
         RuntimePresetChangeRequest request,
         String status,

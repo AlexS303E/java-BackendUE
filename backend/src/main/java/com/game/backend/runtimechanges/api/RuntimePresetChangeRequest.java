@@ -6,6 +6,9 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.UUID;
 
+/**
+ * Запрос Dedicated Server на применение runtime-изменения weapon preset.
+ */
 public record RuntimePresetChangeRequest(
     @NotNull
     UUID operationId,

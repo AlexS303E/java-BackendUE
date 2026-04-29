@@ -229,6 +229,7 @@ if ($serverForbiddenStatus -ne 403) {
 }
 
 $runtimeConflictStatus = $null
+$runtimeConflictPendingChangeId = $null
 $runtimeConflictOperationId = [Guid]::NewGuid().ToString()
 $runtimeConflictBody = @{
     operation_id = $runtimeConflictOperationId
@@ -266,10 +267,53 @@ try {
     if ($null -ne $_.Exception.Response) {
         $runtimeConflictStatus = [int]$_.Exception.Response.StatusCode
     }
+    $problemBody = $_.ErrorDetails.Message
+    if ([string]::IsNullOrWhiteSpace($problemBody) -and $null -ne $_.Exception.Response) {
+        $stream = $_.Exception.Response.GetResponseStream()
+        if ($null -ne $stream) {
+            $reader = [System.IO.StreamReader]::new($stream)
+            $problemBody = $reader.ReadToEnd()
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($problemBody)) {
+        $problem = $problemBody | ConvertFrom-Json
+        $runtimeConflictPendingChangeId = $problem.pending_change_id
+    }
 }
 
 if ($runtimeConflictStatus -ne 409) {
     throw "Expected runtime revision conflict to return 409, got $runtimeConflictStatus"
+}
+
+if ([string]::IsNullOrWhiteSpace($runtimeConflictPendingChangeId)) {
+    throw "Expected runtime revision conflict to return pending_change_id"
+}
+
+$pendingChanges = Invoke-RestMethod `
+    -Uri "$BaseUrl/me/post-match-pending-changes" `
+    -Headers $authHeaders
+
+$pendingChange = $pendingChanges.changes |
+    Where-Object { $_.change_id -eq $runtimeConflictPendingChangeId } |
+    Select-Object -First 1
+
+if ($null -eq $pendingChange -or $pendingChange.status -ne "pending") {
+    throw "Expected pending change to be visible to player"
+}
+
+$resolveBody = @{
+    resolution = "apply_if_still_valid"
+} | ConvertTo-Json
+
+$resolvedPendingChange = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/me/post-match-pending-changes/$runtimeConflictPendingChangeId/resolve" `
+    -Headers $authHeaders `
+    -Body $resolveBody `
+    -ContentType "application/json"
+
+if ($resolvedPendingChange.status -ne "applied" -or $resolvedPendingChange.result_revision -ne ($runtimeApplied.result_revision + 1)) {
+    throw "Expected post-match pending change to apply and increment revision"
 }
 
 $refreshBody = @{
@@ -305,6 +349,8 @@ if ($rotatedAccess.player_id -ne $playerId) {
     stale_revision_status = $staleRevisionStatus
     runtime_applied_revision = $runtimeApplied.result_revision
     runtime_conflict_status = $runtimeConflictStatus
+    post_match_pending_status = $resolvedPendingChange.status
+    post_match_pending_revision = $resolvedPendingChange.result_revision
     server_unauthenticated_status = $serverUnauthenticatedStatus
     server_forbidden_status = $serverForbiddenStatus
     refresh_rotated = ($rotatedTokens.refresh_token -ne $tokens.refresh_token)
