@@ -3,6 +3,7 @@ package com.game.backend.runtimechanges.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
+import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeResponse;
@@ -40,19 +41,22 @@ public class RuntimePresetChangeService {
     private final ServerMatchService serverMatchService;
     private final ServerAuditService serverAuditService;
     private final WeaponPresetRuntimeChangeApplier runtimeChangeApplier;
+    private final OutboxService outboxService;
 
     public RuntimePresetChangeService(
         JdbcTemplate jdbcTemplate,
         ObjectMapper objectMapper,
         ServerMatchService serverMatchService,
         ServerAuditService serverAuditService,
-        WeaponPresetRuntimeChangeApplier runtimeChangeApplier
+        WeaponPresetRuntimeChangeApplier runtimeChangeApplier,
+        OutboxService outboxService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         this.serverMatchService = serverMatchService;
         this.serverAuditService = serverAuditService;
         this.runtimeChangeApplier = runtimeChangeApplier;
+        this.outboxService = outboxService;
     }
 
     /**
@@ -86,6 +90,7 @@ public class RuntimePresetChangeService {
                 // Durable preset уже изменился: операцию нельзя применить автоматически, переносим в post-match queue.
                 UUID pendingChangeId = createPendingChange(request, preset.revision(), now);
                 insertOperation(request, "conflict", null, pendingChangeId, requestHash, now);
+                recordPendingChangeCreated(request, preset.revision(), pendingChangeId, now);
                 return auditedResponse(
                     server,
                     request,
@@ -130,6 +135,7 @@ public class RuntimePresetChangeService {
             );
 
             insertOperation(request, "applied", resultRevision, null, requestHash, now);
+            recordRuntimePresetApplied(request, preset.catalogVersion(), resultRevision, now);
             return auditedResponse(
                 server,
                 request,
@@ -220,6 +226,63 @@ public class RuntimePresetChangeService {
 
     private String auditResult(ApiException exception) {
         return exception.status() == HttpStatus.FORBIDDEN ? "denied" : "failed";
+    }
+
+    private void recordRuntimePresetApplied(
+        RuntimePresetChangeRequest request,
+        long catalogVersion,
+        long resultRevision,
+        OffsetDateTime now
+    ) {
+        outboxService.record(
+            "weapon_preset.runtime_changed",
+            "weapon_preset",
+            weaponPresetAggregateId(request.playerId(), request.classTag(), request.weaponPresetSlot(), catalogVersion),
+            1,
+            Map.of(
+                "player_id", request.playerId(),
+                "match_id", request.matchId(),
+                "operation_id", request.operationId(),
+                "class_tag", request.classTag(),
+                "preset_slot", request.weaponPresetSlot(),
+                "catalog_version", catalogVersion,
+                "base_revision", request.baseWeaponPresetRevision(),
+                "revision", resultRevision,
+                "source", "runtime"
+            ),
+            now
+        );
+    }
+
+    private void recordPendingChangeCreated(
+        RuntimePresetChangeRequest request,
+        long currentRevision,
+        UUID pendingChangeId,
+        OffsetDateTime now
+    ) {
+        outboxService.record(
+            "post_match_pending_change.created",
+            "post_match_pending_change",
+            pendingChangeId.toString(),
+            1,
+            Map.of(
+                "player_id", request.playerId(),
+                "match_id", request.matchId(),
+                "operation_id", request.operationId(),
+                "class_tag", request.classTag(),
+                "preset_slot", request.weaponPresetSlot(),
+                "base_revision", request.baseWeaponPresetRevision(),
+                "current_revision", currentRevision,
+                "pending_change_id", pendingChangeId,
+                "status", "pending",
+                "source", "runtime"
+            ),
+            now
+        );
+    }
+
+    private String weaponPresetAggregateId(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
+        return playerId + ":" + classTag + ":" + presetSlot + ":" + catalogVersion;
     }
 
     private void validateIdempotencyKey(String idempotencyKey, RuntimePresetChangeRequest request) {

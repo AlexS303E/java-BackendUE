@@ -28,3 +28,10 @@ app:
     jwt-secret: ${JWT_SECRET:dev-only-change-me-dev-only-change-me}
     access-token-ttl: ${ACCESS_TOKEN_TTL:PT15M}
     refresh-token-ttl: ${REFRESH_TOKEN_TTL:P14D}
+  outbox:
+    worker-enabled: ${OUTBOX_WORKER_ENABLED:true}
+    poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
+    batch-size: ${OUTBOX_BATCH_SIZE:20}
+    max-attempts: ${OUTBOX_MAX_ATTEMPTS:5}
+    retry-delay-seconds: ${OUTBOX_RETRY_DELAY_SECONDS:10}
+    processing-timeout-seconds: ${OUTBOX_PROCESSING_TIMEOUT_SECONDS:60}

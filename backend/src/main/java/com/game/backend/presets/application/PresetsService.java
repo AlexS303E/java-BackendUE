@@ -1,6 +1,7 @@
 package com.game.backend.presets.application;
 
 import com.game.backend.common.api.ApiException;
+import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.presets.api.ModuleSelectionDto;
 import com.game.backend.presets.api.OutfitItemDto;
 import com.game.backend.presets.api.OutfitPresetDto;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -28,9 +30,11 @@ import java.util.UUID;
 @Service
 public class PresetsService {
     private final JdbcTemplate jdbcTemplate;
+    private final OutboxService outboxService;
 
-    public PresetsService(JdbcTemplate jdbcTemplate) {
+    public PresetsService(JdbcTemplate jdbcTemplate, OutboxService outboxService) {
         this.jdbcTemplate = jdbcTemplate;
+        this.outboxService = outboxService;
     }
 
     /**
@@ -87,6 +91,22 @@ public class PresetsService {
             presetSlot,
             catalogVersion
         );
+        outboxService.record(
+            "weapon_preset.saved",
+            "weapon_preset",
+            weaponPresetAggregateId(playerId, classTag, presetSlot, catalogVersion),
+            1,
+            Map.of(
+                "player_id", playerId,
+                "class_tag", classTag,
+                "preset_slot", presetSlot,
+                "catalog_version", catalogVersion,
+                "previous_revision", expectedRevision,
+                "revision", newRevision,
+                "source", "player_save"
+            ),
+            now
+        );
 
         return new WeaponPresetSaveResponse(
             playerId,
@@ -96,6 +116,10 @@ public class PresetsService {
             newRevision,
             weaponSlots(playerId, classTag, presetSlot, catalogVersion)
         );
+    }
+
+    private String weaponPresetAggregateId(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
+        return playerId + ":" + classTag + ":" + presetSlot + ":" + catalogVersion;
     }
 
     /**

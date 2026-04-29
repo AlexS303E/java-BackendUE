@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
+import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.postmatch.api.PostMatchPendingChangeDto;
 import com.game.backend.postmatch.api.PostMatchPendingChangeResolutionRequest;
 import com.game.backend.postmatch.api.PostMatchPendingChangeResolutionResponse;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -41,15 +43,18 @@ public class PostMatchPendingChangesService {
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
     private final WeaponPresetRuntimeChangeApplier runtimeChangeApplier;
+    private final OutboxService outboxService;
 
     public PostMatchPendingChangesService(
         JdbcTemplate jdbcTemplate,
         ObjectMapper objectMapper,
-        WeaponPresetRuntimeChangeApplier runtimeChangeApplier
+        WeaponPresetRuntimeChangeApplier runtimeChangeApplier,
+        OutboxService outboxService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         this.runtimeChangeApplier = runtimeChangeApplier;
+        this.outboxService = outboxService;
     }
 
     /**
@@ -140,6 +145,7 @@ public class PostMatchPendingChangesService {
 
     private PostMatchPendingChangeResolutionResponse discard(PendingChange change, OffsetDateTime now) {
         updateChangeStatus(change.changeId(), "rejected", now);
+        recordPendingChangeResolved(change, "discard", "rejected", null, now);
         return new PostMatchPendingChangeResolutionResponse(change.changeId(), "rejected", null, now);
     }
 
@@ -185,7 +191,39 @@ public class PostMatchPendingChangesService {
             preset.catalogVersion()
         );
         updateChangeStatus(change.changeId(), "applied", now);
+        recordPendingChangeResolved(change, "apply_if_still_valid", "applied", resultRevision, now);
         return new PostMatchPendingChangeResolutionResponse(change.changeId(), "applied", resultRevision, now);
+    }
+
+    private void recordPendingChangeResolved(
+        PendingChange change,
+        String resolution,
+        String status,
+        Long resultRevision,
+        OffsetDateTime now
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("player_id", change.playerId());
+        payload.put("match_id", change.matchId());
+        payload.put("pending_change_id", change.changeId());
+        payload.put("class_tag", change.classTag());
+        payload.put("preset_slot", change.weaponPresetSlot());
+        payload.put("base_revision", change.baseWeaponPresetRevision());
+        payload.put("resolution", resolution);
+        payload.put("status", status);
+        payload.put("source", "post_match");
+        if (resultRevision != null) {
+            payload.put("result_revision", resultRevision);
+        }
+
+        outboxService.record(
+            "post_match_pending_change.resolved",
+            "post_match_pending_change",
+            change.changeId().toString(),
+            1,
+            payload,
+            now
+        );
     }
 
     private void expireOldPendingChanges(UUID playerId, OffsetDateTime now) {
