@@ -1,8 +1,10 @@
 package com.game.backend.presets.api;
 
+import com.game.backend.auth.application.CurrentPlayer;
 import com.game.backend.presets.application.PresetsService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -21,18 +23,19 @@ public class PresetsController {
     }
 
     @GetMapping("/me/presets")
-    PlayerPresetsResponse getMyPresets(@RequestHeader("X-Player-Id") UUID playerId) {
-        return presetsService.getPlayerPresets(playerId);
+    PlayerPresetsResponse getMyPresets(Authentication authentication) {
+        return presetsService.getPlayerPresets(CurrentPlayer.require(authentication).playerId());
     }
 
     @PutMapping("/me/presets/weapons/{classTag}/{presetSlot}")
     ResponseEntity<WeaponPresetSaveResponse> saveWeaponPreset(
-        @RequestHeader("X-Player-Id") UUID playerId,
+        Authentication authentication,
         @RequestHeader(value = "If-Match", required = false) String ifMatch,
         @PathVariable String classTag,
         @PathVariable int presetSlot,
         @Valid @RequestBody WeaponPresetSaveRequest request
     ) {
+        UUID playerId = CurrentPlayer.require(authentication).playerId();
         WeaponPresetSaveResponse response = presetsService.saveWeaponPreset(
             playerId,
             classTag,

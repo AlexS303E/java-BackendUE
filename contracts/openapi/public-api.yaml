@@ -30,9 +30,47 @@ paths:
   /auth/login:
     post:
       operationId: loginPlayer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
       responses:
         "200":
           description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+  /auth/refresh:
+    post:
+      operationId: refreshAuthSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Refresh token rotated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+  /auth/logout:
+    post:
+      operationId: logoutPlayer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutRequest"
+      responses:
+        "204":
+          description: Refresh token revoked
   /catalog/snapshot:
     get:
       operationId: getCatalogSnapshot
@@ -53,13 +91,9 @@ paths:
   /me/access:
     get:
       operationId: getMyAccess
+      security:
+        - bearerAuth: []
       parameters:
-        - name: X-Player-Id
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
         - name: realm_id
           in: query
           required: false
@@ -82,13 +116,8 @@ paths:
   /me/presets:
     get:
       operationId: getMyPresets
-      parameters:
-        - name: X-Player-Id
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: Player presets
@@ -99,13 +128,9 @@ paths:
   /me/presets/weapons/{class_tag}/{preset_slot}:
     put:
       operationId: saveWeaponPreset
+      security:
+        - bearerAuth: []
       parameters:
-        - name: X-Player-Id
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
         - name: If-Match
           in: header
           required: true
@@ -143,6 +168,11 @@ paths:
         "428":
           description: If-Match header required
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     RegisterRequest:
       type: object
@@ -169,6 +199,46 @@ components:
           type: string
         needs_bootstrap:
           type: boolean
+    LoginRequest:
+      type: object
+      required: [login_name, password]
+      properties:
+        login_name:
+          type: string
+        password:
+          type: string
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    LogoutRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    AuthTokenResponse:
+      type: object
+      required: [player_id, access_token, token_type, expires_in, refresh_token, refresh_expires_in]
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        access_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          format: int64
+        refresh_token:
+          type: string
+        refresh_expires_in:
+          type: integer
+          format: int64
     CatalogSnapshot:
       type: object
       required: [realm_id, catalog_version, items, weapon_mounts, allowed_modules]

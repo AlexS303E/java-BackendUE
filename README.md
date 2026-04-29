@@ -38,10 +38,13 @@ The first implementation target should be the vertical flow:
 Implemented now:
 
 - `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/refresh`
+- `POST /auth/logout`
 - `GET /catalog/snapshot`
-- `GET /me/access` with `X-Player-Id`
-- `GET /me/presets` with `X-Player-Id`
-- `PUT /me/presets/weapons/{classTag}/{presetSlot}` with `X-Player-Id` and `If-Match`
+- `GET /me/access` with Bearer access token
+- `GET /me/presets` with Bearer access token
+- `PUT /me/presets/weapons/{classTag}/{presetSlot}` with Bearer access token and `If-Match`
 - `POST /server/match-profile/build`
 - `POST /server/runtime-preset-changes` with `Idempotency-Key == operation_id`
 

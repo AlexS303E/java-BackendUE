@@ -5,9 +5,11 @@ param(
 $ErrorActionPreference = "Stop"
 
 $suffix = [Guid]::NewGuid().ToString("N").Substring(0, 8)
+$loginName = "player_$suffix"
+$password = "password123"
 $registerBody = @{
-    login_name = "player_$suffix"
-    password = "password123"
+    login_name = $loginName
+    password = $password
 } | ConvertTo-Json
 
 $registered = Invoke-RestMethod `
@@ -17,9 +19,25 @@ $registered = Invoke-RestMethod `
     -ContentType "application/json"
 
 $playerId = $registered.player_id
+$loginBody = @{
+    login_name = $loginName
+    password = $password
+} | ConvertTo-Json
+
+$tokens = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/auth/login" `
+    -Body $loginBody `
+    -ContentType "application/json"
+
+if ($tokens.player_id -ne $playerId -or [string]::IsNullOrWhiteSpace($tokens.access_token)) {
+    throw "Expected login to return access token for registered player"
+}
+
+$authHeaders = @{ "Authorization" = "Bearer $($tokens.access_token)" }
 $catalog = Invoke-RestMethod -Uri "$BaseUrl/catalog/snapshot?realm_id=global"
-$access = Invoke-RestMethod -Uri "$BaseUrl/me/access" -Headers @{ "X-Player-Id" = $playerId }
-$presets = Invoke-RestMethod -Uri "$BaseUrl/me/presets" -Headers @{ "X-Player-Id" = $playerId }
+$access = Invoke-RestMethod -Uri "$BaseUrl/me/access" -Headers $authHeaders
+$presets = Invoke-RestMethod -Uri "$BaseUrl/me/presets" -Headers $authHeaders
 
 $weaponPreset = $presets.weapon_presets | Where-Object { $_.class_tag -eq "class.assault" -and $_.preset_slot -eq 1 } | Select-Object -First 1
 $saveBody = @{
@@ -47,7 +65,7 @@ $savedPreset = Invoke-RestMethod `
     -Method Put `
     -Uri "$BaseUrl/me/presets/weapons/class.assault/1" `
     -Headers @{
-        "X-Player-Id" = $playerId
+        "Authorization" = "Bearer $($tokens.access_token)"
         "If-Match" = "`"$($weaponPreset.revision)`""
     } `
     -Body $saveBody `
@@ -63,7 +81,7 @@ try {
         -Method Put `
         -Uri "$BaseUrl/me/presets/weapons/class.assault/1" `
         -Headers @{
-            "X-Player-Id" = $playerId
+            "Authorization" = "Bearer $($tokens.access_token)"
             "If-Match" = "`"$($weaponPreset.revision)`""
         } `
         -Body $saveBody `
@@ -153,6 +171,28 @@ if ($runtimeConflictStatus -ne 409) {
     throw "Expected runtime revision conflict to return 409, got $runtimeConflictStatus"
 }
 
+$refreshBody = @{
+    refresh_token = $tokens.refresh_token
+} | ConvertTo-Json
+
+$rotatedTokens = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/auth/refresh" `
+    -Body $refreshBody `
+    -ContentType "application/json"
+
+if ($rotatedTokens.player_id -ne $playerId -or $rotatedTokens.refresh_token -eq $tokens.refresh_token) {
+    throw "Expected refresh to rotate refresh token"
+}
+
+$rotatedAccess = Invoke-RestMethod `
+    -Uri "$BaseUrl/me/access" `
+    -Headers @{ "Authorization" = "Bearer $($rotatedTokens.access_token)" }
+
+if ($rotatedAccess.player_id -ne $playerId) {
+    throw "Expected refreshed access token to authenticate player"
+}
+
 $matchBody = @{
     match_id = $matchId
     player_id = $playerId
@@ -188,8 +228,19 @@ if ($null -eq $primary -or $primary.weapon_id -ne "weapon.ak12") {
     stale_revision_status = $staleRevisionStatus
     runtime_applied_revision = $runtimeApplied.result_revision
     runtime_conflict_status = $runtimeConflictStatus
+    refresh_rotated = ($rotatedTokens.refresh_token -ne $tokens.refresh_token)
     outfit_presets = $presets.outfit_presets.Count
     primary_weapon = $primary.weapon_id
     primary_module = $primary.modules[0].module_id
     outfit_item = $profile.outfit[0].item_id
 }
+
+$logoutBody = @{
+    refresh_token = $rotatedTokens.refresh_token
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/auth/logout" `
+    -Body $logoutBody `
+    -ContentType "application/json" | Out-Null
