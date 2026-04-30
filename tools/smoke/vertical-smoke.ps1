@@ -368,6 +368,18 @@ if ($null -eq $pendingChange -or $pendingChange.status -ne "pending") {
     throw "Expected pending change to be visible to player"
 }
 
+$notificationsAfterConflict = Invoke-RestMethod `
+    -Uri "$BaseUrl/me/notifications?status=unread&limit=20" `
+    -Headers $authHeaders
+
+$pendingCreatedNotification = $notificationsAfterConflict.notifications |
+    Where-Object { $_.event_type -eq "post_match_pending_change.created" -and $_.aggregate_id -eq $runtimeConflictPendingChangeId } |
+    Select-Object -First 1
+
+if ($null -eq $pendingCreatedNotification) {
+    throw "Expected pending change creation notification to be visible to player"
+}
+
 $resolveBody = @{
     resolution = "apply_if_still_valid"
 } | ConvertTo-Json
@@ -381,6 +393,18 @@ $resolvedPendingChange = Invoke-RestMethod `
 
 if ($resolvedPendingChange.status -ne "applied" -or $resolvedPendingChange.result_revision -ne ($runtimeApplied.result_revision + 1)) {
     throw "Expected post-match pending change to apply and increment revision"
+}
+
+$notificationsAfterResolve = Invoke-RestMethod `
+    -Uri "$BaseUrl/me/notifications?status=unread&limit=20" `
+    -Headers $authHeaders
+
+$pendingResolvedNotification = $notificationsAfterResolve.notifications |
+    Where-Object { $_.event_type -eq "post_match_pending_change.resolved" -and $_.aggregate_id -eq $runtimeConflictPendingChangeId } |
+    Select-Object -First 1
+
+if ($null -eq $pendingResolvedNotification -or $pendingResolvedNotification.payload.status -ne "applied") {
+    throw "Expected pending change resolution notification to be visible to player"
 }
 
 $refreshBody = @{
@@ -533,6 +557,47 @@ if ($null -ne $primaryAfterAdmin.selected_weapon_id -or $primaryAfterAdmin.modul
     throw "Expected disabled weapon to be removed from sanitized weapon preset"
 }
 
+$notificationsAfterAdmin = Invoke-RestMethod `
+    -Uri "$BaseUrl/me/notifications?status=unread&limit=50" `
+    -Headers @{ "Authorization" = "Bearer $($rotatedTokens.access_token)" }
+
+$accessChangedNotification = $notificationsAfterAdmin.notifications |
+    Where-Object { $_.event_type -eq "player_access.changed" -and $_.payload.item_id -eq "weapon.ak12" } |
+    Select-Object -First 1
+
+if ($null -eq $accessChangedNotification -or $accessChangedNotification.payload.player_can_use -ne $false) {
+    throw "Expected player access change notification after weapon disable"
+}
+
+$sanitizedNotification = $notificationsAfterAdmin.notifications |
+    Where-Object { $_.event_type -eq "weapon_preset.sanitized" -and $_.payload.removed_item_id -eq "weapon.ak12" } |
+    Select-Object -First 1
+
+if ($null -eq $sanitizedNotification -or $sanitizedNotification.payload.revision -ne $weaponPresetAfterAdmin.revision) {
+    throw "Expected weapon preset sanitized notification after weapon disable"
+}
+
+$notificationRead = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/me/notifications/$($pendingCreatedNotification.notification_id)/read" `
+    -Headers @{ "Authorization" = "Bearer $($rotatedTokens.access_token)" }
+
+if ($notificationRead.status -ne "read") {
+    throw "Expected notification read endpoint to mark notification as read"
+}
+
+$readNotifications = Invoke-RestMethod `
+    -Uri "$BaseUrl/me/notifications?status=read&limit=10" `
+    -Headers @{ "Authorization" = "Bearer $($rotatedTokens.access_token)" }
+
+$readBackNotification = $readNotifications.notifications |
+    Where-Object { $_.notification_id -eq $pendingCreatedNotification.notification_id } |
+    Select-Object -First 1
+
+if ($null -eq $readBackNotification -or $readBackNotification.status -ne "read") {
+    throw "Expected read notification to be returned by status=read filter"
+}
+
 $sanitizedMatchId = [Guid]::NewGuid().ToString()
 $sanitizedMatchBody = @{
     match_id = $sanitizedMatchId
@@ -610,6 +675,8 @@ if ($adminRetryOutbox.retried -lt 0) {
     runtime_conflict_status = $runtimeConflictStatus
     post_match_pending_status = $resolvedPendingChange.status
     post_match_pending_revision = $resolvedPendingChange.result_revision
+    notifications_unread = $notificationsAfterAdmin.notifications.Count
+    notification_read_status = $notificationRead.status
     server_unauthenticated_status = $serverUnauthenticatedStatus
     server_forbidden_status = $serverForbiddenStatus
     admin_overview_ok = $adminOverview.backend.ok

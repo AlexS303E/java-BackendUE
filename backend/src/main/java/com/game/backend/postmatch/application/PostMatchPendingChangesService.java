@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
+import com.game.backend.notifications.application.PlayerNotificationService;
 import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.postmatch.api.PostMatchPendingChangeDto;
 import com.game.backend.postmatch.api.PostMatchPendingChangeResolutionRequest;
@@ -44,17 +45,20 @@ public class PostMatchPendingChangesService {
     private final ObjectMapper objectMapper;
     private final WeaponPresetRuntimeChangeApplier runtimeChangeApplier;
     private final OutboxService outboxService;
+    private final PlayerNotificationService playerNotificationService;
 
     public PostMatchPendingChangesService(
         JdbcTemplate jdbcTemplate,
         ObjectMapper objectMapper,
         WeaponPresetRuntimeChangeApplier runtimeChangeApplier,
-        OutboxService outboxService
+        OutboxService outboxService,
+        PlayerNotificationService playerNotificationService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         this.runtimeChangeApplier = runtimeChangeApplier;
         this.outboxService = outboxService;
+        this.playerNotificationService = playerNotificationService;
     }
 
     /**
@@ -217,6 +221,15 @@ public class PostMatchPendingChangesService {
         }
 
         outboxService.record(
+            "post_match_pending_change.resolved",
+            "post_match_pending_change",
+            change.changeId().toString(),
+            1,
+            payload,
+            now
+        );
+        playerNotificationService.record(
+            change.playerId(),
             "post_match_pending_change.resolved",
             "post_match_pending_change",
             change.changeId().toString(),

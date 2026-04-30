@@ -1,6 +1,7 @@
 package com.game.backend.presets.application;
 
 import com.game.backend.common.api.ApiException;
+import com.game.backend.notifications.application.PlayerNotificationService;
 import com.game.backend.outbox.application.OutboxService;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -18,10 +19,16 @@ import java.util.UUID;
 public class LoadoutSanitizationService {
     private final JdbcTemplate jdbcTemplate;
     private final OutboxService outboxService;
+    private final PlayerNotificationService playerNotificationService;
 
-    public LoadoutSanitizationService(JdbcTemplate jdbcTemplate, OutboxService outboxService) {
+    public LoadoutSanitizationService(
+        JdbcTemplate jdbcTemplate,
+        OutboxService outboxService,
+        PlayerNotificationService playerNotificationService
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.outboxService = outboxService;
+        this.playerNotificationService = playerNotificationService;
     }
 
     /**
@@ -349,22 +356,32 @@ public class LoadoutSanitizationService {
         UUID sourceEventId,
         OffsetDateTime now
     ) {
+        Map<String, Object> payload = Map.of(
+            "player_id", playerId,
+            "class_tag", preset.classTag(),
+            "preset_slot", preset.presetSlot(),
+            "catalog_version", preset.catalogVersion(),
+            "revision", revision,
+            "removed_item_id", removedItemId,
+            "removed_item_type", removedItemType,
+            "source", source,
+            "source_event_id", sourceEventId
+        );
         outboxService.record(
             "weapon_preset.sanitized",
             "weapon_preset",
             weaponPresetAggregateId(playerId, preset),
             1,
-            Map.of(
-                "player_id", playerId,
-                "class_tag", preset.classTag(),
-                "preset_slot", preset.presetSlot(),
-                "catalog_version", preset.catalogVersion(),
-                "revision", revision,
-                "removed_item_id", removedItemId,
-                "removed_item_type", removedItemType,
-                "source", source,
-                "source_event_id", sourceEventId
-            ),
+            payload,
+            now
+        );
+        playerNotificationService.record(
+            playerId,
+            "weapon_preset.sanitized",
+            "weapon_preset",
+            weaponPresetAggregateId(playerId, preset),
+            1,
+            payload,
             now
         );
     }
@@ -378,23 +395,33 @@ public class LoadoutSanitizationService {
         UUID sourceEventId,
         OffsetDateTime now
     ) {
+        Map<String, Object> payload = Map.of(
+            "player_id", playerId,
+            "team_tag", preset.teamTag(),
+            "class_tag", preset.classTag(),
+            "outfit_preset_slot", preset.outfitPresetSlot(),
+            "catalog_version", preset.catalogVersion(),
+            "revision", revision,
+            "removed_item_id", removedItemId,
+            "removed_item_type", "clothing",
+            "source", source,
+            "source_event_id", sourceEventId
+        );
         outboxService.record(
             "outfit_preset.sanitized",
             "outfit_preset",
             outfitPresetAggregateId(playerId, preset),
             1,
-            Map.of(
-                "player_id", playerId,
-                "team_tag", preset.teamTag(),
-                "class_tag", preset.classTag(),
-                "outfit_preset_slot", preset.outfitPresetSlot(),
-                "catalog_version", preset.catalogVersion(),
-                "revision", revision,
-                "removed_item_id", removedItemId,
-                "removed_item_type", "clothing",
-                "source", source,
-                "source_event_id", sourceEventId
-            ),
+            payload,
+            now
+        );
+        playerNotificationService.record(
+            playerId,
+            "outfit_preset.sanitized",
+            "outfit_preset",
+            outfitPresetAggregateId(playerId, preset),
+            1,
+            payload,
             now
         );
     }

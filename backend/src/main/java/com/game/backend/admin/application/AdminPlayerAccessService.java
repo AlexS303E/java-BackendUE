@@ -7,6 +7,7 @@ import com.game.backend.admin.api.AdminItemAccessUpdateRequest;
 import com.game.backend.admin.api.AdminItemAccessUpdateResponse;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
+import com.game.backend.notifications.application.PlayerNotificationService;
 import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.presets.application.LoadoutSanitizationResult;
 import com.game.backend.presets.application.LoadoutSanitizationService;
@@ -40,6 +41,7 @@ public class AdminPlayerAccessService {
     private final OutboxService outboxService;
     private final LoadoutSanitizationService loadoutSanitizationService;
     private final MatchProfileInvalidationService matchProfileInvalidationService;
+    private final PlayerNotificationService playerNotificationService;
 
     public AdminPlayerAccessService(
         JdbcTemplate jdbcTemplate,
@@ -47,7 +49,8 @@ public class AdminPlayerAccessService {
         AdminAuditService adminAuditService,
         OutboxService outboxService,
         LoadoutSanitizationService loadoutSanitizationService,
-        MatchProfileInvalidationService matchProfileInvalidationService
+        MatchProfileInvalidationService matchProfileInvalidationService,
+        PlayerNotificationService playerNotificationService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
@@ -55,6 +58,7 @@ public class AdminPlayerAccessService {
         this.outboxService = outboxService;
         this.loadoutSanitizationService = loadoutSanitizationService;
         this.matchProfileInvalidationService = matchProfileInvalidationService;
+        this.playerNotificationService = playerNotificationService;
     }
 
     /**
@@ -108,6 +112,7 @@ public class AdminPlayerAccessService {
             );
             insertLedgerEvent(admin, playerId, itemId, idempotencyKey, requestHash, ledgerEventId, accessRevision, sanitization, staleMatchProfiles, request, now);
             recordOutboxEvent(admin, playerId, itemId, request, accessRevision, ledgerEventId, now);
+            recordPlayerAccessNotification(playerId, itemId, request, accessRevision, ledgerEventId, sanitization, staleMatchProfiles, now);
 
             AdminItemAccessUpdateResponse response = new AdminItemAccessUpdateResponse(
                 playerId,
@@ -399,6 +404,49 @@ public class AdminPlayerAccessService {
                 "actor_id", admin.actorId(),
                 "source", "admin"
             ),
+            now
+        );
+    }
+
+    private void recordPlayerAccessNotification(
+        UUID playerId,
+        String itemId,
+        AdminItemAccessUpdateRequest request,
+        long accessRevision,
+        UUID ledgerEventId,
+        LoadoutSanitizationResult sanitization,
+        int staleMatchProfiles,
+        OffsetDateTime now
+    ) {
+        Map<String, Object> flags = new LinkedHashMap<>();
+        flags.put("hidden", request.hidden());
+        flags.put("locked_in_shop", request.lockedInShop());
+        flags.put("locked_by_quest", request.lockedByQuest());
+        flags.put("disabled", request.disabled());
+        flags.put("disabled_reason", normalizedDisabledReason(request));
+        flags.put("unlock_hint_code", normalized(request.unlockHintCode()));
+        flags.put("unlock_hint_payload", request.unlockHintPayload());
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("player_id", playerId);
+        payload.put("item_id", itemId);
+        payload.put("catalog_version", request.catalogVersion());
+        payload.put("access_revision", accessRevision);
+        payload.put("ledger_event_id", ledgerEventId);
+        payload.put("player_can_use", canUse(request));
+        payload.put("flags", flags);
+        payload.put("sanitized_weapon_presets", sanitization.sanitizedWeaponPresets());
+        payload.put("sanitized_outfit_presets", sanitization.sanitizedOutfitPresets());
+        payload.put("stale_match_profiles", staleMatchProfiles);
+        payload.put("source", "access_update");
+
+        playerNotificationService.record(
+            playerId,
+            "player_access.changed",
+            "player_access",
+            playerId.toString(),
+            1,
+            payload,
             now
         );
     }

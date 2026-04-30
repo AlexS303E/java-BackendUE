@@ -3,6 +3,7 @@ package com.game.backend.runtimechanges.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
+import com.game.backend.notifications.application.PlayerNotificationService;
 import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
@@ -42,6 +43,7 @@ public class RuntimePresetChangeService {
     private final ServerAuditService serverAuditService;
     private final WeaponPresetRuntimeChangeApplier runtimeChangeApplier;
     private final OutboxService outboxService;
+    private final PlayerNotificationService playerNotificationService;
 
     public RuntimePresetChangeService(
         JdbcTemplate jdbcTemplate,
@@ -49,7 +51,8 @@ public class RuntimePresetChangeService {
         ServerMatchService serverMatchService,
         ServerAuditService serverAuditService,
         WeaponPresetRuntimeChangeApplier runtimeChangeApplier,
-        OutboxService outboxService
+        OutboxService outboxService,
+        PlayerNotificationService playerNotificationService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
@@ -57,6 +60,7 @@ public class RuntimePresetChangeService {
         this.serverAuditService = serverAuditService;
         this.runtimeChangeApplier = runtimeChangeApplier;
         this.outboxService = outboxService;
+        this.playerNotificationService = playerNotificationService;
     }
 
     /**
@@ -260,23 +264,33 @@ public class RuntimePresetChangeService {
         UUID pendingChangeId,
         OffsetDateTime now
     ) {
+        Map<String, Object> payload = Map.of(
+            "player_id", request.playerId(),
+            "match_id", request.matchId(),
+            "operation_id", request.operationId(),
+            "class_tag", request.classTag(),
+            "preset_slot", request.weaponPresetSlot(),
+            "base_revision", request.baseWeaponPresetRevision(),
+            "current_revision", currentRevision,
+            "pending_change_id", pendingChangeId,
+            "status", "pending",
+            "source", "runtime"
+        );
         outboxService.record(
             "post_match_pending_change.created",
             "post_match_pending_change",
             pendingChangeId.toString(),
             1,
-            Map.of(
-                "player_id", request.playerId(),
-                "match_id", request.matchId(),
-                "operation_id", request.operationId(),
-                "class_tag", request.classTag(),
-                "preset_slot", request.weaponPresetSlot(),
-                "base_revision", request.baseWeaponPresetRevision(),
-                "current_revision", currentRevision,
-                "pending_change_id", pendingChangeId,
-                "status", "pending",
-                "source", "runtime"
-            ),
+            payload,
+            now
+        );
+        playerNotificationService.record(
+            request.playerId(),
+            "post_match_pending_change.created",
+            "post_match_pending_change",
+            pendingChangeId.toString(),
+            1,
+            payload,
             now
         );
     }
