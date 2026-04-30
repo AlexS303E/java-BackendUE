@@ -22,6 +22,7 @@ public record AdminItemAccessUpdateResponse(
     UUID ledgerEventId,
     int sanitizedWeaponPresets,
     int sanitizedOutfitPresets,
+    int staleMatchProfiles,
     boolean duplicate
 ) {
 }

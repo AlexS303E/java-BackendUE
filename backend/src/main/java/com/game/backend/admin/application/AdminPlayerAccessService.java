@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.admin.api.AdminItemAccessUpdateRequest;
 import com.game.backend.admin.api.AdminItemAccessUpdateResponse;
 import com.game.backend.common.api.ApiException;
+import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
 import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.presets.application.LoadoutSanitizationResult;
 import com.game.backend.presets.application.LoadoutSanitizationService;
@@ -38,19 +39,22 @@ public class AdminPlayerAccessService {
     private final AdminAuditService adminAuditService;
     private final OutboxService outboxService;
     private final LoadoutSanitizationService loadoutSanitizationService;
+    private final MatchProfileInvalidationService matchProfileInvalidationService;
 
     public AdminPlayerAccessService(
         JdbcTemplate jdbcTemplate,
         ObjectMapper objectMapper,
         AdminAuditService adminAuditService,
         OutboxService outboxService,
-        LoadoutSanitizationService loadoutSanitizationService
+        LoadoutSanitizationService loadoutSanitizationService,
+        MatchProfileInvalidationService matchProfileInvalidationService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         this.adminAuditService = adminAuditService;
         this.outboxService = outboxService;
         this.loadoutSanitizationService = loadoutSanitizationService;
+        this.matchProfileInvalidationService = matchProfileInvalidationService;
     }
 
     /**
@@ -95,7 +99,14 @@ public class AdminPlayerAccessService {
             upsertProjection(playerId, itemId, request, now);
             updateAccessRevision(playerId, accessRevision, ledgerEventId, now);
             LoadoutSanitizationResult sanitization = sanitizeIfUnavailable(playerId, itemId, request, ledgerEventId, now);
-            insertLedgerEvent(admin, playerId, itemId, idempotencyKey, requestHash, ledgerEventId, accessRevision, sanitization, request, now);
+            int staleMatchProfiles = matchProfileInvalidationService.invalidateForPlayerAccessChange(
+                playerId,
+                request.catalogVersion(),
+                "access_changed",
+                ledgerEventId,
+                now
+            );
+            insertLedgerEvent(admin, playerId, itemId, idempotencyKey, requestHash, ledgerEventId, accessRevision, sanitization, staleMatchProfiles, request, now);
             recordOutboxEvent(admin, playerId, itemId, request, accessRevision, ledgerEventId, now);
 
             AdminItemAccessUpdateResponse response = new AdminItemAccessUpdateResponse(
@@ -114,6 +125,7 @@ public class AdminPlayerAccessService {
                 ledgerEventId,
                 sanitization.sanitizedWeaponPresets(),
                 sanitization.sanitizedOutfitPresets(),
+                staleMatchProfiles,
                 false
             );
             auditSuccess(admin, targetId, requestHash, request, response);
@@ -155,7 +167,8 @@ public class AdminPlayerAccessService {
                   payload->>'request_hash' AS request_hash,
                   (payload->>'result_access_revision')::bigint AS result_access_revision,
                   (payload->>'sanitized_weapon_presets')::int AS sanitized_weapon_presets,
-                  (payload->>'sanitized_outfit_presets')::int AS sanitized_outfit_presets
+                  (payload->>'sanitized_outfit_presets')::int AS sanitized_outfit_presets,
+                  (payload->>'stale_match_profiles')::int AS stale_match_profiles
                 FROM entitlement_ledger
                 WHERE player_id = ?
                   AND idempotency_key = ?
@@ -165,7 +178,8 @@ public class AdminPlayerAccessService {
                 rs.getString("request_hash"),
                 rs.getObject("result_access_revision", Long.class),
                 rs.getObject("sanitized_weapon_presets", Integer.class),
-                rs.getObject("sanitized_outfit_presets", Integer.class)
+                rs.getObject("sanitized_outfit_presets", Integer.class),
+                rs.getObject("stale_match_profiles", Integer.class)
             ),
             playerId,
             idempotencyKey
@@ -229,6 +243,7 @@ public class AdminPlayerAccessService {
         UUID ledgerEventId,
         long accessRevision,
         LoadoutSanitizationResult sanitization,
+        int staleMatchProfiles,
         AdminItemAccessUpdateRequest request,
         OffsetDateTime now
     ) {
@@ -257,7 +272,7 @@ public class AdminPlayerAccessService {
             request.reason(),
             admin.actorId(),
             idempotencyKey,
-            toJson(ledgerPayload(admin, requestHash, accessRevision, sanitization, request)),
+            toJson(ledgerPayload(admin, requestHash, accessRevision, sanitization, staleMatchProfiles, request)),
             now
         );
     }
@@ -356,6 +371,7 @@ public class AdminPlayerAccessService {
             existing.ledgerEventId(),
             sanitizedWeaponPresets(existing),
             sanitizedOutfitPresets(existing),
+            staleMatchProfiles(existing),
             true
         );
     }
@@ -446,6 +462,7 @@ public class AdminPlayerAccessService {
             ledgerEventId,
             0,
             0,
+            0,
             duplicate
         );
     }
@@ -470,6 +487,7 @@ public class AdminPlayerAccessService {
                 "ledger_event_id", response.ledgerEventId(),
                 "sanitized_weapon_presets", response.sanitizedWeaponPresets(),
                 "sanitized_outfit_presets", response.sanitizedOutfitPresets(),
+                "stale_match_profiles", response.staleMatchProfiles(),
                 "duplicate", response.duplicate(),
                 "reason", request.reason()
             )
@@ -505,6 +523,7 @@ public class AdminPlayerAccessService {
         String requestHash,
         long accessRevision,
         LoadoutSanitizationResult sanitization,
+        int staleMatchProfiles,
         AdminItemAccessUpdateRequest request
     ) {
         Map<String, Object> flags = new LinkedHashMap<>();
@@ -522,6 +541,7 @@ public class AdminPlayerAccessService {
         payload.put("result_access_revision", accessRevision);
         payload.put("sanitized_weapon_presets", sanitization.sanitizedWeaponPresets());
         payload.put("sanitized_outfit_presets", sanitization.sanitizedOutfitPresets());
+        payload.put("stale_match_profiles", staleMatchProfiles);
         payload.put("actor_id", admin.actorId());
         payload.put("reason", request.reason());
         payload.put("flags", flags);
@@ -554,6 +574,10 @@ public class AdminPlayerAccessService {
 
     private int sanitizedOutfitPresets(ExistingLedgerEvent existing) {
         return existing.sanitizedOutfitPresets() == null ? 0 : existing.sanitizedOutfitPresets();
+    }
+
+    private int staleMatchProfiles(ExistingLedgerEvent existing) {
+        return existing.staleMatchProfiles() == null ? 0 : existing.staleMatchProfiles();
     }
 
     private String requestHash(UUID playerId, String itemId, AdminItemAccessUpdateRequest request) {
@@ -617,7 +641,8 @@ public class AdminPlayerAccessService {
         String requestHash,
         Long resultAccessRevision,
         Integer sanitizedWeaponPresets,
-        Integer sanitizedOutfitPresets
+        Integer sanitizedOutfitPresets,
+        Integer staleMatchProfiles
     ) {
     }
 

@@ -418,6 +418,10 @@ if ($adminAccess.sanitized_weapon_presets -ne 1 -or $adminAccess.sanitized_outfi
     throw "Expected admin access update to sanitize one weapon preset"
 }
 
+if ($adminAccess.stale_match_profiles -ne 1) {
+    throw "Expected admin access update to mark one match profile stale"
+}
+
 if ($adminAccess.access_revision -le $rotatedAccess.access_revision) {
     throw "Expected admin access update to increment access revision"
 }
@@ -435,6 +439,10 @@ if ($adminAccessReplay.duplicate -ne $true -or $adminAccessReplay.access_revisio
 
 if ($adminAccessReplay.sanitized_weapon_presets -ne $adminAccess.sanitized_weapon_presets) {
     throw "Expected admin access replay to return original sanitization result"
+}
+
+if ($adminAccessReplay.stale_match_profiles -ne $adminAccess.stale_match_profiles) {
+    throw "Expected admin access replay to return original stale profile count"
 }
 
 $accessAfterAdmin = Invoke-RestMethod `
@@ -527,6 +535,7 @@ if ($sanitizedProfile.dependency_revisions.weapon_preset_revision -ne $weaponPre
     admin_access_duplicate = $adminAccessReplay.duplicate
     admin_disabled_can_use = $disabledModule.player_can_use
     sanitized_weapon_presets = $adminAccess.sanitized_weapon_presets
+    stale_match_profiles = $adminAccess.stale_match_profiles
     sanitized_weapon_revision = $weaponPresetAfterAdmin.revision
     sanitized_profile_modules = $sanitizedPrimary.modules.Count
     refresh_rotated = ($rotatedTokens.refresh_token -ne $tokens.refresh_token)

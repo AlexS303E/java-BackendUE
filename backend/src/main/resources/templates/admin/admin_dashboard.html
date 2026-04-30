@@ -1,0 +1,1533 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --sidebar: #1f2937;
+      --sidebar-dark: #111827;
+      --topbar: #ffffff;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --blue: #0d6efd;
+      --green: #16a34a;
+      --yellow: #f59e0b;
+      --red: #dc2626;
+      --purple: #7c3aed;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 250px;
+      background: var(--sidebar);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 20;
+    }
+
+    .sidebar-header {
+      height: 64px;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      font-size: 20px;
+      font-weight: bold;
+      background: var(--sidebar-dark);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .sidebar-section {
+      margin-top: 18px;
+      padding: 0 16px;
+      font-size: 11px;
+      color: #9ca3af;
+      text-transform: uppercase;
+      font-weight: bold;
+      letter-spacing: 0.04em;
+    }
+
+    .nav {
+      padding: 8px;
+    }
+
+    .nav button {
+      width: 100%;
+      border: none;
+      background: transparent;
+      color: #d1d5db;
+      text-align: left;
+      padding: 12px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .nav button:hover,
+    .nav button.active {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 16px 20px;
+      background: var(--sidebar-dark);
+      font-size: 13px;
+      color: #9ca3af;
+    }
+
+    .main {
+      margin-left: 250px;
+      width: calc(100% - 250px);
+      min-height: 100vh;
+    }
+
+    .topbar {
+      height: 64px;
+      background: var(--topbar);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .search {
+      display: flex;
+      max-width: 420px;
+      width: 100%;
+    }
+
+    .search input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px 0 0 8px;
+      outline: none;
+    }
+
+    .search button {
+      border: none;
+      background: var(--blue);
+      color: white;
+      padding: 0 16px;
+      border-radius: 0 8px 8px 0;
+      cursor: pointer;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    select,
+    input,
+    textarea {
+      font-family: inherit;
+    }
+
+    select {
+      padding: 9px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: white;
+    }
+
+    .user-pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .content {
+      padding: 28px;
+    }
+
+    .page-header {
+      margin-bottom: 20px;
+    }
+
+    .page-header h1 {
+      margin: 0;
+      font-size: 32px;
+    }
+
+    .breadcrumb {
+      margin-top: 10px;
+      padding: 14px 16px;
+      background: #e9ecef;
+      color: var(--muted);
+      border-radius: 6px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .metric-card {
+      color: white;
+      padding: 18px;
+      border-radius: 10px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .metric-card .label {
+      font-size: 14px;
+      opacity: 0.92;
+    }
+
+    .metric-card .value {
+      font-size: 30px;
+      font-weight: bold;
+      margin-top: 8px;
+    }
+
+    .blue { background: var(--blue); }
+    .green { background: var(--green); }
+    .yellow { background: var(--yellow); }
+    .red { background: var(--red); }
+    .purple { background: var(--purple); }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 22px;
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .panel-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-weight: bold;
+      background: #fafafa;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .panel-body {
+      padding: 18px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .status-row:last-child {
+      border-bottom: none;
+    }
+
+    .status-ok {
+      color: var(--green);
+      font-weight: bold;
+    }
+
+    .status-warn {
+      color: var(--yellow);
+      font-weight: bold;
+    }
+
+    .status-bad {
+      color: var(--red);
+      font-weight: bold;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f9fafb;
+      color: var(--muted);
+      font-weight: bold;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .form-row input,
+    .form-row select,
+    .form-row textarea,
+    .field {
+      flex: 1;
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: white;
+      color: var(--text);
+      outline: none;
+    }
+
+    .form-row textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .btn {
+      border: none;
+      padding: 10px 14px;
+      border-radius: 8px;
+      color: white;
+      background: var(--blue);
+      cursor: pointer;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      filter: brightness(0.94);
+    }
+
+    .btn-secondary {
+      color: var(--text);
+      background: #e5e7eb;
+    }
+
+    .btn-danger {
+      background: var(--red);
+    }
+
+    .btn-success {
+      background: var(--green);
+    }
+
+    .btn-warning {
+      background: var(--yellow);
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .result-box {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #f9fafb;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      min-height: 40px;
+      white-space: pre-wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+      background: #eef2ff;
+      color: #3730a3;
+    }
+
+    .badge-ok {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge-bad {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 1100px) {
+      .cards {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .grid-2,
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .sidebar {
+        width: 74px;
+      }
+
+      .sidebar-header span,
+      .sidebar-section,
+      .nav-label,
+      .sidebar-footer {
+        display: none;
+      }
+
+      .main {
+        margin-left: 74px;
+        width: calc(100% - 74px);
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        gap: 12px;
+      }
+
+      .search {
+        display: none;
+      }
+
+      .content {
+        padding: 18px;
+      }
+
+      .form-row {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span>Admin</span>
+    </div>
+
+    <div class="sidebar-section" data-i18n="menuCore">Core</div>
+    <nav class="nav">
+      <button class="active" data-tab="dashboard">
+        📊 <span class="nav-label" data-i18n="dashboard">Dashboard</span>
+      </button>
+      <button data-tab="servers">
+        🖥️ <span class="nav-label" data-i18n="servers">Servers</span>
+      </button>
+      <button data-tab="matches">
+        🎮 <span class="nav-label" data-i18n="matches">Matches</span>
+      </button>
+      <button data-tab="players">
+        👤 <span class="nav-label" data-i18n="players">Players</span>
+      </button>
+      <button data-tab="weapon-access">
+        🔫 <span class="nav-label" data-i18n="weaponAccess">Weapon access</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-section" data-i18n="menuSystem">System</div>
+    <nav class="nav">
+      <button data-tab="catalog">
+        📦 <span class="nav-label" data-i18n="catalog">Catalog</span>
+      </button>
+      <button data-tab="outbox">
+        📬 <span class="nav-label" data-i18n="outbox">Outbox</span>
+      </button>
+      <button data-tab="audit">
+        🧾 <span class="nav-label" data-i18n="audit">Audit</span>
+      </button>
+      <button data-tab="settings">
+        ⚙️ <span class="nav-label" data-i18n="settings">Settings</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div data-i18n="loggedAs">Logged in as:</div>
+      <strong id="loggedUserName">admin</strong>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="search">
+        <input id="searchInput" placeholder="Search..." data-i18n-placeholder="search" />
+        <button type="button" onclick="globalSearch()">🔎</button>
+      </div>
+
+      <div class="topbar-actions">
+        <select id="languageSelect" aria-label="Language">
+          <option value="ru">Русский</option>
+          <option value="en">English</option>
+        </select>
+
+        <div class="user-pill">
+          admin
+        </div>
+      </div>
+    </header>
+
+    <section class="content">
+      <div class="page-header">
+        <h1 id="pageTitle">Dashboard</h1>
+        <div class="breadcrumb" id="breadcrumb">Dashboard</div>
+      </div>
+
+      <section id="tab-dashboard" class="tab">
+        <div class="cards">
+          <div class="metric-card blue">
+            <div class="label" data-i18n="backendStatus">Backend status</div>
+            <div class="value" id="backendStatusValue">OK</div>
+          </div>
+
+          <div class="metric-card green">
+            <div class="label" data-i18n="runningMatches">Running matches</div>
+            <div class="value" id="runningMatchesValue">0</div>
+          </div>
+
+          <div class="metric-card yellow">
+            <div class="label" data-i18n="outboxPending">Outbox pending</div>
+            <div class="value" id="outboxPendingValue">0</div>
+          </div>
+
+          <div class="metric-card red">
+            <div class="label" data-i18n="runtimeConflicts">Runtime conflicts</div>
+            <div class="value" id="runtimeConflictsValue">0</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-header" data-i18n="infrastructure">Infrastructure</div>
+            <div class="panel-body">
+              <div class="status-row">
+                <span>Database</span>
+                <span id="dbStatus" class="status-ok">OK</span>
+              </div>
+              <div class="status-row">
+                <span>Redis</span>
+                <span id="redisStatus" class="status-ok">OK</span>
+              </div>
+              <div class="status-row">
+                <span data-i18n="activeCatalog">Active catalog</span>
+                <span id="activeCatalog">-</span>
+              </div>
+              <div class="status-row">
+                <span data-i18n="uptime">Uptime</span>
+                <span id="uptime">-</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header" data-i18n="quickActions">Quick actions</div>
+            <div class="panel-body">
+              <label for="quickPlayerId">Player UUID</label>
+              <div class="form-row">
+                <input id="quickPlayerId" placeholder="Player UUID" />
+                <button type="button" class="btn" onclick="invalidatePlayerCache()" data-i18n="invalidateCache">
+                  Invalidate cache
+                </button>
+              </div>
+
+              <label for="quickServerId">Server identity UUID</label>
+              <div class="form-row">
+                <input id="quickServerId" placeholder="Server identity UUID" />
+                <button type="button" class="btn btn-danger" onclick="revokeServerIdentity()" data-i18n="revokeServer">
+                  Revoke server
+                </button>
+              </div>
+
+              <div id="quickActionResult" class="result-box">-</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-servers" class="tab hidden">
+        <div class="panel">
+          <div class="panel-header">
+            <span data-i18n="servers">Servers</span>
+            <button type="button" class="btn btn-secondary" onclick="loadServers()" data-i18n="refresh">Refresh</button>
+          </div>
+          <div class="panel-body">
+            <table>
+              <thead>
+              <tr>
+                <th>ID</th>
+                <th>Realm</th>
+                <th>Build</th>
+                <th>Status</th>
+                <th>Expires</th>
+              </tr>
+              </thead>
+              <tbody id="serversTable">
+              <tr><td colspan="5">-</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-matches" class="tab hidden">
+        <div class="panel">
+          <div class="panel-header">
+            <span data-i18n="matches">Matches</span>
+            <button type="button" class="btn btn-secondary" onclick="loadMatches()" data-i18n="refresh">Refresh</button>
+          </div>
+          <div class="panel-body">
+            <table>
+              <thead>
+              <tr>
+                <th>Match ID</th>
+                <th>Server</th>
+                <th>Realm</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+              </thead>
+              <tbody id="matchesTable">
+              <tr><td colspan="5">-</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-players" class="tab hidden">
+        <div class="panel">
+          <div class="panel-header" data-i18n="players">Players</div>
+          <div class="panel-body">
+            <label for="playerSearchInput" data-i18n="playerSearchLabel">Login name or Player UUID</label>
+            <div class="form-row">
+              <input id="playerSearchInput" placeholder="Login name or Player UUID" />
+              <button type="button" class="btn" onclick="searchPlayer()" data-i18n="searchPlayer">Search player</button>
+            </div>
+
+            <table>
+              <thead>
+              <tr>
+                <th>Player ID</th>
+                <th>Login</th>
+                <th>Status</th>
+                <th>Access revision</th>
+              </tr>
+              </thead>
+              <tbody id="playersTable">
+              <tr><td colspan="4">-</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-weapon-access" class="tab hidden">
+        <div class="panel">
+          <div class="panel-header">
+            <span data-i18n="weaponAccess">Weapon access</span>
+            <span class="badge" data-i18n="adminOnly">Admin only</span>
+          </div>
+
+          <div class="panel-body">
+            <div class="grid-2">
+              <div>
+                <h3 data-i18n="blockWeaponForPlayer">Block weapon for player</h3>
+                <p class="hint" data-i18n="weaponAccessHint">
+                  This action should update player_item_access through entitlement_ledger, audit and outbox.
+                </p>
+
+                <label for="weaponAccessPlayerId">Player UUID</label>
+                <div class="form-row">
+                  <input id="weaponAccessPlayerId" placeholder="Player UUID" />
+                </div>
+
+                <label for="weaponAccessWeaponId">Weapon ID</label>
+                <div class="form-row">
+                  <input id="weaponAccessWeaponId" placeholder="weapon.ak12" />
+                </div>
+
+                <label for="weaponAccessCatalogVersion">Catalog version</label>
+                <div class="form-row">
+                  <input id="weaponAccessCatalogVersion" inputmode="numeric" placeholder="102" />
+                </div>
+
+                <label for="weaponAccessAction" data-i18n="accessAction">Action</label>
+                <div class="form-row">
+                  <select id="weaponAccessAction">
+                    <option value="shop_lock" data-i18n="shopLock">Lock in shop</option>
+                    <option value="quest_lock" data-i18n="questLock">Lock by quest</option>
+                    <option value="item_disable" data-i18n="disableForPlayer">Disable for player</option>
+                    <option value="hide_item" data-i18n="hideForPlayer">Hide for player</option>
+                    <option value="shop_unlock" data-i18n="shopUnlock">Unlock shop lock</option>
+                    <option value="quest_unlock" data-i18n="questUnlock">Unlock quest lock</option>
+                    <option value="item_enable" data-i18n="enableForPlayer">Enable for player</option>
+                    <option value="reveal_item" data-i18n="revealForPlayer">Reveal for player</option>
+                  </select>
+                </div>
+
+                <label for="weaponAccessReason" data-i18n="reason">Reason</label>
+                <div class="form-row">
+                  <input id="weaponAccessReason" placeholder="admin_action" />
+                </div>
+
+                <label for="weaponAccessComment" data-i18n="comment">Comment</label>
+                <div class="form-row">
+                  <textarea id="weaponAccessComment" placeholder="Optional admin comment"></textarea>
+                </div>
+
+                <div class="form-row">
+                  <button type="button" class="btn btn-danger" onclick="applyWeaponAccessChange()" data-i18n="applyAccessChange">
+                    Apply change
+                  </button>
+                  <button type="button" class="btn btn-secondary" onclick="loadWeaponAccessStatus()" data-i18n="loadCurrentStatus">
+                    Load current status
+                  </button>
+                </div>
+
+                <div id="weaponAccessResult" class="result-box">-</div>
+              </div>
+
+              <div>
+                <h3 data-i18n="currentWeaponAccess">Current access state</h3>
+
+                <table>
+                  <tbody>
+                  <tr>
+                    <th>is_hidden</th>
+                    <td id="weaponStatusHidden">-</td>
+                  </tr>
+                  <tr>
+                    <th>is_locked_in_shop</th>
+                    <td id="weaponStatusShopLocked">-</td>
+                  </tr>
+                  <tr>
+                    <th>is_locked_by_quest</th>
+                    <td id="weaponStatusQuestLocked">-</td>
+                  </tr>
+                  <tr>
+                    <th>is_disabled</th>
+                    <td id="weaponStatusDisabled">-</td>
+                  </tr>
+                  <tr>
+                    <th>disabled_reason</th>
+                    <td id="weaponStatusDisabledReason">-</td>
+                  </tr>
+                  <tr>
+                    <th>unlock_hint_code</th>
+                    <td id="weaponStatusUnlockHint">-</td>
+                  </tr>
+                  <tr>
+                    <th>player_can_use</th>
+                    <td id="weaponStatusCanUse">-</td>
+                  </tr>
+                  <tr>
+                    <th>effective_can_use</th>
+                    <td id="weaponStatusEffectiveCanUse">-</td>
+                  </tr>
+                  <tr>
+                    <th>access_revision</th>
+                    <td id="weaponStatusRevision">-</td>
+                  </tr>
+                  <tr>
+                    <th>updated_at</th>
+                    <td id="weaponStatusUpdatedAt">-</td>
+                  </tr>
+                  </tbody>
+                </table>
+
+                <div class="panel" style="margin-top: 18px;">
+                  <div class="panel-header" data-i18n="recentWeaponAccessAudit">Recent weapon access audit</div>
+                  <div class="panel-body">
+                    <table>
+                      <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Action</th>
+                        <th>Actor</th>
+                        <th>Result</th>
+                      </tr>
+                      </thead>
+                      <tbody id="weaponAccessAuditTable">
+                      <tr><td colspan="4">-</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-catalog" class="tab hidden">
+        <div class="panel">
+          <div class="panel-header" data-i18n="catalog">Catalog</div>
+          <div class="panel-body">
+            <div class="status-row">
+              <span data-i18n="activeCatalog">Active catalog</span>
+              <span id="catalogActiveVersion">-</span>
+            </div>
+            <div class="status-row">
+              <span data-i18n="catalogState">State</span>
+              <span id="catalogState" class="status-ok">active</span>
+            </div>
+            <div class="status-row">
+              <span data-i18n="allowNewMatches">Allow new matches</span>
+              <span id="catalogAllowNewMatches" class="status-ok">true</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-outbox" class="tab hidden">
+        <div class="panel">
+          <div class="panel-header" data-i18n="outbox">Outbox</div>
+          <div class="panel-body">
+            <div class="cards">
+              <div class="metric-card yellow">
+                <div class="label" data-i18n="pending">Pending</div>
+                <div class="value" id="outboxPendingMetric">0</div>
+              </div>
+              <div class="metric-card red">
+                <div class="label" data-i18n="failed">Failed</div>
+                <div class="value" id="outboxFailedMetric">0</div>
+              </div>
+              <div class="metric-card green">
+                <div class="label" data-i18n="processed">Processed</div>
+                <div class="value" id="outboxProcessedMetric">0</div>
+              </div>
+              <div class="metric-card blue">
+                <div class="label" data-i18n="oldestPendingAge">Oldest age</div>
+                <div class="value" id="outboxOldestAgeMetric">0s</div>
+              </div>
+            </div>
+
+            <button type="button" class="btn" onclick="retryFailedOutbox()" data-i18n="retryFailedOutbox">
+              Retry failed outbox
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-audit" class="tab hidden">
+        <div class="panel">
+          <div class="panel-header">
+            <span data-i18n="audit">Audit</span>
+            <button type="button" class="btn btn-secondary" onclick="loadAudit()" data-i18n="refresh">Refresh</button>
+          </div>
+          <div class="panel-body">
+            <table>
+              <thead>
+              <tr>
+                <th>Time</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Target</th>
+                <th>Result</th>
+              </tr>
+              </thead>
+              <tbody id="auditTable">
+              <tr><td colspan="5">-</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-settings" class="tab hidden">
+        <div class="panel">
+          <div class="panel-header" data-i18n="settings">Settings</div>
+          <div class="panel-body">
+            <p data-i18n="settingsText">Admin dashboard settings can be placed here.</p>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<script>
+  const translations = {
+    ru: {
+      menuCore: "Основное",
+      menuSystem: "Система",
+      dashboard: "Панель",
+      servers: "Серверы",
+      matches: "Матчи",
+      players: "Игроки",
+      weaponAccess: "Доступ к оружию",
+      catalog: "Каталог",
+      outbox: "Outbox",
+      audit: "Аудит",
+      settings: "Настройки",
+      loggedAs: "Вошёл как:",
+      search: "Поиск...",
+      backendStatus: "Статус backend",
+      runningMatches: "Активные матчи",
+      outboxPending: "Outbox pending",
+      runtimeConflicts: "Runtime конфликты",
+      infrastructure: "Инфраструктура",
+      activeCatalog: "Активный каталог",
+      uptime: "Время работы",
+      quickActions: "Быстрые действия",
+      invalidateCache: "Сбросить cache",
+      revokeServer: "Отозвать сервер",
+      refresh: "Обновить",
+      playerSearchLabel: "Login name или Player UUID",
+      searchPlayer: "Найти игрока",
+      adminOnly: "Только admin",
+      blockWeaponForPlayer: "Блокировка оружия для игрока",
+      weaponAccessHint: "Это действие должно обновлять player_item_access через entitlement_ledger, audit и outbox.",
+      accessAction: "Действие",
+      shopLock: "Заблокировать в магазине",
+      questLock: "Заблокировать квестом",
+      disableForPlayer: "Отключить для игрока",
+      hideForPlayer: "Скрыть для игрока",
+      shopUnlock: "Снять блокировку магазина",
+      questUnlock: "Снять блокировку квеста",
+      enableForPlayer: "Включить для игрока",
+      revealForPlayer: "Показать игроку",
+      reason: "Причина",
+      comment: "Комментарий",
+      applyAccessChange: "Применить изменение",
+      loadCurrentStatus: "Загрузить текущее состояние",
+      currentWeaponAccess: "Текущее состояние доступа",
+      recentWeaponAccessAudit: "Последние события доступа к оружию",
+      catalogState: "Состояние",
+      allowNewMatches: "Новые матчи разрешены",
+      pending: "Pending",
+      failed: "Failed",
+      processed: "Processed",
+      oldestPendingAge: "Старейшее событие",
+      retryFailedOutbox: "Повторить failed outbox",
+      settingsText: "Здесь можно разместить настройки админ-панели."
+    },
+    en: {
+      menuCore: "Core",
+      menuSystem: "System",
+      dashboard: "Dashboard",
+      servers: "Servers",
+      matches: "Matches",
+      players: "Players",
+      weaponAccess: "Weapon access",
+      catalog: "Catalog",
+      outbox: "Outbox",
+      audit: "Audit",
+      settings: "Settings",
+      loggedAs: "Logged in as:",
+      search: "Search...",
+      backendStatus: "Backend status",
+      runningMatches: "Running matches",
+      outboxPending: "Outbox pending",
+      runtimeConflicts: "Runtime conflicts",
+      infrastructure: "Infrastructure",
+      activeCatalog: "Active catalog",
+      uptime: "Uptime",
+      quickActions: "Quick actions",
+      invalidateCache: "Invalidate cache",
+      revokeServer: "Revoke server",
+      refresh: "Refresh",
+      playerSearchLabel: "Login name or Player UUID",
+      searchPlayer: "Search player",
+      adminOnly: "Admin only",
+      blockWeaponForPlayer: "Block weapon for player",
+      weaponAccessHint: "This action should update player_item_access through entitlement_ledger, audit and outbox.",
+      accessAction: "Action",
+      shopLock: "Lock in shop",
+      questLock: "Lock by quest",
+      disableForPlayer: "Disable for player",
+      hideForPlayer: "Hide for player",
+      shopUnlock: "Unlock shop lock",
+      questUnlock: "Unlock quest lock",
+      enableForPlayer: "Enable for player",
+      revealForPlayer: "Reveal for player",
+      reason: "Reason",
+      comment: "Comment",
+      applyAccessChange: "Apply change",
+      loadCurrentStatus: "Load current status",
+      currentWeaponAccess: "Current access state",
+      recentWeaponAccessAudit: "Recent weapon access audit",
+      catalogState: "State",
+      allowNewMatches: "Allow new matches",
+      pending: "Pending",
+      failed: "Failed",
+      processed: "Processed",
+      oldestPendingAge: "Oldest age",
+      retryFailedOutbox: "Retry failed outbox",
+      settingsText: "Admin dashboard settings can be placed here."
+    }
+  };
+
+  const tabTitles = {
+    dashboard: { ru: "Панель", en: "Dashboard" },
+    servers: { ru: "Серверы", en: "Servers" },
+    matches: { ru: "Матчи", en: "Matches" },
+    players: { ru: "Игроки", en: "Players" },
+    "weapon-access": { ru: "Доступ к оружию", en: "Weapon access" },
+    catalog: { ru: "Каталог", en: "Catalog" },
+    outbox: { ru: "Outbox", en: "Outbox" },
+    audit: { ru: "Аудит", en: "Audit" },
+    settings: { ru: "Настройки", en: "Settings" }
+  };
+
+  let currentLanguage = localStorage.getItem("admin_language") || "ru";
+  let currentTab = "dashboard";
+
+  function t(key) {
+    return translations[currentLanguage][key] || key;
+  }
+
+  function applyLanguage(lang) {
+    currentLanguage = lang;
+    localStorage.setItem("admin_language", lang);
+    document.documentElement.lang = lang;
+
+    document.querySelectorAll("[data-i18n]").forEach(element => {
+      const key = element.getAttribute("data-i18n");
+      element.textContent = translations[lang][key] || key;
+    });
+
+    document.querySelectorAll("[data-i18n-placeholder]").forEach(element => {
+      const key = element.getAttribute("data-i18n-placeholder");
+      element.placeholder = translations[lang][key] || key;
+    });
+
+    updatePageTitle(currentTab);
+  }
+
+  function updatePageTitle(tab) {
+    const title = tabTitles[tab]?.[currentLanguage] || tab;
+    document.getElementById("pageTitle").textContent = title;
+    document.getElementById("breadcrumb").textContent = title;
+  }
+
+  function openTab(tab) {
+    currentTab = tab;
+
+    document.querySelectorAll(".tab").forEach(element => {
+      element.classList.add("hidden");
+    });
+
+    document.getElementById("tab-" + tab).classList.remove("hidden");
+
+    document.querySelectorAll(".nav button").forEach(button => {
+      button.classList.toggle("active", button.getAttribute("data-tab") === tab);
+    });
+
+    updatePageTitle(tab);
+
+    if (tab === "servers") loadServers();
+    if (tab === "matches") loadMatches();
+    if (tab === "audit") loadAudit();
+  }
+
+  function setText(id, value) {
+    const element = document.getElementById(id);
+    if (element) {
+      element.textContent = value ?? "-";
+    }
+  }
+
+  function formatBool(value) {
+    if (value === true) return "true";
+    if (value === false) return "false";
+    return "-";
+  }
+
+  function setBoolBadge(id, value) {
+    const element = document.getElementById(id);
+    if (!element) return;
+
+    element.textContent = formatBool(value);
+    element.className = value ? "badge badge-ok" : "badge badge-bad";
+  }
+
+  function getCsrfHeaders() {
+    const csrfTokenMeta = document.querySelector("meta[name='_csrf']");
+    const csrfHeaderMeta = document.querySelector("meta[name='_csrf_header']");
+
+    if (!csrfTokenMeta || !csrfHeaderMeta) {
+      return {};
+    }
+
+    return {
+      [csrfHeaderMeta.getAttribute("content")]: csrfTokenMeta.getAttribute("content")
+    };
+  }
+
+  async function getJson(url) {
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "same-origin",
+      headers: {
+        "Accept": "application/json"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error("HTTP " + response.status);
+    }
+
+    return response.json();
+  }
+
+  async function postJson(url, body = {}) {
+    const response = await fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        ...getCsrfHeaders()
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || "HTTP " + response.status);
+    }
+
+    return response.json().catch(() => ({}));
+  }
+
+  async function loadDashboard() {
+    try {
+      const data = await getJson("/admin/status/overview");
+
+      setText("backendStatusValue", data.backend?.ok ? "OK" : "FAIL");
+      setText("runningMatchesValue", data.runtime?.runningMatches ?? 0);
+      setText("outboxPendingValue", data.outbox?.pending ?? 0);
+      setText("runtimeConflictsValue", data.runtime?.runtimeConflicts ?? 0);
+      setText("activeCatalog", data.catalog?.activeVersion ?? "-");
+      setText("catalogActiveVersion", data.catalog?.activeVersion ?? "-");
+      setText("catalogAllowNewMatches", formatBool(data.catalog?.allowNewMatches));
+      setText("uptime", data.backend?.uptime ?? "-");
+
+      const dbOk = data.infrastructure?.databaseOk;
+      const redisOk = data.infrastructure?.redisOk;
+      setText("dbStatus", dbOk ? "OK" : "FAIL");
+      setText("redisStatus", redisOk ? "OK" : "FAIL");
+      document.getElementById("dbStatus").className = dbOk ? "status-ok" : "status-bad";
+      document.getElementById("redisStatus").className = redisOk ? "status-ok" : "status-bad";
+
+      setText("outboxPendingMetric", data.outbox?.pending ?? 0);
+      setText("outboxFailedMetric", data.outbox?.failed ?? 0);
+      setText("outboxProcessedMetric", data.outbox?.processed ?? 0);
+      setText("outboxOldestAgeMetric", data.outbox?.oldestPendingAge ?? "0s");
+    } catch (e) {
+      setText("backendStatusValue", "OFF");
+    }
+  }
+
+  async function loadServers() {
+    const tbody = document.getElementById("serversTable");
+
+    try {
+      const data = await getJson("/admin/status/servers");
+      const servers = data.servers || data || [];
+      tbody.innerHTML = "";
+
+      for (const server of servers) {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${server.serverId || server.id || "-"}</td>
+          <td>${server.realmId || server.realm || "-"}</td>
+          <td>${server.serverBuildId || server.build || "-"}</td>
+          <td>${server.status || "-"}</td>
+          <td>${server.expiresAt || server.expires || "-"}</td>
+        `;
+        tbody.appendChild(row);
+      }
+
+      if (servers.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5">-</td></tr>`;
+      }
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="5">${e.message}</td></tr>`;
+    }
+  }
+
+  async function loadMatches() {
+    const tbody = document.getElementById("matchesTable");
+
+    try {
+      const data = await getJson("/admin/status/matches");
+      const matches = data.matches || data || [];
+      tbody.innerHTML = "";
+
+      for (const match of matches) {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${match.matchId || match.id || "-"}</td>
+          <td>${match.serverId || "-"}</td>
+          <td>${match.realmId || match.realm || "-"}</td>
+          <td>${match.status || "-"}</td>
+          <td>${match.createdAt || match.created || "-"}</td>
+        `;
+        tbody.appendChild(row);
+      }
+
+      if (matches.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5">-</td></tr>`;
+      }
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="5">${e.message}</td></tr>`;
+    }
+  }
+
+  async function loadAudit() {
+    const tbody = document.getElementById("auditTable");
+
+    try {
+      const data = await getJson("/admin/status/recent-audit");
+      const events = data.events || data || [];
+      tbody.innerHTML = "";
+
+      for (const event of events) {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${event.createdAt || event.time || "-"}</td>
+          <td>${event.actorId || event.actor || "-"}</td>
+          <td>${event.action || "-"}</td>
+          <td>${event.targetId || event.target || "-"}</td>
+          <td>${event.result || "-"}</td>
+        `;
+        tbody.appendChild(row);
+      }
+
+      if (events.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5">-</td></tr>`;
+      }
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="5">${e.message}</td></tr>`;
+    }
+  }
+
+  async function invalidatePlayerCache() {
+    const playerId = document.getElementById("quickPlayerId").value.trim();
+    const result = document.getElementById("quickActionResult");
+
+    if (!playerId) {
+      result.textContent = currentLanguage === "ru" ? "Укажи Player UUID" : "Enter Player UUID";
+      return;
+    }
+
+    try {
+      await postJson(`/admin/control/players/${encodeURIComponent(playerId)}/invalidate-cache`);
+      result.textContent = currentLanguage === "ru" ? "Cache сброшен" : "Cache invalidated";
+    } catch (e) {
+      result.textContent = "Error: " + e.message;
+    }
+  }
+
+  async function revokeServerIdentity() {
+    const serverId = document.getElementById("quickServerId").value.trim();
+    const result = document.getElementById("quickActionResult");
+
+    if (!serverId) {
+      result.textContent = currentLanguage === "ru" ? "Укажи Server UUID" : "Enter Server UUID";
+      return;
+    }
+
+    const message = currentLanguage === "ru" ? "Точно отозвать server identity?" : "Revoke server identity?";
+
+    if (!confirm(message)) {
+      return;
+    }
+
+    try {
+      await postJson(`/admin/control/server-identities/${encodeURIComponent(serverId)}/revoke`);
+      result.textContent = currentLanguage === "ru" ? "Server identity отозван" : "Server identity revoked";
+    } catch (e) {
+      result.textContent = "Error: " + e.message;
+    }
+  }
+
+  async function retryFailedOutbox() {
+    try {
+      await postJson("/admin/control/outbox/retry-failed");
+      alert(currentLanguage === "ru" ? "Retry запрошен" : "Retry requested");
+      await loadDashboard();
+    } catch (e) {
+      alert("Error: " + e.message);
+    }
+  }
+
+  async function searchPlayer() {
+    const query = document.getElementById("playerSearchInput").value.trim();
+    const tbody = document.getElementById("playersTable");
+
+    if (!query) {
+      return;
+    }
+
+    try {
+      const data = await getJson(`/admin/status/players/search?query=${encodeURIComponent(query)}`);
+      const players = data.players || data || [];
+      tbody.innerHTML = "";
+
+      for (const player of players) {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${player.playerId || "-"}</td>
+          <td>${player.loginName || player.login || "-"}</td>
+          <td>${player.status || "-"}</td>
+          <td>${player.accessRevision ?? "-"}</td>
+        `;
+        tbody.appendChild(row);
+      }
+
+      if (players.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4">-</td></tr>`;
+      }
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="4">${e.message}</td></tr>`;
+    }
+  }
+
+  function getWeaponAccessForm() {
+    return {
+      playerId: document.getElementById("weaponAccessPlayerId").value.trim(),
+      weaponId: document.getElementById("weaponAccessWeaponId").value.trim(),
+      catalogVersion: document.getElementById("weaponAccessCatalogVersion").value.trim(),
+      action: document.getElementById("weaponAccessAction").value,
+      reason: document.getElementById("weaponAccessReason").value.trim() || "admin_action",
+      comment: document.getElementById("weaponAccessComment").value.trim()
+    };
+  }
+
+  function validateWeaponAccessForm(form) {
+    if (!form.playerId || !form.weaponId || !form.catalogVersion) {
+      return currentLanguage === "ru"
+        ? "Укажи Player UUID, Weapon ID и Catalog version"
+        : "Enter Player UUID, Weapon ID and Catalog version";
+    }
+
+    if (Number.isNaN(Number(form.catalogVersion))) {
+      return currentLanguage === "ru"
+        ? "Catalog version должен быть числом"
+        : "Catalog version must be a number";
+    }
+
+    return null;
+  }
+
+  async function applyWeaponAccessChange() {
+    const form = getWeaponAccessForm();
+    const result = document.getElementById("weaponAccessResult");
+    const validationError = validateWeaponAccessForm(form);
+
+    if (validationError) {
+      result.textContent = validationError;
+      return;
+    }
+
+    const confirmed = confirm(
+      currentLanguage === "ru"
+        ? "Применить изменение доступа к оружию?"
+        : "Apply weapon access change?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const response = await postJson(`/admin/control/players/${encodeURIComponent(form.playerId)}/weapon-access`, {
+        weapon_id: form.weaponId,
+        catalog_version: Number(form.catalogVersion),
+        action: form.action,
+        reason: form.reason,
+        comment: form.comment || null
+      });
+
+      result.textContent = currentLanguage === "ru"
+        ? "Изменение применено"
+        : "Change applied";
+
+      if (response.access_revision) {
+        result.textContent += `\naccess_revision: ${response.access_revision}`;
+      }
+
+      await loadWeaponAccessStatus();
+    } catch (e) {
+      result.textContent = "Error: " + e.message;
+    }
+  }
+
+  async function loadWeaponAccessStatus() {
+    const form = getWeaponAccessForm();
+    const result = document.getElementById("weaponAccessResult");
+    const validationError = validateWeaponAccessForm(form);
+
+    if (validationError) {
+      result.textContent = validationError;
+      return;
+    }
+
+    try {
+      const data = await getJson(
+        `/admin/status/players/${encodeURIComponent(form.playerId)}/weapon-access` +
+        `?weaponId=${encodeURIComponent(form.weaponId)}` +
+        `&catalogVersion=${encodeURIComponent(form.catalogVersion)}`
+      );
+
+      setBoolBadge("weaponStatusHidden", data.is_hidden ?? data.isHidden);
+      setBoolBadge("weaponStatusShopLocked", data.is_locked_in_shop ?? data.isLockedInShop);
+      setBoolBadge("weaponStatusQuestLocked", data.is_locked_by_quest ?? data.isLockedByQuest);
+      setBoolBadge("weaponStatusDisabled", data.is_disabled ?? data.isDisabled);
+      setText("weaponStatusDisabledReason", data.disabled_reason ?? data.disabledReason ?? "-");
+      setText("weaponStatusUnlockHint", data.unlock_hint_code ?? data.unlockHintCode ?? "-");
+      setBoolBadge("weaponStatusCanUse", data.player_can_use ?? data.playerCanUse);
+      setBoolBadge("weaponStatusEffectiveCanUse", data.effective_can_use ?? data.effectiveCanUse);
+      setText("weaponStatusRevision", data.access_revision ?? data.accessRevision ?? "-");
+      setText("weaponStatusUpdatedAt", data.updated_at ?? data.updatedAt ?? "-");
+
+      await loadWeaponAccessAudit(form.playerId, form.weaponId, form.catalogVersion);
+    } catch (e) {
+      result.textContent = "Error: " + e.message;
+    }
+  }
+
+  async function loadWeaponAccessAudit(playerId, weaponId, catalogVersion) {
+    const tbody = document.getElementById("weaponAccessAuditTable");
+
+    try {
+      const data = await getJson(
+        `/admin/status/players/${encodeURIComponent(playerId)}/weapon-access/audit` +
+        `?weaponId=${encodeURIComponent(weaponId)}` +
+        `&catalogVersion=${encodeURIComponent(catalogVersion)}`
+      );
+
+      const events = data.events || data || [];
+      tbody.innerHTML = "";
+
+      for (const event of events) {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${event.createdAt || event.created_at || "-"}</td>
+          <td>${event.action || event.eventType || event.event_type || "-"}</td>
+          <td>${event.actorId || event.actor_id || "-"}</td>
+          <td>${event.result || "-"}</td>
+        `;
+        tbody.appendChild(row);
+      }
+
+      if (events.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4">-</td></tr>`;
+      }
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="4">${e.message}</td></tr>`;
+    }
+  }
+
+  function globalSearch() {
+    const value = document.getElementById("searchInput").value.trim();
+
+    if (!value) {
+      return;
+    }
+
+    openTab("players");
+    document.getElementById("playerSearchInput").value = value;
+    searchPlayer();
+  }
+
+  document.querySelectorAll(".nav button").forEach(button => {
+    button.addEventListener("click", () => {
+      openTab(button.getAttribute("data-tab"));
+    });
+  });
+
+  document.getElementById("languageSelect").value = currentLanguage;
+  document.getElementById("languageSelect").addEventListener("change", event => {
+    applyLanguage(event.target.value);
+  });
+
+  document.getElementById("searchInput").addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      globalSearch();
+    }
+  });
+
+  applyLanguage(currentLanguage);
+  openTab("dashboard");
+  loadDashboard();
+
+  setInterval(loadDashboard, 5000);
+</script>
+</body>
+</html>
