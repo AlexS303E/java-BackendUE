@@ -49,6 +49,26 @@ $catalog = Invoke-RestMethod -Uri "$BaseUrl/catalog/snapshot?realm_id=global"
 $access = Invoke-RestMethod -Uri "$BaseUrl/me/access" -Headers $authHeaders
 $presets = Invoke-RestMethod -Uri "$BaseUrl/me/presets" -Headers $authHeaders
 
+$adminOverview = Invoke-RestMethod `
+    -Uri "$BaseUrl/admin/status/overview" `
+    -Headers $adminHeaders
+
+if ($adminOverview.backend.ok -ne $true -or $adminOverview.infrastructure.databaseOk -ne $true) {
+    throw "Expected admin overview to report backend/database OK"
+}
+
+$adminPlayerSearch = Invoke-RestMethod `
+    -Uri "$BaseUrl/admin/status/players/search?query=$loginName" `
+    -Headers $adminHeaders
+
+$adminFoundPlayer = $adminPlayerSearch.players |
+    Where-Object { $_.playerId -eq $playerId } |
+    Select-Object -First 1
+
+if ($null -eq $adminFoundPlayer -or $adminFoundPlayer.accessRevision -lt 1) {
+    throw "Expected admin player search to find registered player"
+}
+
 $weaponPreset = $presets.weapon_presets | Where-Object { $_.class_tag -eq "class.assault" -and $_.preset_slot -eq 1 } | Select-Object -First 1
 $saveBody = @{
     catalog_version = $weaponPreset.catalog_version
@@ -147,6 +167,22 @@ $profile = Invoke-RestMethod `
 $primary = $profile.weapons | Where-Object { $_.weapon_slot_id -eq "primary" } | Select-Object -First 1
 if ($null -eq $primary -or $primary.weapon_id -ne "weapon.ak12") {
     throw "Expected primary weapon.ak12 in match profile"
+}
+
+$adminServers = Invoke-RestMethod `
+    -Uri "$BaseUrl/admin/status/servers" `
+    -Headers $adminHeaders
+
+if (($adminServers.servers | Where-Object { $_.serverId -eq $serverId } | Select-Object -First 1) -eq $null) {
+    throw "Expected admin servers status to include dev server identity"
+}
+
+$adminMatches = Invoke-RestMethod `
+    -Uri "$BaseUrl/admin/status/matches" `
+    -Headers $adminHeaders
+
+if (($adminMatches.matches | Where-Object { $_.matchId -eq $matchId } | Select-Object -First 1) -eq $null) {
+    throw "Expected admin matches status to include built match"
 }
 
 $runtimeEventId = [Guid]::NewGuid().ToString()
@@ -449,6 +485,22 @@ $accessAfterAdmin = Invoke-RestMethod `
     -Uri "$BaseUrl/me/access" `
     -Headers @{ "Authorization" = "Bearer $($rotatedTokens.access_token)" }
 
+$adminWeaponAccessStatus = Invoke-RestMethod `
+    -Uri "$BaseUrl/admin/status/players/$playerId/weapon-access?weaponId=weapon.ak12&catalogVersion=$($catalog.catalog_version)" `
+    -Headers $adminHeaders
+
+if ($adminWeaponAccessStatus.isDisabled -ne $true -or $adminWeaponAccessStatus.effectiveCanUse -ne $false) {
+    throw "Expected admin weapon-access status to show disabled weapon"
+}
+
+$adminWeaponAccessAudit = Invoke-RestMethod `
+    -Uri "$BaseUrl/admin/status/players/$playerId/weapon-access/audit?weaponId=weapon.ak12&catalogVersion=$($catalog.catalog_version)" `
+    -Headers $adminHeaders
+
+if (($adminWeaponAccessAudit.events | Where-Object { $_.eventType -eq "admin_override" } | Select-Object -First 1) -eq $null) {
+    throw "Expected admin weapon-access audit to include admin_override"
+}
+
 $disabledModule = $accessAfterAdmin.items |
     Where-Object { $_.item_id -eq "weapon.ak12" } |
     Select-Object -First 1
@@ -514,6 +566,36 @@ if ($sanitizedProfile.dependency_revisions.weapon_preset_revision -ne $weaponPre
     throw "Expected sanitized match profile to use sanitized weapon preset revision"
 }
 
+$adminEnableBody = @{
+    weapon_id = "weapon.ak12"
+    catalog_version = $catalog.catalog_version
+    action = "item_enable"
+    reason = "vertical_smoke_enable_weapon"
+    comment = "re-enable after sanitizer smoke"
+} | ConvertTo-Json -Depth 4
+
+$adminControlEnable = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/admin/control/players/$playerId/weapon-access" `
+    -Headers $adminHeaders `
+    -Body $adminEnableBody `
+    -ContentType "application/json"
+
+if ($adminControlEnable.disabled -ne $false -or $adminControlEnable.player_can_use -ne $true) {
+    throw "Expected admin control weapon-access adapter to enable weapon.ak12"
+}
+
+$adminRetryOutbox = Invoke-RestMethod `
+    -Method Post `
+    -Uri "$BaseUrl/admin/control/outbox/retry-failed" `
+    -Headers $adminHeaders `
+    -Body "{}" `
+    -ContentType "application/json"
+
+if ($adminRetryOutbox.retried -lt 0) {
+    throw "Expected admin outbox retry to return retried count"
+}
+
 [PSCustomObject]@{
     status = "VERTICAL_SMOKE_OK"
     player_id = $playerId
@@ -530,6 +612,7 @@ if ($sanitizedProfile.dependency_revisions.weapon_preset_revision -ne $weaponPre
     post_match_pending_revision = $resolvedPendingChange.result_revision
     server_unauthenticated_status = $serverUnauthenticatedStatus
     server_forbidden_status = $serverForbiddenStatus
+    admin_overview_ok = $adminOverview.backend.ok
     admin_unauthenticated_status = $adminUnauthenticatedStatus
     admin_access_revision = $adminAccess.access_revision
     admin_access_duplicate = $adminAccessReplay.duplicate
@@ -538,6 +621,8 @@ if ($sanitizedProfile.dependency_revisions.weapon_preset_revision -ne $weaponPre
     stale_match_profiles = $adminAccess.stale_match_profiles
     sanitized_weapon_revision = $weaponPresetAfterAdmin.revision
     sanitized_profile_modules = $sanitizedPrimary.modules.Count
+    admin_control_enabled = $adminControlEnable.player_can_use
+    admin_outbox_retried = $adminRetryOutbox.retried
     refresh_rotated = ($rotatedTokens.refresh_token -ne $tokens.refresh_token)
     outfit_presets = $presets.outfit_presets.Count
     primary_weapon = $primary.weapon_id

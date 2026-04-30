@@ -78,6 +78,50 @@ public class MatchProfileInvalidationService {
         return staleProfiles.size();
     }
 
+    /**
+     * Инвалидирует все активные snapshots игрока независимо от версии каталога.
+     */
+    public int invalidateForPlayer(
+        UUID playerId,
+        String staleReason,
+        UUID sourceEventId,
+        OffsetDateTime now
+    ) {
+        List<UUID> staleProfileIds = jdbcTemplate.queryForList(
+            """
+                UPDATE player_match_profiles
+                SET is_stale = true,
+                    stale_reason = ?,
+                    stale_at = ?
+                WHERE player_id = ?
+                  AND is_stale = false
+                RETURNING profile_id
+                """,
+            UUID.class,
+            staleReason,
+            now,
+            playerId
+        );
+
+        if (!staleProfileIds.isEmpty()) {
+            outboxService.record(
+                "match_profile.staled",
+                "player_match_profile",
+                playerId.toString(),
+                1,
+                Map.of(
+                    "player_id", playerId,
+                    "stale_reason", staleReason,
+                    "stale_profiles", staleProfileIds.size(),
+                    "source_event_id", sourceEventId,
+                    "source", "admin_control"
+                ),
+                now
+            );
+        }
+        return staleProfileIds.size();
+    }
+
     private record StaleProfile(
         UUID profileId,
         String realmId,
