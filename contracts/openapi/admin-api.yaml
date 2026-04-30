@@ -1,17 +1,724 @@
 openapi: 3.1.0
+
 info:
-  title: Backend For UE Admin API
-  version: 0.1.0
+  title: UE5 Backend Admin API
+  version: 0.3.0
+  description: Admin API for status, player access control and operational control actions.
+
+servers:
+  - url: http://localhost:8080
+    description: Local backend
+
+tags:
+  - name: admin_status
+  - name: admin_access
+  - name: admin_control
+
+security:
+  - admin_token_header: []
+
 paths:
-  /admin/catalog/publish:
-    post:
-      operationId: publishCatalog
+  /admin/status/overview:
+    get:
+      tags: [admin_status]
+      operationId: admin_status_overview
+      summary: Get backend admin overview.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
       responses:
-        "202":
-          description: Catalog publish accepted
-  /admin/catalog/rollback:
-    post:
-      operationId: rollbackCatalog
+        '200':
+          description: Admin overview.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOverviewResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/status/servers:
+    get:
+      tags: [admin_status]
+      operationId: admin_status_servers
+      summary: Get registered server identities.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
       responses:
-        "202":
-          description: Catalog rollback accepted
+        '200':
+          description: Server identities.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminServersResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/status/matches:
+    get:
+      tags: [admin_status]
+      operationId: admin_status_matches
+      summary: Get recent server matches.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+      responses:
+        '200':
+          description: Recent matches.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMatchesResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/status/recent-audit:
+    get:
+      tags: [admin_status]
+      operationId: admin_status_recent_audit
+      summary: Get recent admin/server audit events.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+      responses:
+        '200':
+          description: Recent audit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRecentAuditResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/status/players/search:
+    get:
+      tags: [admin_status]
+      operationId: admin_status_players_search
+      summary: Search players.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Player search results.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPlayerSearchResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/status/players/{player_id}/weapon-access:
+    get:
+      tags: [admin_status]
+      operationId: admin_status_player_weapon_access
+      summary: Get player weapon access status.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/player_id_path'
+        - $ref: '#/components/parameters/catalog_version_query_optional'
+      responses:
+        '200':
+          description: Player weapon access status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWeaponAccessStatusResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/status/players/{player_id}/weapon-access/audit:
+    get:
+      tags: [admin_status]
+      operationId: admin_status_player_weapon_access_audit
+      summary: Get player weapon access audit events.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/player_id_path'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Player access audit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWeaponAccessAuditResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/players/{player_id}/access/items/{item_id}:
+    post:
+      tags: [admin_access]
+      operationId: admin_player_item_access_mutate
+      summary: Mutate access state for one player item.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
+        - $ref: '#/components/parameters/player_id_path'
+        - $ref: '#/components/parameters/item_id_path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminPlayerItemAccessRequest'
+      responses:
+        '200':
+          description: Access mutation applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPlayerItemAccessResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /admin/control/players/{player_id}/invalidate-cache:
+    post:
+      tags: [admin_control]
+      operationId: admin_control_player_cache_invalidate
+      summary: Invalidate player cache.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/player_id_path'
+      responses:
+        '200':
+          description: Cache invalidation requested.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminControlResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/control/server-identities/{server_id}/revoke:
+    post:
+      tags: [admin_control]
+      operationId: admin_control_server_identity_revoke
+      summary: Revoke a server identity.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/server_id_path'
+      responses:
+        '200':
+          description: Server identity revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminControlResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/control/outbox/retry-failed:
+    post:
+      tags: [admin_control]
+      operationId: admin_control_outbox_retry_failed
+      summary: Retry failed outbox events.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+      responses:
+        '200':
+          description: Failed outbox events scheduled for retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminControlResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/control/players/{player_id}/weapon-access:
+    post:
+      tags: [admin_control]
+      operationId: admin_control_player_weapon_access_rebuild
+      summary: Rebuild player weapon access projection.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/player_id_path'
+      responses:
+        '200':
+          description: Player weapon access projection rebuild requested.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminControlResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    admin_token_header:
+      type: apiKey
+      in: header
+      name: X-Admin-Token
+
+  parameters:
+    admin_id_header_optional:
+      name: X-Admin-Id
+      in: header
+      required: false
+      schema:
+        type: string
+
+    idempotency_key_header:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+
+    player_id_path:
+      name: player_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    item_id_path:
+      name: item_id
+      in: path
+      required: true
+      schema:
+        type: string
+
+    server_id_path:
+      name: server_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    catalog_version_query_optional:
+      name: catalog_version
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int64
+
+  responses:
+    ValidationError:
+      description: Validation error.
+      x-error-code: VALIDATION_ERROR
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    Forbidden:
+      description: Admin token is missing or invalid.
+      x-error-code: FORBIDDEN
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    NotFound:
+      description: Resource not found.
+      x-error-code: NOT_FOUND
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    IdempotencyConflict:
+      description: Idempotency-Key was reused with a different request body.
+      x-error-code: IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [title, status, detail, code]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        code:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProblemField'
+      additionalProperties: true
+
+    ProblemField:
+      type: object
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+
+    AdminOverviewResponse:
+      type: object
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        players_total:
+          type: integer
+          format: int64
+        active_servers:
+          type: integer
+          format: int64
+        running_matches:
+          type: integer
+          format: int64
+        outbox_pending:
+          type: integer
+          format: int64
+        outbox_failed:
+          type: integer
+          format: int64
+      additionalProperties: true
+
+    AdminServersResponse:
+      type: object
+      required: [servers]
+      properties:
+        servers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminServerIdentity'
+
+    AdminServerIdentity:
+      type: object
+      properties:
+        server_id:
+          type: string
+          format: uuid
+        realm_id:
+          type: string
+        server_build_id:
+          type: string
+        certificate_fingerprint:
+          type: string
+        status:
+          type: string
+          enum: [active, revoked, expired]
+        allowed_scopes:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    AdminMatchesResponse:
+      type: object
+      required: [matches]
+      properties:
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminMatch'
+
+    AdminMatch:
+      type: object
+      properties:
+        match_id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        realm_id:
+          type: string
+        status:
+          type: string
+          enum: [creating, running, finished, failed]
+        created_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    AdminRecentAuditResponse:
+      type: object
+      properties:
+        admin_audit_events:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminAuditEvent'
+        server_audit_events:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServerAuditEvent'
+
+    AdminAuditEvent:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        actor_id:
+          type: string
+        action:
+          type: string
+        target_type:
+          type: string
+        target_id:
+          type: string
+        result:
+          type: string
+          enum: [success, denied, failed]
+        created_at:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    ServerAuditEvent:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        server_id:
+          type: string
+          format: uuid
+        match_id:
+          type: string
+          format: uuid
+          nullable: true
+        action:
+          type: string
+        scope:
+          type: string
+        result:
+          type: string
+          enum: [success, denied, failed]
+        created_at:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    AdminPlayerSearchResponse:
+      type: object
+      required: [players]
+      properties:
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminPlayerSummary'
+
+    AdminPlayerSummary:
+      type: object
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        login_name:
+          type: string
+        status:
+          type: string
+          enum: [active, banned, disabled, deleted]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AdminWeaponAccessStatusResponse:
+      type: object
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        catalog_version:
+          type: integer
+          format: int64
+        access_revision:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminWeaponAccessItem'
+
+    AdminWeaponAccessItem:
+      type: object
+      properties:
+        item_id:
+          type: string
+        item_type:
+          type: string
+        display_name:
+          type: string
+        is_hidden:
+          type: boolean
+        is_locked_in_shop:
+          type: boolean
+        is_locked_by_quest:
+          type: boolean
+        is_disabled:
+          type: boolean
+        disabled_reason:
+          type: string
+          nullable: true
+        unlock_hint_code:
+          type: string
+          nullable: true
+        unlock_hint_payload:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    AdminWeaponAccessAuditResponse:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminWeaponAccessAuditEvent'
+
+    AdminWeaponAccessAuditEvent:
+      type: object
+      properties:
+        ledger_event_id:
+          type: string
+          format: uuid
+        player_id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+        catalog_version:
+          type: integer
+          format: int64
+        event_type:
+          type: string
+        source_type:
+          type: string
+        source_ref:
+          type: string
+          nullable: true
+        actor_type:
+          type: string
+        actor_id:
+          type: string
+        correlation_id:
+          type: string
+          nullable: true
+        payload:
+          type: object
+          nullable: true
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+
+    AdminPlayerItemAccessRequest:
+      type: object
+      required: [catalog_version, action]
+      properties:
+        catalog_version:
+          type: integer
+          format: int64
+        action:
+          type: string
+          enum:
+            - shop_lock
+            - shop_unlock
+            - quest_lock
+            - quest_unlock
+            - item_disable
+            - item_enable
+            - hide_item
+            - reveal_item
+        disabled_reason:
+          type: string
+          nullable: true
+        unlock_hint_code:
+          type: string
+          nullable: true
+        unlock_hint_payload:
+          type: object
+          nullable: true
+          additionalProperties: true
+        source_ref:
+          type: string
+          nullable: true
+
+    AdminPlayerItemAccessResponse:
+      type: object
+      properties:
+        applied:
+          type: boolean
+        player_id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+        catalog_version:
+          type: integer
+          format: int64
+        action:
+          type: string
+        access_revision:
+          type: integer
+          format: int64
+
+    AdminControlResponse:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+        message:
+          type: string
+        affected_count:
+          type: integer
+          format: int64
+      additionalProperties: true

@@ -1,70 +1,264 @@
 openapi: 3.1.0
+
 info:
-  title: Backend For UE Server API
-  version: 0.1.0
+  title: UE5 Backend Server API
+  version: 0.3.0
+  description: Private Dedicated Server API for match profile build, runtime preset changes and runtime events.
+
 servers:
-  - url: https://localhost:8443
+  - url: http://localhost:8080
+    description: Local backend
+
+tags:
+  - name: server_match_profile
+  - name: server_runtime_changes
+  - name: server_runtime_events
+
 paths:
   /server/match-profile/build:
     post:
-      operationId: buildMatchProfile
+      tags: [server_match_profile]
+      operationId: server_match_profile_build
+      summary: Build authoritative match profile snapshot for a player.
       security:
-        - serverId: []
-          serverCertificateFingerprint: []
+        - server_identity_headers: []
+      parameters:
+        - $ref: '#/components/parameters/server_id_header'
+        - $ref: '#/components/parameters/server_certificate_fingerprint_header'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/BuildMatchProfileRequest"
+              $ref: '#/components/schemas/MatchProfileBuildRequest'
+            examples:
+              default:
+                value:
+                  match_id: 00000000-0000-0000-0000-000000000001
+                  player_id: 00000000-0000-0000-0000-000000000002
+                  realm_id: global
+                  class_tag: class.assault
+                  team_tag: team.red
+                  weapon_preset_slot: 1
+                  outfit_preset_slot: 1
+                  supported_catalog_versions: [101, 102]
+                  preferred_catalog_version: 102
+                  server_build_id: ds-2026.04.26.1
       responses:
-        "200":
-          description: Authoritative match profile
+        '200':
+          description: Match profile built.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MatchProfile"
-        "409":
-          description: Catalog version is not supported
+                $ref: '#/components/schemas/MatchProfileBuildResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/CatalogVersionNotSupported'
+        '422':
+          $ref: '#/components/responses/LoadoutValidationFailed'
+
   /server/runtime-preset-changes:
     post:
-      operationId: submitRuntimePresetChanges
+      tags: [server_runtime_changes]
+      operationId: server_runtime_preset_changes
+      summary: Persist runtime preset changes from Dedicated Server.
+      description: Idempotency-Key must equal body.operation_id.
       security:
-        - serverId: []
-          serverCertificateFingerprint: []
+        - server_identity_headers: []
       parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/server_id_header'
+        - $ref: '#/components/parameters/server_certificate_fingerprint_header'
+        - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RuntimePresetChangeRequest"
+              $ref: '#/components/schemas/RuntimePresetChangeRequest'
+            examples:
+              set_module:
+                value:
+                  operation_id: 00000000-0000-0000-0000-000000000100
+                  operation_seq: 1
+                  match_id: 00000000-0000-0000-0000-000000000001
+                  player_id: 00000000-0000-0000-0000-000000000002
+                  class_tag: class.assault
+                  weapon_preset_slot: 1
+                  base_weapon_preset_revision: 12
+                  payload:
+                    schema_version: 1
+                    changes:
+                      - op: set_module
+                        weapon_slot_id: primary
+                        weapon_id: weapon.ak12
+                        mount_id: weapon.ak12.mount.scope.01
+                        module_id: module.scope.red_dot_01
       responses:
-        "200":
-          description: Runtime change applied
+        '200':
+          description: Runtime change accepted or duplicate operation returned.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RuntimePresetChangeResponse"
-        "409":
-          description: Revision conflict
+                $ref: '#/components/schemas/RuntimePresetChangeResponse'
+        '400':
+          $ref: '#/components/responses/RuntimePresetChangeBadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/PresetRevisionConflict'
+        '422':
+          $ref: '#/components/responses/LoadoutValidationFailed'
+
+  /server/runtime-events:
+    post:
+      tags: [server_runtime_events]
+      operationId: server_runtime_event_write
+      summary: Write runtime event/audit entry from Dedicated Server.
+      security:
+        - server_identity_headers: []
+      parameters:
+        - $ref: '#/components/parameters/server_id_header'
+        - $ref: '#/components/parameters/server_certificate_fingerprint_header'
+        - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeEventRequest'
+      responses:
+        '202':
+          description: Runtime event accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeEventResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
 components:
   securitySchemes:
-    serverId:
+    server_identity_headers:
       type: apiKey
       in: header
       name: X-Server-Id
-    serverCertificateFingerprint:
-      type: apiKey
+      description: Server identity header. Must be paired with X-Server-Certificate-Fingerprint.
+
+  parameters:
+    server_id_header:
+      name: X-Server-Id
       in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    server_certificate_fingerprint_header:
       name: X-Server-Certificate-Fingerprint
+      in: header
+      required: true
+      schema:
+        type: string
+
+    idempotency_key_header:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+
+  responses:
+    ValidationError:
+      description: Validation error.
+      x-error-code: VALIDATION_ERROR
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    RuntimePresetChangeBadRequest:
+      description: Bad runtime preset change request. Includes IDEMPOTENCY_OPERATION_ID_MISMATCH when Idempotency-Key does not equal body.operation_id.
+      x-error-code: IDEMPOTENCY_OPERATION_ID_MISMATCH
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    Forbidden:
+      description: Server identity, scope, realm binding or match assignment validation failed.
+      x-error-code: FORBIDDEN
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    PresetRevisionConflict:
+      description: Runtime preset change cannot be applied because the durable preset revision has changed.
+      x-error-code: PRESET_REVISION_CONFLICT
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    CatalogVersionNotSupported:
+      description: Dedicated Server does not support any catalog version allowed for this match.
+      x-error-code: CATALOG_VERSION_NOT_SUPPORTED
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    LoadoutValidationFailed:
+      description: Match profile or runtime preset change failed loadout validation.
+      x-error-code: LOADOUT_VALIDATION_FAILED
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
   schemas:
-    BuildMatchProfileRequest:
+    ProblemDetails:
+      type: object
+      required: [title, status, detail, code]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        code:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProblemField'
+        operation_id:
+          type: string
+          format: uuid
+        pending_change_id:
+          type: string
+          format: uuid
+        duplicate:
+          type: boolean
+      additionalProperties: true
+
+    ProblemField:
+      type: object
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+
+    MatchProfileBuildRequest:
       type: object
       required:
         - match_id
@@ -75,6 +269,7 @@ components:
         - weapon_preset_slot
         - outfit_preset_slot
         - supported_catalog_versions
+        - preferred_catalog_version
         - server_build_id
       properties:
         match_id:
@@ -91,8 +286,10 @@ components:
           type: string
         weapon_preset_slot:
           type: integer
+          minimum: 1
         outfit_preset_slot:
           type: integer
+          minimum: 1
         supported_catalog_versions:
           type: array
           items:
@@ -103,6 +300,14 @@ components:
           format: int64
         server_build_id:
           type: string
+
+    MatchProfileBuildResponse:
+      type: object
+      required: [profile]
+      properties:
+        profile:
+          $ref: '#/components/schemas/MatchProfile'
+
     MatchProfile:
       type: object
       required:
@@ -112,12 +317,15 @@ components:
         - catalog_version
         - class_tag
         - team_tag
+        - weapon_preset_slot
+        - outfit_preset_slot
         - weapons
         - outfit
         - dependency_revisions
       properties:
         schema_version:
           type: integer
+          const: 1
         player_id:
           type: string
           format: uuid
@@ -137,17 +345,67 @@ components:
         weapons:
           type: array
           items:
-            type: object
+            $ref: '#/components/schemas/MatchProfileWeapon'
         outfit:
           type: array
           items:
-            type: object
+            $ref: '#/components/schemas/MatchProfileOutfitItem'
         sanitized_warnings:
           type: array
           items:
             type: string
         dependency_revisions:
-          type: object
+          $ref: '#/components/schemas/MatchProfileDependencyRevisions'
+
+    MatchProfileWeapon:
+      type: object
+      required: [weapon_slot_id, modules]
+      properties:
+        weapon_slot_id:
+          type: string
+        weapon_id:
+          type: string
+          nullable: true
+        modules:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchProfileModule'
+
+    MatchProfileModule:
+      type: object
+      required: [mount_id, module_id]
+      properties:
+        mount_id:
+          type: string
+        module_id:
+          type: string
+
+    MatchProfileOutfitItem:
+      type: object
+      required: [clothing_slot_id, item_id]
+      properties:
+        clothing_slot_id:
+          type: string
+        item_id:
+          type: string
+
+    MatchProfileDependencyRevisions:
+      type: object
+      required: [weapon_preset_revision, outfit_preset_revision, access_revision, profile_revision]
+      properties:
+        weapon_preset_revision:
+          type: integer
+          format: int64
+        outfit_preset_revision:
+          type: integer
+          format: int64
+        access_revision:
+          type: integer
+          format: int64
+        profile_revision:
+          type: integer
+          format: int64
+
     RuntimePresetChangeRequest:
       type: object
       required:
@@ -158,7 +416,7 @@ components:
         - class_tag
         - weapon_preset_slot
         - base_weapon_preset_revision
-        - runtime_change_payload
+        - payload
       properties:
         operation_id:
           type: string
@@ -179,8 +437,9 @@ components:
         base_weapon_preset_revision:
           type: integer
           format: int64
-        runtime_change_payload:
-          $ref: "#/components/schemas/RuntimePresetChangePayload"
+        payload:
+          $ref: '#/components/schemas/RuntimePresetChangePayload'
+
     RuntimePresetChangePayload:
       type: object
       required: [schema_version, changes]
@@ -191,41 +450,74 @@ components:
         changes:
           type: array
           items:
-            type: object
-            required: [op, weapon_slot_id]
-            properties:
-              op:
-                enum: [set_weapon, clear_weapon, set_module, clear_module]
-              weapon_slot_id:
-                type: string
-              weapon_id:
-                type: string
-              mount_id:
-                type: string
-              module_id:
-                type: string
+            $ref: '#/components/schemas/RuntimePresetChangeOperation'
+
+    RuntimePresetChangeOperation:
+      type: object
+      required: [op, weapon_slot_id]
+      properties:
+        op:
+          type: string
+          enum: [set_weapon, clear_weapon, set_module, clear_module]
+        weapon_slot_id:
+          type: string
+        weapon_id:
+          type: string
+        mount_id:
+          type: string
+        module_id:
+          type: string
+
     RuntimePresetChangeResponse:
       type: object
-      required: [operation_id, status, duplicate]
+      required: [operation_id, status]
       properties:
         operation_id:
           type: string
           format: uuid
         status:
-          enum: [applied, conflict, duplicate, rejected, failed]
+          type: string
+          enum: [applied, conflict, rejected, duplicate, failed]
         result_revision:
-          type:
-            - integer
-            - "null"
+          type: integer
           format: int64
+          nullable: true
         pending_change_id:
-          type:
-            - string
-            - "null"
+          type: string
           format: uuid
+          nullable: true
         duplicate:
           type: boolean
-        error_code:
-          type:
-            - string
-            - "null"
+
+    RuntimeEventRequest:
+      type: object
+      required: [match_id, event_type, payload]
+      properties:
+        match_id:
+          type: string
+          format: uuid
+        player_id:
+          type: string
+          format: uuid
+          nullable: true
+        event_type:
+          type: string
+          enum:
+            - player_spawned
+            - loadout_applied
+            - item_used
+            - player_died
+            - match_finished
+        payload:
+          type: object
+          additionalProperties: true
+
+    RuntimeEventResponse:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          type: boolean
+        event_id:
+          type: string
+          format: uuid

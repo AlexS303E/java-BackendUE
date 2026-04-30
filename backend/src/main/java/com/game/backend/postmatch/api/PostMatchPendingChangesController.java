@@ -29,8 +29,8 @@ public class PostMatchPendingChangesController {
      */
     @GetMapping("/me/post-match-pending-changes")
     PostMatchPendingChangesResponse getMyPendingChanges(
-        Authentication authentication,
-        @RequestParam(defaultValue = "pending") String status
+            Authentication authentication,
+            @RequestParam(value = "status", defaultValue = "pending") String status
     ) {
         UUID playerId = CurrentPlayer.require(authentication).playerId();
         return postMatchPendingChangesService.getChanges(playerId, status);
@@ -39,11 +39,11 @@ public class PostMatchPendingChangesController {
     /**
      * Применяет выбранное игроком решение: apply_if_still_valid или discard.
      */
-    @PostMapping("/me/post-match-pending-changes/{changeId}/resolve")
+    @PostMapping("/me/post-match-pending-changes/{change_id}/resolve")
     PostMatchPendingChangeResolutionResponse resolvePendingChange(
-        Authentication authentication,
-        @PathVariable UUID changeId,
-        @Valid @RequestBody PostMatchPendingChangeResolutionRequest request
+            Authentication authentication,
+            @PathVariable("change_id") UUID changeId,
+            @Valid @RequestBody PostMatchPendingChangeResolutionRequest request
     ) {
         UUID playerId = CurrentPlayer.require(authentication).playerId();
         return postMatchPendingChangesService.resolve(playerId, changeId, request);

@@ -63,8 +63,8 @@ public class AdminStatusController {
      */
     @GetMapping("/admin/status/players/search")
     Map<String, Object> searchPlayers(
-        Authentication authentication,
-        @RequestParam String query
+            Authentication authentication,
+            @RequestParam("query") String query
     ) {
         CurrentAdmin.require(authentication);
         return Map.of("players", adminStatusService.searchPlayers(query));
@@ -73,12 +73,12 @@ public class AdminStatusController {
     /**
      * Возвращает текущую projection доступа игрока к оружию.
      */
-    @GetMapping("/admin/status/players/{playerId}/weapon-access")
+    @GetMapping("/admin/status/players/{player_id}/weapon-access")
     Map<String, Object> weaponAccess(
-        Authentication authentication,
-        @PathVariable UUID playerId,
-        @RequestParam String weaponId,
-        @RequestParam long catalogVersion
+            Authentication authentication,
+            @PathVariable("player_id") UUID playerId,
+            @RequestParam("weapon_id") String weaponId,
+            @RequestParam("catalog_version") long catalogVersion
     ) {
         CurrentAdmin.require(authentication);
         return adminStatusService.weaponAccess(playerId, weaponId, catalogVersion);
@@ -87,12 +87,12 @@ public class AdminStatusController {
     /**
      * Возвращает ledger историю изменения доступа игрока к оружию.
      */
-    @GetMapping("/admin/status/players/{playerId}/weapon-access/audit")
+    @GetMapping("/admin/status/players/{player_id}/weapon-access/audit")
     Map<String, Object> weaponAccessAudit(
-        Authentication authentication,
-        @PathVariable UUID playerId,
-        @RequestParam String weaponId,
-        @RequestParam long catalogVersion
+            Authentication authentication,
+            @PathVariable("player_id") UUID playerId,
+            @RequestParam("weapon_id") String weaponId,
+            @RequestParam("catalog_version") long catalogVersion
     ) {
         CurrentAdmin.require(authentication);
         return Map.of("events", adminStatusService.weaponAccessAudit(playerId, weaponId, catalogVersion));

@@ -26,16 +26,16 @@ public class AdminControlController {
     /**
      * Помечает match profile snapshots игрока устаревшими вручную.
      */
-    @PostMapping("/admin/control/players/{playerId}/invalidate-cache")
-    Map<String, Object> invalidatePlayerCache(Authentication authentication, @PathVariable UUID playerId) {
+    @PostMapping("/admin/control/players/{player_id}/invalidate-cache")
+    Map<String, Object> invalidatePlayerCache(Authentication authentication, @PathVariable("player_id") UUID playerId) {
         return adminControlService.invalidatePlayerCache(CurrentAdmin.require(authentication), playerId);
     }
 
     /**
      * Отзывает server identity.
      */
-    @PostMapping("/admin/control/server-identities/{serverId}/revoke")
-    Map<String, Object> revokeServerIdentity(Authentication authentication, @PathVariable UUID serverId) {
+    @PostMapping("/admin/control/server-identities/{server_id}/revoke")
+    Map<String, Object> revokeServerIdentity(Authentication authentication, @PathVariable("server_id") UUID serverId) {
         return adminControlService.revokeServerIdentity(CurrentAdmin.require(authentication), serverId);
     }
 
@@ -50,11 +50,11 @@ public class AdminControlController {
     /**
      * Adapter для dashboard action -> полный admin access update над оружием.
      */
-    @PostMapping("/admin/control/players/{playerId}/weapon-access")
+    @PostMapping("/admin/control/players/{player_id}/weapon-access")
     AdminItemAccessUpdateResponse changeWeaponAccess(
-        Authentication authentication,
-        @PathVariable UUID playerId,
-        @Valid @RequestBody AdminWeaponAccessControlRequest request
+            Authentication authentication,
+            @PathVariable("player_id") UUID playerId,
+            @Valid @RequestBody AdminWeaponAccessControlRequest request
     ) {
         return adminControlService.changeWeaponAccess(CurrentAdmin.require(authentication), playerId, request);
     }

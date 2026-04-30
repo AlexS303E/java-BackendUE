@@ -1,205 +1,529 @@
 openapi: 3.1.0
+
 info:
-  title: Backend For UE Public API
-  version: 0.1.0
+  title: UE5 Backend Public API
+  version: 0.3.0
+  description: Public API for authentication, catalog, access, presets, notifications and post-match pending changes.
+
 servers:
   - url: http://localhost:8080
+    description: Local backend
+
+tags:
+  - name: auth
+  - name: catalog
+  - name: access
+  - name: presets
+  - name: notifications
+  - name: post_match
+
 paths:
-  /api/health:
-    get:
-      operationId: getHealth
-      responses:
-        "200":
-          description: Service health
   /auth/register:
     post:
-      operationId: registerPlayer
+      tags: [auth]
+      operationId: auth_register
+      summary: Register a new player account.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RegisterRequest"
+              $ref: '#/components/schemas/AuthRegisterRequest'
+            examples:
+              default:
+                value:
+                  login_name: player_one
+                  password: password123
       responses:
-        "201":
-          description: Player registered
+        '201':
+          description: Account registered.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RegisterResponse"
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
   /auth/login:
     post:
-      operationId: loginPlayer
+      tags: [auth]
+      operationId: auth_login
+      summary: Login and create access/refresh tokens.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LoginRequest"
+              $ref: '#/components/schemas/AuthLoginRequest'
+            examples:
+              default:
+                value:
+                  login_name: player_one
+                  password: password123
       responses:
-        "200":
-          description: Login success
+        '200':
+          description: Login successful.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthTokenResponse"
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /auth/refresh:
     post:
-      operationId: refreshAuthSession
+      tags: [auth]
+      operationId: auth_refresh
+      summary: Rotate refresh token and issue a new access token.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RefreshRequest"
+              $ref: '#/components/schemas/AuthRefreshRequest'
       responses:
-        "200":
-          description: Refresh token rotated
+        '200':
+          description: Token refresh successful.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthTokenResponse"
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
   /auth/logout:
     post:
-      operationId: logoutPlayer
+      tags: [auth]
+      operationId: auth_logout
+      summary: Revoke the current refresh token/session.
+      security:
+        - BearerAuth: []
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LogoutRequest"
+              $ref: '#/components/schemas/AuthLogoutRequest'
       responses:
-        "204":
-          description: Refresh token revoked
+        '204':
+          description: Logout successful.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
   /catalog/snapshot:
     get:
-      operationId: getCatalogSnapshot
+      tags: [catalog]
+      operationId: catalog_snapshot_get
+      summary: Get catalog snapshot for a realm and optional catalog version.
       parameters:
-        - name: realm_id
-          in: query
-          required: false
-          schema:
-            type: string
-            default: global
+        - $ref: '#/components/parameters/realm_id_query'
+        - $ref: '#/components/parameters/catalog_version_query_optional'
       responses:
-        "200":
-          description: Catalog snapshot
+        '200':
+          description: Catalog snapshot.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CatalogSnapshot"
+                $ref: '#/components/schemas/CatalogSnapshotResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /me/access:
     get:
-      operationId: getMyAccess
+      tags: [access]
+      operationId: access_get
+      summary: Get current player access projection.
       security:
-        - bearerAuth: []
+        - BearerAuth: []
       parameters:
-        - name: realm_id
-          in: query
-          required: false
-          schema:
-            type: string
-            default: global
-        - name: catalog_version
-          in: query
-          required: false
-          schema:
-            type: integer
-            format: int64
+        - $ref: '#/components/parameters/catalog_version_query_optional'
       responses:
-        "200":
-          description: Access projection
+        '200':
+          description: Player access projection.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AccessProjection"
+                $ref: '#/components/schemas/AccessProjectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
   /me/presets:
     get:
-      operationId: getMyPresets
+      tags: [presets]
+      operationId: presets_get
+      summary: Get player weapon and outfit presets.
       security:
-        - bearerAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/catalog_version_query_optional'
+        - $ref: '#/components/parameters/class_tag_query_optional'
+        - $ref: '#/components/parameters/team_tag_query_optional'
       responses:
-        "200":
-          description: Player presets
+        '200':
+          description: Player presets.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PlayerPresets"
+                $ref: '#/components/schemas/PlayerPresetsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
   /me/presets/weapons/{class_tag}/{preset_slot}:
     put:
-      operationId: saveWeaponPreset
+      tags: [presets]
+      operationId: weapon_preset_save
+      summary: Save a durable weapon preset using optimistic locking.
       security:
-        - bearerAuth: []
+        - BearerAuth: []
       parameters:
-        - name: If-Match
-          in: header
-          required: true
-          schema:
-            type: string
-        - name: class_tag
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: preset_slot
-          in: path
-          required: true
-          schema:
-            type: integer
+        - $ref: '#/components/parameters/class_tag_path'
+        - $ref: '#/components/parameters/preset_slot_path'
+        - $ref: '#/components/parameters/if_match_header'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/WeaponPresetSaveRequest"
+              $ref: '#/components/schemas/WeaponPresetSaveRequest'
+            examples:
+              set_module:
+                value:
+                  catalog_version: 102
+                  slots:
+                    - weapon_slot_id: primary
+                      selected_weapon_id: weapon.ak12
+                      modules:
+                        - mount_id: weapon.ak12.mount.scope.01
+                          module_id: module.scope.red_dot_01
       responses:
-        "200":
-          description: Weapon preset saved
+        '200':
+          description: Weapon preset saved.
           headers:
             ETag:
-              schema:
-                type: string
+              $ref: '#/components/headers/ETag'
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WeaponPresetSaveResponse"
-        "412":
-          description: Preset revision mismatch
-        "428":
-          description: If-Match header required
+                $ref: '#/components/schemas/WeaponPresetSaveResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/LoadoutValidationFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+
+  /me/notifications:
+    get:
+      tags: [notifications]
+      operationId: notifications_get
+      summary: Get player notifications.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Notification list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /me/notifications/{notification_id}/read:
+    post:
+      tags: [notifications]
+      operationId: notification_mark_read
+      summary: Mark a notification as read.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/notification_id_path'
+      responses:
+        '200':
+          description: Notification marked as read.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationAcknowledgeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /me/post-match-pending-changes:
+    get:
+      tags: [post_match]
+      operationId: post_match_pending_changes_get
+      summary: Get unresolved post-match pending changes.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Pending changes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostMatchPendingChangesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /me/post-match-pending-changes/{change_id}/resolve:
+    post:
+      tags: [post_match]
+      operationId: post_match_pending_change_resolve
+      summary: Resolve a post-match pending change.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/change_id_path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostMatchPendingChangeResolutionRequest'
+      responses:
+        '200':
+          description: Pending change resolved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostMatchPendingChangeResolutionResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+
 components:
   securitySchemes:
-    bearerAuth:
+    BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
+  parameters:
+    realm_id_query:
+      name: realm_id
+      in: query
+      required: true
+      schema:
+        type: string
+        default: global
+
+    catalog_version_query_optional:
+      name: catalog_version
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int64
+
+    class_tag_query_optional:
+      name: class_tag
+      in: query
+      required: false
+      schema:
+        type: string
+
+    team_tag_query_optional:
+      name: team_tag
+      in: query
+      required: false
+      schema:
+        type: string
+
+    class_tag_path:
+      name: class_tag
+      in: path
+      required: true
+      schema:
+        type: string
+
+    preset_slot_path:
+      name: preset_slot
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+    notification_id_path:
+      name: notification_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    change_id_path:
+      name: change_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    if_match_header:
+      name: If-Match
+      in: header
+      required: true
+      description: Expected resource revision ETag.
+      schema:
+        type: string
+
+  headers:
+    ETag:
+      description: Resource revision or snapshot validator.
+      schema:
+        type: string
+
+  responses:
+    ValidationError:
+      description: Validation error.
+      x-error-code: VALIDATION_ERROR
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    Unauthenticated:
+      description: Authentication is required or token is invalid.
+      x-error-code: UNAUTHENTICATED
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    Forbidden:
+      description: The authenticated principal is not allowed to perform this action.
+      x-error-code: FORBIDDEN
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    NotFound:
+      description: Resource not found.
+      x-error-code: NOT_FOUND
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    Conflict:
+      description: Request conflicts with current resource state.
+      x-error-code: CONFLICT
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    PreconditionRequired:
+      description: If-Match header is required.
+      x-error-code: PRECONDITION_REQUIRED
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    PreconditionFailed:
+      description: Resource revision precondition failed.
+      x-error-code: PRECONDITION_FAILED
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    LoadoutValidationFailed:
+      description: Loadout validation failed.
+      x-error-code: LOADOUT_VALIDATION_FAILED
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    ServiceUnavailable:
+      description: Backend service is unavailable.
+      x-error-code: SERVICE_UNAVAILABLE
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    NotImplemented:
+      description: Operation is not implemented.
+      x-error-code: NOT_IMPLEMENTED
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
   schemas:
-    RegisterRequest:
+    ProblemDetails:
+      type: object
+      required: [title, status, detail, code]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        code:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProblemField'
+      additionalProperties: true
+
+    ProblemField:
+      type: object
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+
+    AuthRegisterRequest:
       type: object
       required: [login_name, password]
       properties:
         login_name:
           type: string
           minLength: 3
-          maxLength: 64
         password:
           type: string
           minLength: 8
-          maxLength: 256
-    RegisterResponse:
-      type: object
-      required: [player_id, login_name, status, needs_bootstrap]
-      properties:
-        player_id:
-          type: string
-          format: uuid
-        login_name:
-          type: string
-        status:
-          type: string
-        needs_bootstrap:
-          type: boolean
-    LoginRequest:
+
+    AuthLoginRequest:
       type: object
       required: [login_name, password]
       properties:
@@ -207,41 +531,43 @@ components:
           type: string
         password:
           type: string
-    RefreshRequest:
+
+    AuthRefreshRequest:
       type: object
       required: [refresh_token]
       properties:
         refresh_token:
           type: string
-    LogoutRequest:
+
+    AuthLogoutRequest:
       type: object
-      required: [refresh_token]
       properties:
         refresh_token:
           type: string
-    AuthTokenResponse:
+
+    AuthResponse:
       type: object
-      required: [player_id, access_token, token_type, expires_in, refresh_token, refresh_expires_in]
+      required: [player_id, access_token, refresh_token, token_type, expires_in]
       properties:
         player_id:
           type: string
           format: uuid
         access_token:
           type: string
-        token_type:
-          type: string
-          enum: [Bearer]
-        expires_in:
-          type: integer
-          format: int64
         refresh_token:
           type: string
-        refresh_expires_in:
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
           type: integer
-          format: int64
-    CatalogSnapshot:
+          example: 900
+        needs_bootstrap:
+          type: boolean
+
+    CatalogSnapshotResponse:
       type: object
-      required: [realm_id, catalog_version, items, weapon_mounts, allowed_modules]
+      required: [realm_id, catalog_version, items]
       properties:
         realm_id:
           type: string
@@ -251,66 +577,134 @@ components:
         items:
           type: array
           items:
-            type: object
+            $ref: '#/components/schemas/CatalogItem'
         weapon_mounts:
           type: array
           items:
-            type: object
+            $ref: '#/components/schemas/WeaponMount'
         allowed_modules:
           type: array
           items:
-            type: object
-    PlayerPresets:
+            $ref: '#/components/schemas/AllowedModule'
+
+    CatalogItem:
       type: object
-      required: [player_id, weapon_presets, outfit_presets]
+      required: [item_id, catalog_version, item_type, display_name, is_enabled]
       properties:
-        player_id:
+        item_id:
           type: string
-          format: uuid
-        weapon_presets:
-          type: array
-          items:
-            type: object
-        outfit_presets:
-          type: array
-          items:
-            type: object
-    WeaponPresetSaveRequest:
-      type: object
-      required: [catalog_version, slots]
-      properties:
         catalog_version:
           type: integer
           format: int64
-        slots:
-          type: array
-          items:
-            type: object
-            required: [weapon_slot_id, modules]
-            properties:
-              weapon_slot_id:
-                type: string
-              weapon_id:
-                type:
-                  - string
-                  - "null"
-              modules:
-                type: array
-                items:
-                  type: object
-                  required: [mount_id, module_id]
-                  properties:
-                    mount_id:
-                      type: string
-                    module_id:
-                      type: string
-    WeaponPresetSaveResponse:
+        item_type:
+          type: string
+          enum: [weapon, module, clothing, skin, consumable]
+        display_name:
+          type: string
+        factory_id:
+          type: string
+          nullable: true
+        country_code:
+          type: string
+          nullable: true
+        is_enabled:
+          type: boolean
+        payload_schema_version:
+          type: integer
+
+    WeaponMount:
       type: object
-      required: [player_id, class_tag, preset_slot, catalog_version, revision, slots]
+      required: [mount_id, catalog_version, weapon_id, mount_type]
+      properties:
+        mount_id:
+          type: string
+        catalog_version:
+          type: integer
+          format: int64
+        weapon_id:
+          type: string
+        mount_type:
+          type: string
+        mount_index:
+          type: integer
+        is_required:
+          type: boolean
+        display_order:
+          type: integer
+
+    AllowedModule:
+      type: object
+      required: [mount_id, module_id, catalog_version]
+      properties:
+        mount_id:
+          type: string
+        module_id:
+          type: string
+        catalog_version:
+          type: integer
+          format: int64
+
+    AccessProjectionResponse:
+      type: object
+      required: [player_id, access_revision, items]
       properties:
         player_id:
           type: string
           format: uuid
+        access_revision:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessItem'
+
+    AccessItem:
+      type: object
+      required: [item_id, catalog_version, can_use]
+      properties:
+        item_id:
+          type: string
+        catalog_version:
+          type: integer
+          format: int64
+        can_use:
+          type: boolean
+        is_hidden:
+          type: boolean
+        is_locked_in_shop:
+          type: boolean
+        is_locked_by_quest:
+          type: boolean
+        is_disabled:
+          type: boolean
+        disabled_reason:
+          type: string
+          nullable: true
+        unlock_hint_code:
+          type: string
+          nullable: true
+        unlock_hint_payload:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    PlayerPresetsResponse:
+      type: object
+      properties:
+        weapon_presets:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeaponPreset'
+        outfit_presets:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutfitPreset'
+
+    WeaponPreset:
+      type: object
+      required: [class_tag, preset_slot, catalog_version, revision, slots]
+      properties:
         class_tag:
           type: string
         preset_slot:
@@ -321,35 +715,201 @@ components:
         revision:
           type: integer
           format: int64
+        sanitized:
+          type: boolean
         slots:
           type: array
           items:
-            type: object
-    AccessProjection:
+            $ref: '#/components/schemas/WeaponSlotPreset'
+
+    WeaponSlotPreset:
       type: object
-      required: [player_id, catalog_version, access_revision, items]
+      required: [weapon_slot_id, modules]
       properties:
-        player_id:
+        weapon_slot_id:
           type: string
-          format: uuid
+        selected_weapon_id:
+          type: string
+          nullable: true
+        modules:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleSelection'
+
+    ModuleSelection:
+      type: object
+      required: [mount_id, module_id]
+      properties:
+        mount_id:
+          type: string
+        module_id:
+          type: string
+
+    OutfitPreset:
+      type: object
+      required: [team_tag, class_tag, outfit_preset_slot, catalog_version, revision, items]
+      properties:
+        team_tag:
+          type: string
+        class_tag:
+          type: string
+        outfit_preset_slot:
+          type: integer
         catalog_version:
           type: integer
           format: int64
-        access_revision:
+        revision:
           type: integer
           format: int64
+        sanitized:
+          type: boolean
         items:
           type: array
           items:
-            type: object
-    Problem:
+            $ref: '#/components/schemas/OutfitItem'
+
+    OutfitItem:
       type: object
+      required: [clothing_slot_id, item_id]
       properties:
-        type:
+        clothing_slot_id:
+          type: string
+        item_id:
+          type: string
+
+    WeaponPresetSaveRequest:
+      type: object
+      required: [catalog_version, slots]
+      properties:
+        catalog_version:
+          type: integer
+          format: int64
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeaponSlotPreset'
+
+    WeaponPresetSaveResponse:
+      type: object
+      required: [class_tag, preset_slot, catalog_version, revision]
+      properties:
+        class_tag:
+          type: string
+        preset_slot:
+          type: integer
+        catalog_version:
+          type: integer
+          format: int64
+        revision:
+          type: integer
+          format: int64
+        sanitized:
+          type: boolean
+
+    Notification:
+      type: object
+      required: [notification_id, notification_type, created_at, is_read]
+      properties:
+        notification_id:
+          type: string
+          format: uuid
+        notification_type:
           type: string
         title:
           type: string
-        status:
-          type: integer
-        detail:
+        payload:
+          type: object
+          additionalProperties: true
+        created_at:
           type: string
+          format: date-time
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        is_read:
+          type: boolean
+
+    NotificationsResponse:
+      type: object
+      required: [notifications]
+      properties:
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+
+    NotificationAcknowledgeResponse:
+      type: object
+      required: [notification_id, is_read]
+      properties:
+        notification_id:
+          type: string
+          format: uuid
+        is_read:
+          type: boolean
+
+    PostMatchPendingChange:
+      type: object
+      required: [change_id, match_id, class_tag, weapon_preset_slot, reason_code, status, payload]
+      properties:
+        change_id:
+          type: string
+          format: uuid
+        match_id:
+          type: string
+          format: uuid
+        class_tag:
+          type: string
+        weapon_preset_slot:
+          type: integer
+        base_weapon_preset_revision:
+          type: integer
+          format: int64
+        current_conflicting_revision:
+          type: integer
+          format: int64
+          nullable: true
+        reason_code:
+          type: string
+          enum: [revision_conflict, catalog_conflict, access_conflict, validation_conflict]
+        status:
+          type: string
+          enum: [pending, applied, rejected, expired, superseded]
+        payload:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    PostMatchPendingChangesResponse:
+      type: object
+      required: [changes]
+      properties:
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostMatchPendingChange'
+
+    PostMatchPendingChangeResolutionRequest:
+      type: object
+      required: [resolution]
+      properties:
+        resolution:
+          type: string
+          enum: [apply_if_still_valid, discard, manual_merge]
+
+    PostMatchPendingChangeResolutionResponse:
+      type: object
+      required: [change_id, status]
+      properties:
+        change_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, applied, rejected, expired, superseded]

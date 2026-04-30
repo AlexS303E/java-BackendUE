@@ -26,20 +26,20 @@ public class AdminPlayerAccessController {
     /**
      * Применяет admin override к одному item и обновляет access projection игрока.
      */
-    @PostMapping("/admin/players/{playerId}/access/items/{itemId}")
+    @PostMapping("/admin/players/{player_id}/access/items/{item_id}")
     AdminItemAccessUpdateResponse updateItemAccess(
-        Authentication authentication,
-        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-        @PathVariable UUID playerId,
-        @PathVariable String itemId,
-        @Valid @RequestBody AdminItemAccessUpdateRequest request
+            Authentication authentication,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @PathVariable("player_id") UUID playerId,
+            @PathVariable("item_id") String itemId,
+            @Valid @RequestBody AdminItemAccessUpdateRequest request
     ) {
         return adminPlayerAccessService.updateItemAccess(
-            CurrentAdmin.require(authentication),
-            idempotencyKey,
-            playerId,
-            itemId,
-            request
+                CurrentAdmin.require(authentication),
+                idempotencyKey,
+                playerId,
+                itemId,
+                request
         );
     }
 }

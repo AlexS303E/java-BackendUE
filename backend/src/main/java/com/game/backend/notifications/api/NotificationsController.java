@@ -27,9 +27,9 @@ public class NotificationsController {
      */
     @GetMapping("/me/notifications")
     NotificationsResponse getMyNotifications(
-        Authentication authentication,
-        @RequestParam(defaultValue = "unread") String status,
-        @RequestParam(defaultValue = "50") int limit
+            Authentication authentication,
+            @RequestParam(value = "status", defaultValue = "unread") String status,
+            @RequestParam(value = "limit", defaultValue = "50") int limit
     ) {
         UUID playerId = CurrentPlayer.require(authentication).playerId();
         return playerNotificationService.getNotifications(playerId, status, limit);
@@ -38,10 +38,10 @@ public class NotificationsController {
     /**
      * Помечает уведомление прочитанным; повторный вызов остается идемпотентным.
      */
-    @PostMapping("/me/notifications/{notificationId}/read")
+    @PostMapping("/me/notifications/{notification_id}/read")
     NotificationAcknowledgeResponse markNotificationRead(
-        Authentication authentication,
-        @PathVariable UUID notificationId
+            Authentication authentication,
+            @PathVariable("notification_id") UUID notificationId
     ) {
         UUID playerId = CurrentPlayer.require(authentication).playerId();
         return playerNotificationService.markRead(playerId, notificationId);

@@ -23,9 +23,9 @@ public class AccessController {
      */
     @GetMapping("/me/access")
     AccessResponse getMyAccess(
-        Authentication authentication,
-        @RequestParam(defaultValue = "global") String realmId,
-        @RequestParam(required = false) Long catalogVersion
+            Authentication authentication,
+            @RequestParam(value = "realm_id", defaultValue = "global") String realmId,
+            @RequestParam(value = "catalog_version", required = false) Long catalogVersion
     ) {
         return accessService.getAccess(CurrentPlayer.require(authentication).playerId(), realmId, catalogVersion);
     }
