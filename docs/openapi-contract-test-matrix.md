@@ -23,7 +23,7 @@
 |---|---|
 | `POST /server/match-profile/build` | requires server headers, unsupported catalog returns `409 CATALOG_VERSION_NOT_SUPPORTED`, success returns match profile |
 | `POST /server/runtime-preset-changes` | requires server headers, requires `Idempotency-Key`, mismatched key returns `400 IDEMPOTENCY_OPERATION_ID_MISMATCH`, stale revision returns `409 PRESET_REVISION_CONFLICT`, duplicate operation is idempotent |
-| `POST /server/runtime-events` | requires server headers, requires `Idempotency-Key`, accepts known runtime event types |
+| `POST /server/runtime-events` | requires server headers, requires `Idempotency-Key`, duplicate key/body returns duplicate response, duplicate key/different body returns `409 IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST`, accepts known runtime event types |
 
 ## Admin API
 

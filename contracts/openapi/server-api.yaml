@@ -111,6 +111,7 @@ paths:
       tags: [server_runtime_events]
       operationId: server_runtime_event_write
       summary: Write runtime event/audit entry from Dedicated Server.
+      description: Idempotency-Key header is required. Replays with the same key and same body return a duplicate response; reuse with a different body returns IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST.
       security:
         - ServerMutualTls: []
           ServerIdentityHeader: []
@@ -132,11 +133,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/RuntimeEventResponse'
         '400':
-          $ref: '#/components/responses/ValidationError'
+          $ref: '#/components/responses/RuntimeEventBadRequest'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/IdempotencyKeyReused'
 
 components:
   securitySchemes:
@@ -173,7 +176,7 @@ components:
       required: true
       schema:
         type: string
-      description: Required for non-idempotent server POST operations. For runtime-preset-changes it must equal operation_id.
+      description: Required for non-idempotent server POST operations. For runtime-preset-changes it must equal operation_id. For runtime-events it identifies the replay window and does not need to equal event_id.
 
   responses:
     ValidationError:
@@ -187,6 +190,22 @@ components:
     RuntimePresetChangeBadRequest:
       description: Validation error or IDEMPOTENCY_OPERATION_ID_MISMATCH when Idempotency-Key differs from operation_id.
       x-error-code: IDEMPOTENCY_OPERATION_ID_MISMATCH
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    RuntimeEventBadRequest:
+      description: Validation error or IDEMPOTENCY_KEY_REQUIRED when Idempotency-Key is missing.
+      x-error-code: IDEMPOTENCY_KEY_REQUIRED
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    IdempotencyKeyReused:
+      description: Idempotency-Key was reused with a different request body.
+      x-error-code: IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST
       content:
         application/problem+json:
           schema:

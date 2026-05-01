@@ -13,6 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,6 +156,54 @@ class VerticalFlowIntegrationTest {
 
         assertThat(profile.path("dependency_revisions").path("weapon_preset_revision").asLong())
                 .isEqualTo(savedRevision);
+
+        UUID runtimeEventId = UUID.randomUUID();
+        String runtimeEventIdempotencyKey = "runtime-event:" + runtimeEventId;
+        Map<String, Object> runtimeEventBody = runtimeEventBody(
+                runtimeEventId,
+                1L,
+                matchId,
+                playerId,
+                "loadout_applied"
+        );
+
+        mockMvc.perform(postJson("/server/runtime-events", runtimeEventBody)
+                        .headers(serverHeaders()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REQUIRED"));
+
+        JsonNode runtimeEventRecorded = json(
+                mockMvc.perform(postJson("/server/runtime-events", runtimeEventBody)
+                                .headers(serverHeaders())
+                                .header("Idempotency-Key", runtimeEventIdempotencyKey))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.event_id").value(runtimeEventId.toString()))
+                        .andExpect(jsonPath("$.status").value("recorded"))
+                        .andExpect(jsonPath("$.duplicate").value(false))
+                        .andReturn()
+        );
+
+        assertThat(runtimeEventRecorded.path("event_id").asText()).isEqualTo(runtimeEventId.toString());
+
+        mockMvc.perform(postJson("/server/runtime-events", runtimeEventBody)
+                        .headers(serverHeaders())
+                        .header("Idempotency-Key", runtimeEventIdempotencyKey))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.event_id").value(runtimeEventId.toString()))
+                .andExpect(jsonPath("$.status").value("recorded"))
+                .andExpect(jsonPath("$.duplicate").value(true));
+
+        mockMvc.perform(postJson("/server/runtime-events", runtimeEventBody(
+                                UUID.randomUUID(),
+                                2L,
+                                matchId,
+                                playerId,
+                                "item_used"
+                        ))
+                        .headers(serverHeaders())
+                        .header("Idempotency-Key", runtimeEventIdempotencyKey))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST"));
 
         UUID runtimeOperationId = UUID.randomUUID();
         Map<String, Object> runtimeBody = runtimeSetModuleBody(
@@ -339,6 +388,28 @@ class VerticalFlowIntegrationTest {
                 "runtime_change_payload", Map.of(
                         "schema_version", 1,
                         "changes", List.of(change)
+                )
+        );
+    }
+
+    private Map<String, Object> runtimeEventBody(
+            UUID eventId,
+            long eventSeq,
+            UUID matchId,
+            UUID playerId,
+            String eventType
+    ) {
+        return Map.of(
+                "event_id", eventId.toString(),
+                "event_seq", eventSeq,
+                "match_id", matchId.toString(),
+                "event_type", eventType,
+                "player_id", playerId.toString(),
+                "payload_schema_version", 1,
+                "occurred_at", OffsetDateTime.now().toString(),
+                "payload", Map.of(
+                        "source", "vertical_flow_test",
+                        "event_type", eventType
                 )
         );
     }

@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -25,8 +26,9 @@ public class RuntimeEventsController {
     @PostMapping("/server/runtime-events")
     RuntimeEventResponse recordRuntimeEvent(
         Authentication authentication,
+        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody RuntimeEventRequest request
     ) {
-        return runtimeEventsService.record(CurrentServer.require(authentication), request);
+        return runtimeEventsService.record(CurrentServer.require(authentication), idempotencyKey, request);
     }
 }

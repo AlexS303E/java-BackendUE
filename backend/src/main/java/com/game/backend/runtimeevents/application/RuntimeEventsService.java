@@ -15,7 +15,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +31,9 @@ import java.util.UUID;
  */
 @Service
 public class RuntimeEventsService {
+    private static final String IDEMPOTENCY_SCOPE = "server_runtime_events";
+    private static final String ROUTE_FINGERPRINT = "POST /server/runtime-events";
+    private static final int IDEMPOTENCY_TTL_DAYS = 1;
     private static final String AUDIT_ACTION = "runtime_event.record";
     private static final String AUDIT_SCOPE = "runtime_event:write";
     private static final Set<String> SUPPORTED_EVENT_TYPES = Set.of(
@@ -58,23 +65,32 @@ public class RuntimeEventsService {
     }
 
     /**
-     * Записывает событие один раз по event_id и публикует доменное событие в outbox.
+     * Записывает событие один раз по Idempotency-Key/event_id и публикует доменное событие в outbox.
      */
     @Transactional
-    public RuntimeEventResponse record(ServerIdentity server, RuntimeEventRequest request) {
+    public RuntimeEventResponse record(ServerIdentity server, String idempotencyKey, RuntimeEventRequest request) {
         boolean matchAssigned = false;
         try {
+            validateIdempotencyKey(idempotencyKey);
             validate(request);
+            OffsetDateTime now = OffsetDateTime.now();
+            String requestHash = requestHash(request);
+            deleteExpiredIdempotencyRecord(server, idempotencyKey, now);
+
+            ExistingIdempotencyRecord existing = existingIdempotencyRecord(server, idempotencyKey);
+            if (existing != null) {
+                return auditedResponse(server, request, replayExistingRecord(requestHash, existing));
+            }
+
             serverMatchService.ensureAssignedForServerOperation(server, request.matchId(), "Runtime events");
             matchAssigned = true;
 
             if (eventExists(request.eventId())) {
                 RuntimeEventResponse response = new RuntimeEventResponse(request.eventId(), "recorded", true);
-                auditSuccess(server, request, response);
-                return response;
+                insertIdempotencyRecord(server, idempotencyKey, requestHash, response, now);
+                return auditedResponse(server, request, response);
             }
 
-            OffsetDateTime now = OffsetDateTime.now();
             insertRuntimeEvent(server, request, now);
             if ("match_finished".equals(request.eventType())) {
                 finishMatch(request.matchId(), now);
@@ -82,14 +98,33 @@ public class RuntimeEventsService {
             recordOutboxEvent(server, request, now);
 
             RuntimeEventResponse response = new RuntimeEventResponse(request.eventId(), "recorded", false);
-            auditSuccess(server, request, response);
-            return response;
+            insertIdempotencyRecord(server, idempotencyKey, requestHash, response, now);
+            return auditedResponse(server, request, response);
         } catch (ApiException exception) {
             auditFailure(server, request, matchAssigned, auditResult(exception), exception.code(), exception.status().value());
             throw exception;
         } catch (RuntimeException exception) {
             auditFailure(server, request, matchAssigned, "failed", exception.getClass().getSimpleName(), 500);
             throw exception;
+        }
+    }
+
+    private RuntimeEventResponse auditedResponse(
+        ServerIdentity server,
+        RuntimeEventRequest request,
+        RuntimeEventResponse response
+    ) {
+        auditSuccess(server, request, response);
+        return response;
+    }
+
+    private void validateIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "IDEMPOTENCY_KEY_REQUIRED",
+                "Idempotency-Key header is required"
+            );
         }
     }
 
@@ -112,6 +147,96 @@ public class RuntimeEventsService {
             eventId
         );
         return Boolean.TRUE.equals(exists);
+    }
+
+    private void deleteExpiredIdempotencyRecord(ServerIdentity server, String idempotencyKey, OffsetDateTime now) {
+        jdbcTemplate.update(
+            """
+                DELETE FROM api_idempotency_records
+                WHERE operation_scope = ?
+                  AND actor_id = ?
+                  AND idempotency_key = ?
+                  AND expires_at <= ?
+                """,
+            IDEMPOTENCY_SCOPE,
+            server.serverId().toString(),
+            idempotencyKey,
+            now
+        );
+    }
+
+    private ExistingIdempotencyRecord existingIdempotencyRecord(ServerIdentity server, String idempotencyKey) {
+        List<ExistingIdempotencyRecord> records = jdbcTemplate.query(
+            """
+                SELECT request_hash, status_code, response_body::text AS response_body
+                FROM api_idempotency_records
+                WHERE operation_scope = ?
+                  AND actor_id = ?
+                  AND idempotency_key = ?
+                """,
+            (rs, rowNum) -> new ExistingIdempotencyRecord(
+                rs.getString("request_hash"),
+                rs.getInt("status_code"),
+                rs.getString("response_body")
+            ),
+            IDEMPOTENCY_SCOPE,
+            server.serverId().toString(),
+            idempotencyKey
+        );
+        return records.isEmpty() ? null : records.getFirst();
+    }
+
+    private RuntimeEventResponse replayExistingRecord(String requestHash, ExistingIdempotencyRecord existing) {
+        if (!existing.requestHash().equals(requestHash)) {
+            throw new ApiException(
+                HttpStatus.CONFLICT,
+                "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST",
+                "Idempotency-Key was reused with a different runtime event request body"
+            );
+        }
+        RuntimeEventResponse stored = fromJson(existing.responseBody());
+        return new RuntimeEventResponse(stored.eventId(), stored.status(), true);
+    }
+
+    private void insertIdempotencyRecord(
+        ServerIdentity server,
+        String idempotencyKey,
+        String requestHash,
+        RuntimeEventResponse response,
+        OffsetDateTime now
+    ) {
+        try {
+            jdbcTemplate.update(
+                """
+                    INSERT INTO api_idempotency_records(
+                      operation_scope,
+                      actor_id,
+                      route_fingerprint,
+                      idempotency_key,
+                      request_hash,
+                      status_code,
+                      response_body,
+                      created_at,
+                      expires_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, 200, ?::jsonb, ?, ?)
+                    """,
+                IDEMPOTENCY_SCOPE,
+                server.serverId().toString(),
+                ROUTE_FINGERPRINT,
+                idempotencyKey,
+                requestHash,
+                toJson(response),
+                now,
+                now.plusDays(IDEMPOTENCY_TTL_DAYS)
+            );
+        } catch (DuplicateKeyException exception) {
+            throw new ApiException(
+                HttpStatus.CONFLICT,
+                "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST",
+                "Idempotency-Key was already recorded for another runtime event request"
+            );
+        }
     }
 
     private void insertRuntimeEvent(ServerIdentity server, RuntimeEventRequest request, OffsetDateTime now) {
@@ -232,11 +357,44 @@ public class RuntimeEventsService {
         return exception.status() == HttpStatus.FORBIDDEN ? "denied" : "failed";
     }
 
+    private String requestHash(RuntimeEventRequest request) {
+        return sha256(toJson(request));
+    }
+
     private String toJson(Map<String, Object> payload) {
+        return toJson((Object) payload);
+    }
+
+    private String toJson(Object value) {
         try {
-            return objectMapper.writeValueAsString(payload);
+            return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "RUNTIME_EVENT_SERIALIZATION_FAILED", "Unable to serialize runtime event payload");
         }
+    }
+
+    private RuntimeEventResponse fromJson(String payload) {
+        try {
+            return objectMapper.readValue(payload, RuntimeEventResponse.class);
+        } catch (JsonProcessingException exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "RUNTIME_EVENT_SERIALIZATION_FAILED", "Unable to deserialize runtime event response");
+        }
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "REQUEST_HASH_FAILED", "Unable to hash runtime event request");
+        }
+    }
+
+    private record ExistingIdempotencyRecord(
+        String requestHash,
+        int statusCode,
+        String responseBody
+    ) {
     }
 }
