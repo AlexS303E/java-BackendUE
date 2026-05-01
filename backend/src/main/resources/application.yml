@@ -37,3 +37,18 @@ app:
     max-attempts: ${OUTBOX_MAX_ATTEMPTS:5}
     retry-delay-seconds: ${OUTBOX_RETRY_DELAY_SECONDS:10}
     processing-timeout-seconds: ${OUTBOX_PROCESSING_TIMEOUT_SECONDS:60}
+  server-auth:
+    mtls:
+      enabled: ${SERVER_MTLS_ENABLED:false}
+      port: ${SERVER_MTLS_PORT:9443}
+      require-private-port: ${SERVER_MTLS_REQUIRE_PRIVATE_PORT:true}
+      allow-header-fingerprint-fallback: ${SERVER_MTLS_ALLOW_HEADER_FINGERPRINT_FALLBACK:true}
+      key-store: ${SERVER_MTLS_KEY_STORE:}
+      key-store-password: ${SERVER_MTLS_KEY_STORE_PASSWORD:}
+      key-store-type: ${SERVER_MTLS_KEY_STORE_TYPE:PKCS12}
+      key-alias: ${SERVER_MTLS_KEY_ALIAS:}
+      trust-store: ${SERVER_MTLS_TRUST_STORE:}
+      trust-store-password: ${SERVER_MTLS_TRUST_STORE_PASSWORD:}
+      trust-store-type: ${SERVER_MTLS_TRUST_STORE_TYPE:PKCS12}
+      ssl-protocol: ${SERVER_MTLS_SSL_PROTOCOL:TLS}
+      enabled-protocols: ${SERVER_MTLS_ENABLED_PROTOCOLS:TLSv1.3,TLSv1.2}

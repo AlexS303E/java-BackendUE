@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,7 +28,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.MOCK,
         properties = {
-                "app.outbox.worker-enabled=false"
+                "app.outbox.worker-enabled=false",
+                // MockMvc does not pass through the real private HTTPS connector.
+                // Keep the legacy server header fallback only for this vertical integration test.
+                "app.server-auth.mtls.enabled=false",
+                "app.server-auth.mtls.require-private-port=false",
+                "app.server-auth.mtls.allow-header-fingerprint-fallback=true"
         }
 )
 @AutoConfigureMockMvc
@@ -36,14 +42,15 @@ class VerticalFlowIntegrationTest {
     private static final String PASSWORD = "password123";
 
     private static final String DEV_SERVER_ID = "10000000-0000-0000-0000-000000000001";
-    private static final String DEV_SERVER_FINGERPRINT = "dev-ds-fingerprint";
-    private static final String DEV_SERVER_BUILD_ID = "ds-dev-smoke";
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void shouldPassMainPlayerServerRuntimeFlow() throws Exception {
@@ -264,7 +271,7 @@ class VerticalFlowIntegrationTest {
                 "outfit_preset_slot", 1,
                 "supported_catalog_versions", List.of(catalogVersion),
                 "preferred_catalog_version", catalogVersion,
-                "server_build_id", DEV_SERVER_BUILD_ID
+                "server_build_id", devServerBuildId()
         );
     }
 
@@ -336,10 +343,26 @@ class VerticalFlowIntegrationTest {
         );
     }
 
+    private String devServerBuildId() {
+        return jdbcTemplate.queryForObject(
+                "SELECT server_build_id FROM server_identities WHERE server_id = ?",
+                String.class,
+                UUID.fromString(DEV_SERVER_ID)
+        );
+    }
+
+    private String devServerFingerprint() {
+        return jdbcTemplate.queryForObject(
+                "SELECT certificate_fingerprint FROM server_identities WHERE server_id = ?",
+                String.class,
+                UUID.fromString(DEV_SERVER_ID)
+        );
+    }
+
     private org.springframework.http.HttpHeaders serverHeaders() {
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         headers.add("X-Server-Id", DEV_SERVER_ID);
-        headers.add("X-Server-Certificate-Fingerprint", DEV_SERVER_FINGERPRINT);
+        headers.add("X-Server-Certificate-Fingerprint", devServerFingerprint());
         return headers;
     }
 

@@ -4,3 +4,4 @@
 *.class
 .gradle/
 build/
+tools/mtls/**/out/
