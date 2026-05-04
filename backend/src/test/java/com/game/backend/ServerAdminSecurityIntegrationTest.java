@@ -68,18 +68,20 @@ class ServerAdminSecurityIntegrationTest {
         UUID playerId = registerPlayer();
         UUID revokedServerId = UUID.randomUUID();
         UUID expiredServerId = UUID.randomUUID();
-        insertServerIdentity(revokedServerId, "revoked", "revoked-fingerprint", "ds-revoked-test", OffsetDateTime.now().plusDays(1));
-        insertServerIdentity(expiredServerId, "active", "expired-fingerprint", "ds-expired-test", OffsetDateTime.now().minusDays(1));
+        String revokedFingerprint = "revoked-" + revokedServerId;
+        String expiredFingerprint = "expired-" + expiredServerId;
+        insertServerIdentity(revokedServerId, "revoked", revokedFingerprint, "ds-revoked-test", OffsetDateTime.now().plusDays(1));
+        insertServerIdentity(expiredServerId, "active", expiredFingerprint, "ds-expired-test", OffsetDateTime.now().minusDays(1));
 
         mockMvc.perform(postJson("/server/match-profile/build", matchProfileBuildBody(UUID.randomUUID(), playerId, "global", "ds-revoked-test"))
                         .header("X-Server-Id", revokedServerId.toString())
-                        .header("X-Server-Certificate-Fingerprint", "revoked-fingerprint"))
+                        .header("X-Server-Certificate-Fingerprint", revokedFingerprint))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
 
         mockMvc.perform(postJson("/server/match-profile/build", matchProfileBuildBody(UUID.randomUUID(), playerId, "global", "ds-expired-test"))
                         .header("X-Server-Id", expiredServerId.toString())
-                        .header("X-Server-Certificate-Fingerprint", "expired-fingerprint"))
+                        .header("X-Server-Certificate-Fingerprint", expiredFingerprint))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
@@ -111,11 +113,12 @@ class ServerAdminSecurityIntegrationTest {
                 .andExpect(status().isOk());
 
         UUID otherServerId = UUID.randomUUID();
-        insertServerIdentity(otherServerId, "active", "other-full-fingerprint", "ds-other-full-test", OffsetDateTime.now().plusDays(1));
+        String otherFingerprint = "other-full-" + otherServerId;
+        insertServerIdentity(otherServerId, "active", otherFingerprint, "ds-other-full-test", OffsetDateTime.now().plusDays(1));
 
         mockMvc.perform(postJson("/server/runtime-events", runtimeEventBody(UUID.randomUUID(), 2, matchId, playerId, "loadout_applied"))
                         .header("X-Server-Id", otherServerId.toString())
-                        .header("X-Server-Certificate-Fingerprint", "other-full-fingerprint")
+                        .header("X-Server-Certificate-Fingerprint", otherFingerprint)
                         .header("Idempotency-Key", "wrong-owner:" + UUID.randomUUID()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("MATCH_ASSIGNED_TO_ANOTHER_SERVER"));
