@@ -153,6 +153,17 @@ $adminPaths = @(
     "/admin/status/players/{player_id}/weapon-access",
     "/admin/status/players/{player_id}/weapon-access/audit",
     "/admin/players/{player_id}/access/items/{item_id}",
+    "/admin/items/hide",
+    "/admin/items/reveal",
+    "/admin/items/shop-lock",
+    "/admin/items/shop-unlock",
+    "/admin/items/quest-lock",
+    "/admin/items/quest-unlock",
+    "/admin/items/disable",
+    "/admin/items/enable",
+    "/admin/access/rebuild-projection",
+    "/admin/cache/invalidate-player",
+    "/admin/server-identities/revoke",
     "/admin/catalog/publish",
     "/admin/catalog/rollback",
     "/admin/control/players/{player_id}/invalidate-cache",
@@ -170,6 +181,8 @@ Assert-Contains "admin-api.yaml" $admin "X-Admin-Id"
 Assert-Contains "admin-api.yaml" $admin "Idempotency-Key"
 Assert-Contains "admin-api.yaml" $admin "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST"
 Assert-Contains "admin-api.yaml" $admin "CATALOG_VERSION_NOT_PUBLISHABLE"
+Assert-Contains "admin-api.yaml" $admin "AdminItemOperationRequest"
+Assert-Contains "admin-api.yaml" $admin "AdminProjectionRebuildRequest"
 
 if ($failures.Count -gt 0) {
     Write-Host ""

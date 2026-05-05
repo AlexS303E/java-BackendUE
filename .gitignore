@@ -5,3 +5,5 @@
 .gradle/
 build/
 tools/mtls/**/out/
+tools/mtls/logs/
+tools/mtls/work/

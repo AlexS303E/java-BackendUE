@@ -12,6 +12,8 @@ servers:
 tags:
   - name: admin_status
   - name: admin_access
+  - name: admin_items
+  - name: admin_maintenance
   - name: admin_catalog
   - name: admin_control
 
@@ -193,6 +195,267 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+
+  /admin/items/hide:
+    post:
+      tags: [admin_items]
+      operationId: admin_items_hide
+      summary: Hide an item for one player.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminItemOperationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminItemAccessMutationOk'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /admin/items/reveal:
+    post:
+      tags: [admin_items]
+      operationId: admin_items_reveal
+      summary: Reveal an item for one player.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminItemOperationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminItemAccessMutationOk'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /admin/items/shop-lock:
+    post:
+      tags: [admin_items]
+      operationId: admin_items_shop_lock
+      summary: Add shop lock for one player item.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminItemOperationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminItemAccessMutationOk'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /admin/items/shop-unlock:
+    post:
+      tags: [admin_items]
+      operationId: admin_items_shop_unlock
+      summary: Remove shop lock from one player item.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminItemOperationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminItemAccessMutationOk'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /admin/items/quest-lock:
+    post:
+      tags: [admin_items]
+      operationId: admin_items_quest_lock
+      summary: Add quest lock for one player item.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminItemOperationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminItemAccessMutationOk'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /admin/items/quest-unlock:
+    post:
+      tags: [admin_items]
+      operationId: admin_items_quest_unlock
+      summary: Remove quest lock from one player item.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminItemOperationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminItemAccessMutationOk'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /admin/items/disable:
+    post:
+      tags: [admin_items]
+      operationId: admin_items_disable
+      summary: Disable an item for one player through access projection.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminItemOperationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminItemAccessMutationOk'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /admin/items/enable:
+    post:
+      tags: [admin_items]
+      operationId: admin_items_enable
+      summary: Enable an item for one player through access projection.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminItemOperationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminItemAccessMutationOk'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /admin/access/rebuild-projection:
+    post:
+      tags: [admin_maintenance]
+      operationId: admin_access_rebuild_projection
+      summary: Rebuild one player's access projection from entitlement ledger.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminProjectionRebuildRequest'
+      responses:
+        '200':
+          description: Projection was rebuilt or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProjectionRebuildResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /admin/cache/invalidate-player:
+    post:
+      tags: [admin_maintenance]
+      operationId: admin_cache_invalidate_player
+      summary: Invalidate one player's server-side cache/profile snapshots.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCacheInvalidateRequest'
+      responses:
+        '200':
+          description: Player cache invalidation was recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCacheInvalidateResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /admin/server-identities/revoke:
+    post:
+      tags: [admin_maintenance]
+      operationId: admin_server_identity_revoke
+      summary: Revoke a server identity.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminServerIdentityRevokeRequest'
+      responses:
+        '200':
+          description: Server identity is revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminServerIdentityRevokeResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/IdempotencyConflict'
 
@@ -383,6 +646,14 @@ components:
         format: int64
 
   responses:
+
+    AdminItemAccessMutationOk:
+      description: Player item access mutation applied.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminPlayerItemAccessResponse'
+
     ValidationError:
       description: Validation error.
       x-error-code: VALIDATION_ERROR
@@ -762,8 +1033,6 @@ components:
     AdminPlayerItemAccessResponse:
       type: object
       properties:
-        applied:
-          type: boolean
         player_id:
           type: string
           format: uuid
@@ -772,11 +1041,137 @@ components:
         catalog_version:
           type: integer
           format: int64
-        action:
-          type: string
         access_revision:
           type: integer
           format: int64
+        hidden:
+          type: boolean
+        locked_in_shop:
+          type: boolean
+        locked_by_quest:
+          type: boolean
+        disabled:
+          type: boolean
+        disabled_reason:
+          type: string
+          nullable: true
+        unlock_hint_code:
+          type: string
+          nullable: true
+        unlock_hint_payload:
+          type: object
+          nullable: true
+          additionalProperties: true
+        player_can_use:
+          type: boolean
+        ledger_event_id:
+          type: string
+          format: uuid
+        sanitized_weapon_presets:
+          type: integer
+        sanitized_outfit_presets:
+          type: integer
+        stale_match_profiles:
+          type: integer
+        duplicate:
+          type: boolean
+
+
+    AdminItemOperationRequest:
+      type: object
+      required: [player_id, item_id, catalog_version, reason]
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+        catalog_version:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        disabled_reason:
+          type: string
+          nullable: true
+        unlock_hint_code:
+          type: string
+          nullable: true
+        unlock_hint_payload:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    AdminProjectionRebuildRequest:
+      type: object
+      required: [player_id, reason]
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+
+    AdminProjectionRebuildResponse:
+      type: object
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        access_revision:
+          type: integer
+          format: int64
+        items_rebuilt:
+          type: integer
+        ledger_events_applied:
+          type: integer
+        stale_match_profiles:
+          type: integer
+        last_ledger_event_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    AdminCacheInvalidateRequest:
+      type: object
+      required: [player_id, reason]
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+
+    AdminCacheInvalidateResponse:
+      type: object
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        stale_match_profiles:
+          type: integer
+
+    AdminServerIdentityRevokeRequest:
+      type: object
+      required: [server_id, reason]
+      properties:
+        server_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+
+    AdminServerIdentityRevokeResponse:
+      type: object
+      properties:
+        server_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [revoked]
+        updated:
+          type: boolean
 
     CatalogPublishRequest:
       type: object
