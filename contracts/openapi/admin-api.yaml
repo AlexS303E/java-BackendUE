@@ -12,6 +12,7 @@ servers:
 tags:
   - name: admin_status
   - name: admin_access
+  - name: admin_catalog
   - name: admin_control
 
 security:
@@ -195,6 +196,64 @@ paths:
         '409':
           $ref: '#/components/responses/IdempotencyConflict'
 
+  /admin/catalog/publish:
+    post:
+      tags: [admin_catalog]
+      operationId: admin_catalog_publish
+      summary: Publish a validated/canary catalog version for new matches in a realm.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogPublishRequest'
+      responses:
+        '200':
+          description: Catalog publish result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogLifecycleResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/CatalogLifecycleConflict'
+
+  /admin/catalog/rollback:
+    post:
+      tags: [admin_catalog]
+      operationId: admin_catalog_rollback
+      summary: Roll a realm back to the previous or explicitly selected catalog deployment.
+      parameters:
+        - $ref: '#/components/parameters/admin_id_header_optional'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogRollbackRequest'
+      responses:
+        '200':
+          description: Catalog rollback result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogLifecycleResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/CatalogLifecycleConflict'
+
   /admin/control/players/{player_id}/invalidate-cache:
     post:
       tags: [admin_control]
@@ -351,6 +410,14 @@ components:
     IdempotencyConflict:
       description: Idempotency-Key was reused with a different request body.
       x-error-code: IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+
+    CatalogLifecycleConflict:
+      description: Catalog lifecycle operation cannot be applied to the requested realm/version state.
+      x-error-code: CATALOG_VERSION_NOT_PUBLISHABLE
       content:
         application/problem+json:
           schema:
@@ -710,6 +777,75 @@ components:
         access_revision:
           type: integer
           format: int64
+
+    CatalogPublishRequest:
+      type: object
+      required: [realm_id, catalog_version, reason]
+      properties:
+        realm_id:
+          type: string
+        catalog_version:
+          type: integer
+          format: int64
+        rollout_percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+          nullable: true
+        allow_existing_matches:
+          type: boolean
+          nullable: true
+        reason:
+          type: string
+
+    CatalogRollbackRequest:
+      type: object
+      required: [realm_id, reason]
+      properties:
+        realm_id:
+          type: string
+        target_catalog_version:
+          type: integer
+          format: int64
+          nullable: true
+        reason:
+          type: string
+
+    CatalogLifecycleResponse:
+      type: object
+      required:
+        - operation_id
+        - realm_id
+        - previous_catalog_version
+        - active_catalog_version
+        - action
+        - migrated_weapon_presets
+        - migrated_outfit_presets
+        - migrated_access_players
+        - stale_match_profiles
+      properties:
+        operation_id:
+          type: string
+          format: uuid
+        realm_id:
+          type: string
+        previous_catalog_version:
+          type: integer
+          format: int64
+        active_catalog_version:
+          type: integer
+          format: int64
+        action:
+          type: string
+          enum: [publish, publish_noop, rollback, rollback_noop]
+        migrated_weapon_presets:
+          type: integer
+        migrated_outfit_presets:
+          type: integer
+        migrated_access_players:
+          type: integer
+        stale_match_profiles:
+          type: integer
 
     AdminControlResponse:
       type: object

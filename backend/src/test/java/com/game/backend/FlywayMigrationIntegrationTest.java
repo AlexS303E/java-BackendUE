@@ -150,6 +150,8 @@ class FlywayMigrationIntegrationTest {
 
     @Test
     void shouldContainMvpSeedDataRequiredForIntegrationFlows() {
+        restoreMvpActiveCatalogPointer();
+
         assertThat(rowExists("SELECT 1 FROM realms WHERE realm_id = 'global' AND is_active = true")).isTrue();
         assertThat(rowExists("SELECT 1 FROM class_definitions WHERE class_tag = 'class.assault' AND is_active = true")).isTrue();
         assertThat(rowExists("SELECT 1 FROM team_definitions WHERE team_tag = 'team.red' AND is_active = true")).isTrue();
@@ -206,6 +208,50 @@ class FlywayMigrationIntegrationTest {
                   AND status = 'active'
                   AND 'match_profile:read' = ANY(allowed_scopes)
                 """)).isTrue();
+    }
+
+    private void restoreMvpActiveCatalogPointer() {
+        jdbcTemplate.update(
+                """
+                    UPDATE catalog_deployments
+                    SET deployment_state = 'previous',
+                        rollout_percent = 0,
+                        allow_new_matches = false,
+                        allow_existing_matches = true
+                    WHERE realm_id = 'global'
+                      AND catalog_version <> 1
+                      AND deployment_state = 'active'
+                      AND allow_new_matches = true
+                    """
+        );
+        jdbcTemplate.update(
+                """
+                    UPDATE catalog_deployments
+                    SET deployment_state = 'active',
+                        rollout_percent = 100,
+                        allow_new_matches = true,
+                        allow_existing_matches = true,
+                        retired_at = null
+                    WHERE realm_id = 'global'
+                      AND catalog_version = 1
+                    """
+        );
+        jdbcTemplate.update(
+                """
+                    UPDATE catalog_versions
+                    SET state = 'validated'
+                    WHERE catalog_version <> 1
+                      AND state = 'active'
+                    """
+        );
+        jdbcTemplate.update(
+                """
+                    UPDATE catalog_versions
+                    SET state = 'active',
+                        retired_at = null
+                    WHERE catalog_version = 1
+                    """
+        );
     }
 
     private boolean allTablesExist(List<String> tableNames) {

@@ -40,6 +40,31 @@ public class ServerAuditService {
         String result,
         Map<String, Object> payload
     ) {
+        record(identity.serverId(), matchId, action, scope, result, payload);
+    }
+
+    /**
+     * Пишет denied audit event для запросов, где server_id распознан, но principal еще не создан
+     * из-за revoked/expired identity, неправильного fingerprint или неверного mTLS канала.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordAuthenticationFailure(
+        UUID serverId,
+        String action,
+        String scope,
+        Map<String, Object> payload
+    ) {
+        record(serverId, null, action, scope, "denied", payload);
+    }
+
+    private void record(
+        UUID serverId,
+        UUID matchId,
+        String action,
+        String scope,
+        String result,
+        Map<String, Object> payload
+    ) {
         try {
             jdbcTemplate.update(
                 """
@@ -56,7 +81,7 @@ public class ServerAuditService {
                     VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?)
                     """,
                 UUID.randomUUID(),
-                identity.serverId(),
+                serverId,
                 matchId,
                 action,
                 scope,

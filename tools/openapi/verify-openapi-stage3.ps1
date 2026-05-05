@@ -153,6 +153,8 @@ $adminPaths = @(
     "/admin/status/players/{player_id}/weapon-access",
     "/admin/status/players/{player_id}/weapon-access/audit",
     "/admin/players/{player_id}/access/items/{item_id}",
+    "/admin/catalog/publish",
+    "/admin/catalog/rollback",
     "/admin/control/players/{player_id}/invalidate-cache",
     "/admin/control/server-identities/{server_id}/revoke",
     "/admin/control/outbox/retry-failed",
@@ -167,6 +169,7 @@ Assert-Contains "admin-api.yaml" $admin "X-Admin-Token"
 Assert-Contains "admin-api.yaml" $admin "X-Admin-Id"
 Assert-Contains "admin-api.yaml" $admin "Idempotency-Key"
 Assert-Contains "admin-api.yaml" $admin "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST"
+Assert-Contains "admin-api.yaml" $admin "CATALOG_VERSION_NOT_PUBLISHABLE"
 
 if ($failures.Count -gt 0) {
     Write-Host ""

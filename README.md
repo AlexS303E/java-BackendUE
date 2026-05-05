@@ -57,4 +57,6 @@ Smoke check after `bootRun`:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\smoke\vertical-smoke.ps1
+
+powershell -ExecutionPolicy Bypass -File tools\test\run-all-tests.ps1
 ```

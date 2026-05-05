@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.security.cert.X509Certificate;
 import java.sql.Array;
 import java.sql.SQLException;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -71,32 +72,26 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String serverIdHeader = request.getHeader(SERVER_ID_HEADER);
-        if (serverIdHeader == null || serverIdHeader.isBlank()) {
-            writeProblem(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", "Server identity header is required");
+        UUID serverId = parseServerId(request, response);
+        if (serverId == null) {
             return;
         }
 
-        UUID serverId;
-        try {
-            serverId = UUID.fromString(serverIdHeader);
-        } catch (IllegalArgumentException exception) {
-            writeProblem(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", "Server identity is invalid");
-            return;
-        }
-
-        Optional<String> resolvedFingerprint = resolveCertificateFingerprint(request);
+        Optional<String> resolvedFingerprint = resolveCertificateFingerprint(request, serverId, requiredScope);
         if (resolvedFingerprint.isEmpty()) {
             writeProblem(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", "mTLS client certificate is required for server API");
             return;
         }
 
-        ServerIdentity identity = loadServerIdentity(serverId, resolvedFingerprint.get());
-        if (identity == null) {
-            writeProblem(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", "Server identity is not active or certificate fingerprint does not match");
+        ServerIdentityRecord identityRecord = loadServerIdentityRecord(serverId);
+        ServerAuthenticationFailure failure = validateIdentity(identityRecord, resolvedFingerprint.get());
+        if (failure != null) {
+            recordAuthenticationFailure(serverId, request, requiredScope, failure);
+            writeProblem(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", failure.userMessage());
             return;
         }
 
+        ServerIdentity identity = identityRecord.toPrincipal();
         if (!identity.hasScope(requiredScope)) {
             // Если identity валидна, но scope недостаточен, сохраняем denied audit event.
             serverAuditService.record(
@@ -107,7 +102,8 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
                     "denied",
                     Map.of(
                             "method", request.getMethod(),
-                            "path", request.getRequestURI()
+                            "path", request.getRequestURI(),
+                            "reason", "missing_scope"
                     )
             );
             writeProblem(response, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "Server identity does not have required scope: " + requiredScope);
@@ -126,22 +122,75 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private Optional<String> resolveCertificateFingerprint(HttpServletRequest request) {
+    private UUID parseServerId(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String serverIdHeader = request.getHeader(SERVER_ID_HEADER);
+        if (serverIdHeader == null || serverIdHeader.isBlank()) {
+            writeProblem(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", "Server identity header is required");
+            return null;
+        }
+
+        try {
+            return UUID.fromString(serverIdHeader);
+        } catch (IllegalArgumentException exception) {
+            writeProblem(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", "Server identity is invalid");
+            return null;
+        }
+    }
+
+    private Optional<String> resolveCertificateFingerprint(HttpServletRequest request, UUID serverId, String requiredScope) {
         if (mtlsProperties.isEnabled()) {
             if (mtlsProperties.isRequirePrivatePort() && request.getLocalPort() != mtlsProperties.getPort()) {
+                recordAuthenticationFailure(
+                        serverId,
+                        request,
+                        requiredScope,
+                        new ServerAuthenticationFailure(
+                                "wrong_private_port",
+                                "Server API must be called through the private mTLS connector"
+                        )
+                );
                 return Optional.empty();
             }
 
             Optional<X509Certificate> certificate = clientCertificateExtractor.firstClientCertificate(request);
+            if (certificate.isEmpty()) {
+                recordAuthenticationFailure(
+                        serverId,
+                        request,
+                        requiredScope,
+                        new ServerAuthenticationFailure(
+                                "missing_client_certificate",
+                                "mTLS client certificate is required for server API"
+                        )
+                );
+            }
             return certificate.map(CertificateFingerprints::sha256Hex);
         }
 
         if (!mtlsProperties.isAllowHeaderFingerprintFallback()) {
+            recordAuthenticationFailure(
+                    serverId,
+                    request,
+                    requiredScope,
+                    new ServerAuthenticationFailure(
+                            "mtls_disabled_and_header_fallback_forbidden",
+                            "mTLS client certificate is required for server API"
+                    )
+            );
             return Optional.empty();
         }
 
         String headerFingerprint = request.getHeader(CERTIFICATE_FINGERPRINT_HEADER);
         if (headerFingerprint == null || headerFingerprint.isBlank()) {
+            recordAuthenticationFailure(
+                    serverId,
+                    request,
+                    requiredScope,
+                    new ServerAuthenticationFailure(
+                            "missing_header_fingerprint_fallback",
+                            "mTLS client certificate is required for server API"
+                    )
+            );
             return Optional.empty();
         }
         return Optional.ofNullable(CertificateFingerprints.normalizeSha256Fingerprint(headerFingerprint));
@@ -166,28 +215,87 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Загружает только active server identity с совпавшим fingerprint и неистекшим сроком.
+     * Загружает server identity по server_id. Status/fingerprint/expiry проверяются явно,
+     * чтобы отказ можно было аудировать с конкретной причиной.
      */
-    private ServerIdentity loadServerIdentity(UUID serverId, String fingerprint) {
-        List<ServerIdentity> identities = jdbcTemplate.query(
+    private ServerIdentityRecord loadServerIdentityRecord(UUID serverId) {
+        List<ServerIdentityRecord> identities = jdbcTemplate.query(
                 """
-                    SELECT server_id, realm_id, server_build_id, allowed_scopes
+                    SELECT server_id, realm_id, server_build_id, certificate_fingerprint, status, allowed_scopes, expires_at
                     FROM server_identities
                     WHERE server_id = ?
-                      AND lower(replace(certificate_fingerprint, ':', '')) = ?
-                      AND status = 'active'
-                      AND expires_at > now()
                     """,
-                (rs, rowNum) -> new ServerIdentity(
+                (rs, rowNum) -> new ServerIdentityRecord(
                         rs.getObject("server_id", UUID.class),
                         rs.getString("realm_id"),
                         rs.getString("server_build_id"),
-                        scopes(rs.getArray("allowed_scopes"))
+                        CertificateFingerprints.normalizeSha256Fingerprint(rs.getString("certificate_fingerprint")),
+                        rs.getString("status"),
+                        scopes(rs.getArray("allowed_scopes")),
+                        rs.getObject("expires_at", OffsetDateTime.class)
                 ),
-                serverId,
-                fingerprint
+                serverId
         );
         return identities.isEmpty() ? null : identities.getFirst();
+    }
+
+    private ServerAuthenticationFailure validateIdentity(ServerIdentityRecord identityRecord, String resolvedFingerprint) {
+        if (identityRecord == null) {
+            return new ServerAuthenticationFailure(
+                    "unknown_server_identity",
+                    "Server identity is not active or certificate fingerprint does not match"
+            );
+        }
+        if (!"active".equals(identityRecord.status())) {
+            return new ServerAuthenticationFailure(
+                    "server_identity_" + identityRecord.status(),
+                    "Server identity is not active or certificate fingerprint does not match"
+            );
+        }
+        if (identityRecord.expiresAt() == null || !identityRecord.expiresAt().isAfter(OffsetDateTime.now())) {
+            return new ServerAuthenticationFailure(
+                    "server_identity_expired",
+                    "Server identity is not active or certificate fingerprint does not match"
+            );
+        }
+        if (!identityRecord.certificateFingerprint().equals(resolvedFingerprint)) {
+            return new ServerAuthenticationFailure(
+                    "certificate_fingerprint_mismatch",
+                    "Server identity is not active or certificate fingerprint does not match"
+            );
+        }
+        return null;
+    }
+
+    private void recordAuthenticationFailure(
+            UUID serverId,
+            HttpServletRequest request,
+            String requiredScope,
+            ServerAuthenticationFailure failure
+    ) {
+        if (!serverIdentityExists(serverId)) {
+            return;
+        }
+        serverAuditService.recordAuthenticationFailure(
+                serverId,
+                "server_auth.authentication_denied",
+                requiredScope,
+                Map.of(
+                        "method", request.getMethod(),
+                        "path", request.getRequestURI(),
+                        "reason", failure.reason(),
+                        "local_port", request.getLocalPort()
+                )
+        );
+    }
+
+    private boolean serverIdentityExists(UUID serverId) {
+        Boolean exists = jdbcTemplate.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM server_identities WHERE server_id = ?)",
+                Boolean.class,
+                serverId
+        );
+        return Boolean.TRUE.equals(exists);
     }
 
     private Set<String> scopes(Array array) throws SQLException {
@@ -203,5 +311,22 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
         response.getWriter().write(
                 "{\"title\":\"" + code + "\",\"status\":" + status + ",\"detail\":\"" + detail + "\",\"code\":\"" + code + "\"}"
         );
+    }
+
+    private record ServerIdentityRecord(
+            UUID serverId,
+            String realmId,
+            String serverBuildId,
+            String certificateFingerprint,
+            String status,
+            Set<String> allowedScopes,
+            OffsetDateTime expiresAt
+    ) {
+        private ServerIdentity toPrincipal() {
+            return new ServerIdentity(serverId, realmId, serverBuildId, allowedScopes);
+        }
+    }
+
+    private record ServerAuthenticationFailure(String reason, String userMessage) {
     }
 }
