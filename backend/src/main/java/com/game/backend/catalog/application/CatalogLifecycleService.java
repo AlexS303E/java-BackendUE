@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.admin.application.AdminAuditService;
 import com.game.backend.admin.application.AdminIdentity;
+import com.game.backend.cache.RedisCacheService;
 import com.game.backend.catalog.api.CatalogLifecycleResponse;
 import com.game.backend.catalog.api.CatalogPublishRequest;
 import com.game.backend.catalog.api.CatalogRollbackRequest;
@@ -40,17 +41,20 @@ public class CatalogLifecycleService {
     private final ObjectMapper objectMapper;
     private final AdminAuditService adminAuditService;
     private final OutboxService outboxService;
+    private final RedisCacheService cacheService;
 
     public CatalogLifecycleService(
         JdbcTemplate jdbcTemplate,
         ObjectMapper objectMapper,
         AdminAuditService adminAuditService,
-        OutboxService outboxService
+        OutboxService outboxService,
+        RedisCacheService cacheService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         this.adminAuditService = adminAuditService;
         this.outboxService = outboxService;
+        this.cacheService = cacheService;
     }
 
     /**
@@ -91,6 +95,7 @@ public class CatalogLifecycleService {
                 : migrateDurablePlayerState(previousVersion, targetVersion, operationId, now);
 
             activateCatalog(realmId, previousVersion, targetVersion, rolloutPercent, allowExistingMatches, now);
+            cacheService.evictCatalogSnapshots(realmId);
             int staleProfiles = invalidateRealmProfiles(realmId, "catalog_published", operationId, now);
             recordOutbox(ACTION_PUBLISH, operationId, realmId, previousVersion, targetVersion, migration, staleProfiles, now);
 
@@ -147,6 +152,7 @@ public class CatalogLifecycleService {
 
             LifecycleMigrationResult migration = migrateDurablePlayerState(active.catalogVersion(), targetVersion, operationId, now);
             rollbackDeployment(realmId, active.catalogVersion(), targetVersion, now);
+            cacheService.evictCatalogSnapshots(realmId);
             int staleProfiles = invalidateRealmProfiles(realmId, "catalog_rolled_back", operationId, now);
             recordOutbox(ACTION_ROLLBACK, operationId, realmId, active.catalogVersion(), targetVersion, migration, staleProfiles, now);
 

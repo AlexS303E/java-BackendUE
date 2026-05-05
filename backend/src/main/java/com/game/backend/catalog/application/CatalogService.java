@@ -4,6 +4,7 @@ import com.game.backend.catalog.api.AllowedModuleDto;
 import com.game.backend.catalog.api.CatalogItemDto;
 import com.game.backend.catalog.api.CatalogSnapshotResponse;
 import com.game.backend.catalog.api.WeaponMountDto;
+import com.game.backend.cache.RedisCacheService;
 import com.game.backend.common.api.ApiException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,9 +18,11 @@ import java.util.List;
 @Service
 public class CatalogService {
     private final JdbcTemplate jdbcTemplate;
+    private final RedisCacheService cacheService;
 
-    public CatalogService(JdbcTemplate jdbcTemplate) {
+    public CatalogService(JdbcTemplate jdbcTemplate, RedisCacheService cacheService) {
         this.jdbcTemplate = jdbcTemplate;
+        this.cacheService = cacheService;
     }
 
     /**
@@ -27,13 +30,18 @@ public class CatalogService {
      */
     public CatalogSnapshotResponse getSnapshot(String realmId) {
         long catalogVersion = activeCatalogVersion(realmId);
-        return new CatalogSnapshotResponse(
-            realmId,
-            catalogVersion,
-            items(catalogVersion),
-            weaponMounts(catalogVersion),
-            allowedModules(catalogVersion)
-        );
+        return cacheService.getCatalogSnapshot(realmId, catalogVersion)
+            .orElseGet(() -> {
+                CatalogSnapshotResponse response = new CatalogSnapshotResponse(
+                    realmId,
+                    catalogVersion,
+                    items(catalogVersion),
+                    weaponMounts(catalogVersion),
+                    allowedModules(catalogVersion)
+                );
+                cacheService.putCatalogSnapshot(response);
+                return response;
+            });
     }
 
     /**

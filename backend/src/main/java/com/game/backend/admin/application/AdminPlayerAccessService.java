@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.admin.api.AdminItemAccessUpdateRequest;
 import com.game.backend.admin.api.AdminItemAccessUpdateResponse;
+import com.game.backend.cache.RedisCacheService;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
 import com.game.backend.notifications.application.PlayerNotificationService;
@@ -42,6 +43,7 @@ public class AdminPlayerAccessService {
     private final LoadoutSanitizationService loadoutSanitizationService;
     private final MatchProfileInvalidationService matchProfileInvalidationService;
     private final PlayerNotificationService playerNotificationService;
+    private final RedisCacheService cacheService;
 
     public AdminPlayerAccessService(
         JdbcTemplate jdbcTemplate,
@@ -50,7 +52,8 @@ public class AdminPlayerAccessService {
         OutboxService outboxService,
         LoadoutSanitizationService loadoutSanitizationService,
         MatchProfileInvalidationService matchProfileInvalidationService,
-        PlayerNotificationService playerNotificationService
+        PlayerNotificationService playerNotificationService,
+        RedisCacheService cacheService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
@@ -59,6 +62,7 @@ public class AdminPlayerAccessService {
         this.loadoutSanitizationService = loadoutSanitizationService;
         this.matchProfileInvalidationService = matchProfileInvalidationService;
         this.playerNotificationService = playerNotificationService;
+        this.cacheService = cacheService;
     }
 
     /**
@@ -102,6 +106,7 @@ public class AdminPlayerAccessService {
             long accessRevision = currentRevision + 1;
             upsertProjection(playerId, itemId, request, now);
             updateAccessRevision(playerId, accessRevision, ledgerEventId, now);
+            cacheService.evictPlayerAccess(playerId);
             LoadoutSanitizationResult sanitization = sanitizeIfUnavailable(playerId, itemId, request, ledgerEventId, now);
             int staleMatchProfiles = matchProfileInvalidationService.invalidateForPlayerAccessChange(
                 playerId,

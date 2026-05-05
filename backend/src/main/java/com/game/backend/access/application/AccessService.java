@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.access.api.AccessItemDto;
 import com.game.backend.access.api.AccessResponse;
+import com.game.backend.cache.RedisCacheService;
 import com.game.backend.catalog.application.CatalogService;
 import com.game.backend.common.api.ApiException;
 import org.springframework.http.HttpStatus;
@@ -25,11 +26,18 @@ public class AccessService {
     private final JdbcTemplate jdbcTemplate;
     private final CatalogService catalogService;
     private final ObjectMapper objectMapper;
+    private final RedisCacheService cacheService;
 
-    public AccessService(JdbcTemplate jdbcTemplate, CatalogService catalogService, ObjectMapper objectMapper) {
+    public AccessService(
+        JdbcTemplate jdbcTemplate,
+        CatalogService catalogService,
+        ObjectMapper objectMapper,
+        RedisCacheService cacheService
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.catalogService = catalogService;
         this.objectMapper = objectMapper;
+        this.cacheService = cacheService;
     }
 
     /**
@@ -41,12 +49,17 @@ public class AccessService {
             : requestedCatalogVersion;
         long accessRevision = accessRevision(playerId);
 
-        return new AccessResponse(
-            playerId,
-            catalogVersion,
-            accessRevision,
-            items(playerId, catalogVersion)
-        );
+        return cacheService.getAccess(playerId, catalogVersion, accessRevision)
+            .orElseGet(() -> {
+                AccessResponse response = new AccessResponse(
+                    playerId,
+                    catalogVersion,
+                    accessRevision,
+                    items(playerId, catalogVersion)
+                );
+                cacheService.putAccess(response);
+                return response;
+            });
     }
 
     private long accessRevision(UUID playerId) {

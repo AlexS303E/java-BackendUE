@@ -9,6 +9,7 @@ import com.game.backend.admin.api.AdminProjectionRebuildRequest;
 import com.game.backend.admin.api.AdminProjectionRebuildResponse;
 import com.game.backend.admin.api.AdminServerIdentityRevokeRequest;
 import com.game.backend.admin.api.AdminServerIdentityRevokeResponse;
+import com.game.backend.cache.RedisCacheService;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
 import com.game.backend.outbox.application.OutboxService;
@@ -37,6 +38,7 @@ public class AdminAccessMaintenanceService {
     private final AdminAuditService adminAuditService;
     private final OutboxService outboxService;
     private final MatchProfileInvalidationService matchProfileInvalidationService;
+    private final RedisCacheService cacheService;
 
     public AdminAccessMaintenanceService(
         JdbcTemplate jdbcTemplate,
@@ -44,7 +46,8 @@ public class AdminAccessMaintenanceService {
         AdminMutationIdempotencyService idempotencyService,
         AdminAuditService adminAuditService,
         OutboxService outboxService,
-        MatchProfileInvalidationService matchProfileInvalidationService
+        MatchProfileInvalidationService matchProfileInvalidationService,
+        RedisCacheService cacheService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
@@ -52,6 +55,7 @@ public class AdminAccessMaintenanceService {
         this.adminAuditService = adminAuditService;
         this.outboxService = outboxService;
         this.matchProfileInvalidationService = matchProfileInvalidationService;
+        this.cacheService = cacheService;
     }
 
     /**
@@ -138,6 +142,7 @@ public class AdminAccessMaintenanceService {
             lastLedgerEventId,
             request.playerId()
         );
+        cacheService.evictPlayerAccess(request.playerId());
         UUID eventId = UUID.randomUUID();
         int staleProfiles = matchProfileInvalidationService.invalidateForPlayer(
             request.playerId(),
@@ -197,6 +202,7 @@ public class AdminAccessMaintenanceService {
             eventId,
             now
         );
+        cacheService.evictPlayerAccess(request.playerId());
         outboxService.record(
             "player_cache.invalidated",
             "player",
