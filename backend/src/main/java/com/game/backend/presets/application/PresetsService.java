@@ -18,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -124,20 +126,16 @@ public class PresetsService {
 
     /**
      * Возвращает все presets игрока для страницы loadout.
+     * Использует batch-загрузку (5 queries) вместо N+1 (~31 queries).
      */
     public PlayerPresetsResponse getPlayerPresets(UUID playerId) {
-        return new PlayerPresetsResponse(
-            playerId,
-            weaponPresets(playerId),
-            outfitPresets(playerId)
-        );
+        List<WeaponPresetDto> weaponPresets = loadWeaponPresetsBatch(playerId);
+        List<OutfitPresetDto> outfitPresets = loadOutfitPresetsBatch(playerId);
+        return new PlayerPresetsResponse(playerId, weaponPresets, outfitPresets);
     }
 
-    /**
-     * Читает weapon presets вместе с выбранными slots/modules.
-     */
-    public List<WeaponPresetDto> weaponPresets(UUID playerId) {
-        return jdbcTemplate.query(
+    private List<WeaponPresetDto> loadWeaponPresetsBatch(UUID playerId) {
+        List<WeaponPresetDto> presets = jdbcTemplate.query(
             """
                 SELECT class_tag, preset_slot, catalog_version, revision, sanitized
                 FROM player_weapon_presets
@@ -150,22 +148,78 @@ public class PresetsService {
                 rs.getLong("catalog_version"),
                 rs.getLong("revision"),
                 rs.getBoolean("sanitized"),
-                weaponSlots(
-                    playerId,
-                    rs.getString("class_tag"),
-                    rs.getInt("preset_slot"),
-                    rs.getLong("catalog_version")
-                )
+                new ArrayList<>()
             ),
             playerId
         );
+
+        if (presets.isEmpty()) return presets;
+
+        Map<WeaponPresetKey, List<WeaponSlotPresetDto>> slotsByPreset = new HashMap<>();
+        for (WeaponPresetDto p : presets) {
+            slotsByPreset.put(new WeaponPresetKey(p.classTag(), p.presetSlot(), p.catalogVersion()), p.slots());
+        }
+
+        Map<SlotAndWeaponKey, List<ModuleSelectionDto>> modulesBySlot = new HashMap<>();
+
+        jdbcTemplate.query(
+            """
+                SELECT class_tag, preset_slot, catalog_version, weapon_slot_id, selected_weapon_id
+                FROM player_weapon_preset_slots
+                WHERE player_id = ?
+                ORDER BY class_tag, preset_slot, weapon_slot_id
+                """,
+            (rs, rowNum) -> {
+                String classTag = rs.getString("class_tag");
+                int presetSlot = rs.getInt("preset_slot");
+                long catalogVersion = rs.getLong("catalog_version");
+                String weaponSlotId = rs.getString("weapon_slot_id");
+                String selectedWeaponId = rs.getString("selected_weapon_id");
+                WeaponPresetKey pk = new WeaponPresetKey(classTag, presetSlot, catalogVersion);
+                List<WeaponSlotPresetDto> slots = slotsByPreset.get(pk);
+                List<ModuleSelectionDto> slotModules = new ArrayList<>();
+                WeaponSlotPresetDto slot = new WeaponSlotPresetDto(weaponSlotId, selectedWeaponId, slotModules);
+                if (slots != null) slots.add(slot);
+                if (selectedWeaponId != null) {
+                    modulesBySlot.put(new SlotAndWeaponKey(classTag, presetSlot, catalogVersion, weaponSlotId, selectedWeaponId), slotModules);
+                }
+                return null;
+            },
+            playerId
+        );
+
+        if (!modulesBySlot.isEmpty()) {
+            jdbcTemplate.query(
+                """
+                    SELECT class_tag, preset_slot, catalog_version, weapon_slot_id, weapon_id, mount_id, module_id
+                    FROM player_weapon_preset_weapon_config_modules
+                    WHERE player_id = ?
+                    ORDER BY class_tag, preset_slot, catalog_version, weapon_slot_id, weapon_id, mount_id
+                    """,
+                (rs, rowNum) -> {
+                    String classTag = rs.getString("class_tag");
+                    int presetSlot = rs.getInt("preset_slot");
+                    long catalogVersion = rs.getLong("catalog_version");
+                    String weaponSlotId = rs.getString("weapon_slot_id");
+                    String weaponId = rs.getString("weapon_id");
+                    String mountId = rs.getString("mount_id");
+                    String moduleId = rs.getString("module_id");
+                    SlotAndWeaponKey sk = new SlotAndWeaponKey(classTag, presetSlot, catalogVersion, weaponSlotId, weaponId);
+                    List<ModuleSelectionDto> slotModules = modulesBySlot.get(sk);
+                    if (slotModules != null) {
+                        slotModules.add(new ModuleSelectionDto(mountId, moduleId));
+                    }
+                    return null;
+                },
+                playerId
+            );
+        }
+
+        return presets;
     }
 
-    /**
-     * Читает outfit presets вместе с выбранными clothing slots.
-     */
-    public List<OutfitPresetDto> outfitPresets(UUID playerId) {
-        return jdbcTemplate.query(
+    private List<OutfitPresetDto> loadOutfitPresetsBatch(UUID playerId) {
+        List<OutfitPresetDto> presets = jdbcTemplate.query(
             """
                 SELECT team_tag, class_tag, outfit_preset_slot, catalog_version, revision, sanitized
                 FROM player_outfit_presets
@@ -179,16 +233,60 @@ public class PresetsService {
                 rs.getLong("catalog_version"),
                 rs.getLong("revision"),
                 rs.getBoolean("sanitized"),
-                outfitItems(
-                    playerId,
+                new ArrayList<>()
+            ),
+            playerId
+        );
+
+        if (presets.isEmpty()) return presets;
+
+        Map<OutfitPresetKey, List<OutfitItemDto>> itemsByPreset = new HashMap<>();
+        for (OutfitPresetDto p : presets) {
+            itemsByPreset.put(new OutfitPresetKey(p.teamTag(), p.classTag(), p.outfitPresetSlot(), p.catalogVersion()), p.items());
+        }
+
+        jdbcTemplate.query(
+            """
+                SELECT team_tag, class_tag, outfit_preset_slot, catalog_version, clothing_slot_id, item_id
+                FROM player_outfit_preset_items
+                WHERE player_id = ?
+                ORDER BY team_tag, class_tag, outfit_preset_slot, clothing_slot_id
+                """,
+            (rs, rowNum) -> {
+                OutfitPresetKey pk = new OutfitPresetKey(
                     rs.getString("team_tag"),
                     rs.getString("class_tag"),
                     rs.getInt("outfit_preset_slot"),
                     rs.getLong("catalog_version")
-                )
-            ),
+                );
+                List<OutfitItemDto> items = itemsByPreset.get(pk);
+                if (items != null) {
+                    items.add(new OutfitItemDto(rs.getString("clothing_slot_id"), rs.getString("item_id")));
+                }
+                return null;
+            },
             playerId
         );
+
+        return presets;
+    }
+
+    private record WeaponPresetKey(String classTag, int presetSlot, long catalogVersion) {}
+    private record SlotAndWeaponKey(String classTag, int presetSlot, long catalogVersion, String weaponSlotId, String weaponId) {}
+    private record OutfitPresetKey(String teamTag, String classTag, int outfitPresetSlot, long catalogVersion) {}
+
+    /**
+     * Читает weapon presets вместе с выбранными slots/modules (оригинальный N+1 метод, сохранён для обратной совместимости).
+     */
+    public List<WeaponPresetDto> weaponPresets(UUID playerId) {
+        return loadWeaponPresetsBatch(playerId);
+    }
+
+    /**
+     * Читает outfit presets вместе с выбранными clothing slots (оригинальный N+1 метод, сохранён для обратной совместимости).
+     */
+    public List<OutfitPresetDto> outfitPresets(UUID playerId) {
+        return loadOutfitPresetsBatch(playerId);
     }
 
     public List<WeaponSlotPresetDto> weaponSlots(UUID playerId, String classTag, int presetSlot, long catalogVersion) {

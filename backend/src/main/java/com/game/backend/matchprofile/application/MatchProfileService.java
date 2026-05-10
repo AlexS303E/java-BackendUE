@@ -19,9 +19,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -243,7 +247,7 @@ public class MatchProfileService {
     }
 
     private List<MatchWeaponDto> weapons(BuildMatchProfileRequest request, long catalogVersion) {
-        return jdbcTemplate.query(
+        List<MatchWeaponDto> result = jdbcTemplate.query(
             """
                 SELECT weapon_slot_id, selected_weapon_id
                 FROM player_weapon_preset_slots
@@ -259,7 +263,7 @@ public class MatchProfileService {
                 return new MatchWeaponDto(
                     weaponSlotId,
                     weaponId,
-                    weaponId == null ? List.of() : modules(request, catalogVersion, weaponSlotId, weaponId)
+                    weaponId == null ? new ArrayList<>() : new ArrayList<>()
                 );
             },
             request.playerId(),
@@ -267,32 +271,41 @@ public class MatchProfileService {
             request.weaponPresetSlot(),
             catalogVersion
         );
-    }
 
-    private List<MatchModuleDto> modules(BuildMatchProfileRequest request, long catalogVersion, String weaponSlotId, String weaponId) {
-        return jdbcTemplate.query(
-            """
-                SELECT mount_id, module_id
-                FROM player_weapon_preset_weapon_config_modules
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                  AND weapon_slot_id = ?
-                  AND weapon_id = ?
-                ORDER BY mount_id
-                """,
-            (rs, rowNum) -> new MatchModuleDto(
-                rs.getString("mount_id"),
-                rs.getString("module_id")
-            ),
-            request.playerId(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            catalogVersion,
-            weaponSlotId,
-            weaponId
-        );
+        Map<String, List<MatchModuleDto>> modulesBySlot = new HashMap<>();
+        for (MatchWeaponDto w : result) {
+            if (w.weaponId() != null) {
+                modulesBySlot.put(w.weaponSlotId(), w.modules());
+            }
+        }
+
+        if (!modulesBySlot.isEmpty()) {
+            jdbcTemplate.query(
+                """
+                    SELECT weapon_slot_id, weapon_id, mount_id, module_id
+                    FROM player_weapon_preset_weapon_config_modules
+                    WHERE player_id = ?
+                      AND class_tag = ?
+                      AND preset_slot = ?
+                      AND catalog_version = ?
+                    ORDER BY weapon_slot_id, weapon_id, mount_id
+                    """,
+                (rs, rowNum) -> {
+                    String weaponSlotId = rs.getString("weapon_slot_id");
+                    List<MatchModuleDto> slotModules = modulesBySlot.get(weaponSlotId);
+                    if (slotModules != null) {
+                        slotModules.add(new MatchModuleDto(rs.getString("mount_id"), rs.getString("module_id")));
+                    }
+                    return null;
+                },
+                request.playerId(),
+                request.classTag(),
+                request.weaponPresetSlot(),
+                catalogVersion
+            );
+        }
+
+        return result;
     }
 
     private List<MatchOutfitItemDto> outfit(BuildMatchProfileRequest request, long catalogVersion) {
@@ -321,6 +334,7 @@ public class MatchProfileService {
 
     /**
      * Проверяет, что все выбранные предметы доступны игроку и разрешены для class/team/mount.
+     * Использует batch-проверки вместо N+1.
      */
     private void validateLoadout(
         BuildMatchProfileRequest request,
@@ -328,131 +342,143 @@ public class MatchProfileService {
         List<MatchWeaponDto> weapons,
         List<MatchOutfitItemDto> outfit
     ) {
+        Set<String> weaponSlotIds = new HashSet<>();
+        Set<String> itemIds = new HashSet<>();
+        Set<String> clothingSlotIds = new HashSet<>();
+        List<ModuleMountPair> moduleMountPairs = new ArrayList<>();
+
         for (MatchWeaponDto weapon : weapons) {
-            validateWeaponSlotAllowed(request.classTag(), weapon.weaponSlotId());
-            if (weapon.weaponId() == null) {
-                continue;
-            }
-            validateCanUse(request.playerId(), weapon.weaponId(), catalogVersion, request.classTag(), request.teamTag());
+            weaponSlotIds.add(weapon.weaponSlotId());
+            if (weapon.weaponId() == null) continue;
+            itemIds.add(weapon.weaponId());
             for (MatchModuleDto module : weapon.modules()) {
-                validateCanUse(request.playerId(), module.moduleId(), catalogVersion, request.classTag(), request.teamTag());
-                validateMountModuleAllowed(catalogVersion, module.mountId(), module.moduleId());
+                itemIds.add(module.moduleId());
+                moduleMountPairs.add(new ModuleMountPair(module.mountId(), module.moduleId()));
             }
         }
 
         for (MatchOutfitItemDto item : outfit) {
-            validateClothingSlot(item.clothingSlotId());
-            validateCanUse(request.playerId(), item.itemId(), catalogVersion, request.classTag(), request.teamTag());
+            clothingSlotIds.add(item.clothingSlotId());
+            itemIds.add(item.itemId());
+        }
+
+        validateWeaponSlotsAllowedBatch(request.classTag(), weaponSlotIds);
+        validateCanUseBatch(request, catalogVersion, itemIds);
+        validateMountModulesAllowedBatch(catalogVersion, moduleMountPairs);
+        validateClothingSlotsBatch(clothingSlotIds);
+    }
+
+    private void validateWeaponSlotsAllowedBatch(String classTag, Set<String> weaponSlotIds) {
+        if (weaponSlotIds.isEmpty()) return;
+        String placeholders = String.join(",", weaponSlotIds.stream().map(id -> "?").toArray(String[]::new));
+        Object[] params = new Object[1 + weaponSlotIds.size()];
+        params[0] = classTag;
+        int i = 1;
+        for (String id : weaponSlotIds) {
+            params[i++] = id;
+        }
+        List<String> allowedSlots = jdbcTemplate.queryForList(
+            "SELECT weapon_slot_id FROM class_weapon_slot_rules WHERE class_tag = ? AND weapon_slot_id IN (" + placeholders + ") AND is_allowed = true",
+            String.class,
+            params
+        );
+        for (String slotId : weaponSlotIds) {
+            if (!allowedSlots.contains(slotId)) {
+                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Weapon slot is not allowed for class: " + slotId);
+            }
         }
     }
 
-    private void validateWeaponSlotAllowed(String classTag, String weaponSlotId) {
-        Boolean allowed = jdbcTemplate.queryForObject(
+    private void validateCanUseBatch(BuildMatchProfileRequest request, long catalogVersion, Set<String> itemIds) {
+        if (itemIds.isEmpty()) return;
+        String placeholders = String.join(",", itemIds.stream().map(id -> "?").toArray(String[]::new));
+        Object[] params = new Object[4 + itemIds.size()];
+        params[0] = request.playerId();
+        params[1] = catalogVersion;
+        int i = 2;
+        for (String id : itemIds) {
+            params[i++] = id;
+        }
+        params[i++] = request.classTag();
+        params[i] = request.teamTag();
+        List<String> usableItems = jdbcTemplate.queryForList(
             """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM class_weapon_slot_rules
-                  WHERE class_tag = ?
-                    AND weapon_slot_id = ?
-                    AND is_allowed = true
+                SELECT ci.item_id
+                FROM catalog_items ci
+                JOIN player_item_access pia
+                  ON pia.item_id = ci.item_id
+                 AND pia.catalog_version = ci.catalog_version
+                 AND pia.player_id = ?
+                WHERE ci.catalog_version = ?
+                  AND ci.is_enabled = true
+                  AND pia.is_hidden = false
+                  AND pia.is_locked_in_shop = false
+                  AND pia.is_locked_by_quest = false
+                  AND pia.is_disabled = false
+                  AND ci.item_id IN (""" + placeholders + """
                 )
+                  AND EXISTS (
+                    SELECT 1 FROM item_class_rules icr
+                    WHERE icr.item_id = ci.item_id
+                      AND icr.catalog_version = ci.catalog_version
+                      AND icr.class_tag = ?
+                      AND icr.rule_effect = 'allow'
+                  )
+                  AND EXISTS (
+                    SELECT 1 FROM item_team_rules itr
+                    WHERE itr.item_id = ci.item_id
+                      AND itr.catalog_version = ci.catalog_version
+                      AND (itr.team_scope = 'all' OR (itr.team_scope = 'specific' AND itr.team_tag = ?))
+                  )
                 """,
-            Boolean.class,
-            classTag,
-            weaponSlotId
+            String.class,
+            params
         );
-        if (!Boolean.TRUE.equals(allowed)) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Weapon slot is not allowed for class: " + weaponSlotId);
+        for (String itemId : itemIds) {
+            if (!usableItems.contains(itemId)) {
+                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Item is not usable in selected loadout: " + itemId);
+            }
         }
     }
 
-    private void validateCanUse(UUID playerId, String itemId, long catalogVersion, String classTag, String teamTag) {
-        Boolean canUse = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM catalog_items ci
-                  JOIN player_item_access pia
-                    ON pia.item_id = ci.item_id
-                   AND pia.catalog_version = ci.catalog_version
-                   AND pia.player_id = ?
-                  WHERE ci.item_id = ?
-                    AND ci.catalog_version = ?
-                    AND ci.is_enabled = true
-                    AND pia.is_hidden = false
-                    AND pia.is_locked_in_shop = false
-                    AND pia.is_locked_by_quest = false
-                    AND pia.is_disabled = false
-                    AND EXISTS (
-                      SELECT 1
-                      FROM item_class_rules icr
-                      WHERE icr.item_id = ci.item_id
-                        AND icr.catalog_version = ci.catalog_version
-                        AND icr.class_tag = ?
-                        AND icr.rule_effect = 'allow'
-                    )
-                    AND EXISTS (
-                      SELECT 1
-                      FROM item_team_rules itr
-                      WHERE itr.item_id = ci.item_id
-                        AND itr.catalog_version = ci.catalog_version
-                        AND (
-                          itr.team_scope = 'all'
-                          OR (itr.team_scope = 'specific' AND itr.team_tag = ?)
-                        )
-                    )
-                )
-                """,
-            Boolean.class,
-            playerId,
-            itemId,
-            catalogVersion,
-            classTag,
-            teamTag
+    private void validateMountModulesAllowedBatch(long catalogVersion, List<ModuleMountPair> pairs) {
+        if (pairs.isEmpty()) return;
+        String placeholders = String.join(",", pairs.stream().map(p -> "(?,?)").toArray(String[]::new));
+        Object[] params = new Object[1 + pairs.size() * 2];
+        params[0] = catalogVersion;
+        int i = 1;
+        for (ModuleMountPair p : pairs) {
+            params[i++] = p.mountId;
+            params[i++] = p.moduleId;
+        }
+        List<String> allowedMountModules = jdbcTemplate.queryForList(
+            "SELECT mount_id || ':' || module_id FROM weapon_mount_allowed_modules WHERE catalog_version = ? AND (mount_id, module_id) IN (" + placeholders + ")",
+            String.class,
+            params
         );
-        if (!Boolean.TRUE.equals(canUse)) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Item is not usable in selected loadout: " + itemId);
+        for (ModuleMountPair p : pairs) {
+            if (!allowedMountModules.contains(p.mountId + ":" + p.moduleId)) {
+                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Module is not allowed for mount: " + p.moduleId);
+            }
         }
     }
 
-    private void validateMountModuleAllowed(long catalogVersion, String mountId, String moduleId) {
-        Boolean allowed = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM weapon_mount_allowed_modules
-                  WHERE catalog_version = ?
-                    AND mount_id = ?
-                    AND module_id = ?
-                )
-                """,
-            Boolean.class,
-            catalogVersion,
-            mountId,
-            moduleId
+    private void validateClothingSlotsBatch(Set<String> clothingSlotIds) {
+        if (clothingSlotIds.isEmpty()) return;
+        String placeholders = String.join(",", clothingSlotIds.stream().map(id -> "?").toArray(String[]::new));
+        List<String> activeSlots = jdbcTemplate.queryForList(
+            "SELECT clothing_slot_id FROM clothing_slot_definitions WHERE clothing_slot_id IN (" + placeholders + ") AND is_active = true",
+            String.class,
+            clothingSlotIds.toArray()
         );
-        if (!Boolean.TRUE.equals(allowed)) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Module is not allowed for mount: " + moduleId);
+        for (String slotId : clothingSlotIds) {
+            if (!activeSlots.contains(slotId)) {
+                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Clothing slot is not active: " + slotId);
+            }
         }
     }
 
-    private void validateClothingSlot(String clothingSlotId) {
-        Boolean exists = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM clothing_slot_definitions
-                  WHERE clothing_slot_id = ?
-                    AND is_active = true
-                )
-                """,
-            Boolean.class,
-            clothingSlotId
-        );
-        if (!Boolean.TRUE.equals(exists)) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Clothing slot is not active: " + clothingSlotId);
-        }
-    }
+    private record ModuleMountPair(String mountId, String moduleId) {}
 
     /**
      * Сохраняет сгенерированный профиль как кэшируемый snapshot с ревизиями зависимостей.

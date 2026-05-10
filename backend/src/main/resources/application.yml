@@ -5,6 +5,12 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/ue_backend}
     username: ${DB_USER:ue_backend}
     password: ${DB_PASSWORD:ue_backend}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:30}
+      minimum-idle: ${DB_POOL_MIN_IDLE:10}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:5000}
+      idle-timeout: ${DB_IDLE_TIMEOUT:300000}
+      max-lifetime: ${DB_MAX_LIFETIME:600000}
   flyway:
     enabled: true
   data:

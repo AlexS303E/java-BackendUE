@@ -7,3 +7,5 @@ build/
 tools/mtls/**/out/
 tools/mtls/logs/
 tools/mtls/work/
+backend.log
+tools/load/k6/results/
