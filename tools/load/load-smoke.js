@@ -145,7 +145,7 @@ export default function (data) {
       { headers: serverHeaders, tags: { endpoint: "POST /server/match-profile/build" } }
     );
     check(profile, {
-      "match profile ok": (response) => response.status === 200 && response.json("match_id") === matchId,
+      "match profile ok": (response) => response.status === 200 && response.json("player_id") === playerId,
     });
 
     const operationId = uuidv4();

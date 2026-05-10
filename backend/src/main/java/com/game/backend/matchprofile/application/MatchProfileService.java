@@ -3,6 +3,7 @@ package com.game.backend.matchprofile.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.catalog.application.CatalogService;
+import com.game.backend.catalog.application.CatalogValidationData;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import com.game.backend.matchprofile.api.DependencyRevisionsDto;
@@ -38,6 +39,7 @@ public class MatchProfileService {
 
     private final JdbcTemplate jdbcTemplate;
     private final CatalogService catalogService;
+    private final CatalogValidationData catalogValidationData;
     private final ObjectMapper objectMapper;
     private final ServerMatchService serverMatchService;
     private final ServerAuditService serverAuditService;
@@ -45,12 +47,14 @@ public class MatchProfileService {
     public MatchProfileService(
         JdbcTemplate jdbcTemplate,
         CatalogService catalogService,
+        CatalogValidationData catalogValidationData,
         ObjectMapper objectMapper,
         ServerMatchService serverMatchService,
         ServerAuditService serverAuditService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.catalogService = catalogService;
+        this.catalogValidationData = catalogValidationData;
         this.objectMapper = objectMapper;
         this.serverMatchService = serverMatchService;
         this.serverAuditService = serverAuditService;
@@ -67,6 +71,12 @@ public class MatchProfileService {
             matchAssigned = true;
 
             long catalogVersion = chooseCatalogVersion(request);
+
+            MatchProfileResponse existing = findExistingProfile(request, catalogVersion);
+            if (existing != null) {
+                return existing;
+            }
+
             PresetHeader weaponPreset = weaponPreset(request, catalogVersion);
             PresetHeader outfitPreset = outfitPreset(request, catalogVersion);
             long accessRevision = accessRevision(request.playerId());
@@ -155,6 +165,42 @@ public class MatchProfileService {
 
     private String auditResult(ApiException exception) {
         return exception.status() == HttpStatus.FORBIDDEN ? "denied" : "failed";
+    }
+
+    private MatchProfileResponse findExistingProfile(BuildMatchProfileRequest request, long catalogVersion) {
+        List<String> payloads = jdbcTemplate.queryForList(
+            """
+                SELECT payload
+                FROM player_match_profiles
+                WHERE player_id = ?
+                  AND realm_id = ?
+                  AND class_tag = ?
+                  AND team_tag = ?
+                  AND weapon_preset_slot = ?
+                  AND outfit_preset_slot = ?
+                  AND catalog_version = ?
+                  AND is_stale = false
+                  AND expires_at > NOW()
+                ORDER BY generated_at DESC
+                LIMIT 1
+                """,
+            String.class,
+            request.playerId(),
+            request.realmId(),
+            request.classTag(),
+            request.teamTag(),
+            request.weaponPresetSlot(),
+            request.outfitPresetSlot(),
+            catalogVersion
+        );
+        if (payloads.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(payloads.getFirst(), MatchProfileResponse.class);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -370,20 +416,9 @@ public class MatchProfileService {
 
     private void validateWeaponSlotsAllowedBatch(String classTag, Set<String> weaponSlotIds) {
         if (weaponSlotIds.isEmpty()) return;
-        String placeholders = String.join(",", weaponSlotIds.stream().map(id -> "?").toArray(String[]::new));
-        Object[] params = new Object[1 + weaponSlotIds.size()];
-        params[0] = classTag;
-        int i = 1;
-        for (String id : weaponSlotIds) {
-            params[i++] = id;
-        }
-        List<String> allowedSlots = jdbcTemplate.queryForList(
-            "SELECT weapon_slot_id FROM class_weapon_slot_rules WHERE class_tag = ? AND weapon_slot_id IN (" + placeholders + ") AND is_allowed = true",
-            String.class,
-            params
-        );
+        Map<String, Boolean> rules = catalogValidationData.getWeaponSlotRules(classTag);
         for (String slotId : weaponSlotIds) {
-            if (!allowedSlots.contains(slotId)) {
+            if (!Boolean.TRUE.equals(rules.get(slotId))) {
                 throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Weapon slot is not allowed for class: " + slotId);
             }
         }
@@ -443,21 +478,10 @@ public class MatchProfileService {
 
     private void validateMountModulesAllowedBatch(long catalogVersion, List<ModuleMountPair> pairs) {
         if (pairs.isEmpty()) return;
-        String placeholders = String.join(",", pairs.stream().map(p -> "(?,?)").toArray(String[]::new));
-        Object[] params = new Object[1 + pairs.size() * 2];
-        params[0] = catalogVersion;
-        int i = 1;
+        Map<String, Set<String>> allowedByMount = catalogValidationData.getMountAllowedModules(catalogVersion);
         for (ModuleMountPair p : pairs) {
-            params[i++] = p.mountId;
-            params[i++] = p.moduleId;
-        }
-        List<String> allowedMountModules = jdbcTemplate.queryForList(
-            "SELECT mount_id || ':' || module_id FROM weapon_mount_allowed_modules WHERE catalog_version = ? AND (mount_id, module_id) IN (" + placeholders + ")",
-            String.class,
-            params
-        );
-        for (ModuleMountPair p : pairs) {
-            if (!allowedMountModules.contains(p.mountId + ":" + p.moduleId)) {
+            Set<String> modules = allowedByMount.get(p.mountId);
+            if (modules == null || !modules.contains(p.moduleId)) {
                 throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Module is not allowed for mount: " + p.moduleId);
             }
         }
@@ -465,12 +489,7 @@ public class MatchProfileService {
 
     private void validateClothingSlotsBatch(Set<String> clothingSlotIds) {
         if (clothingSlotIds.isEmpty()) return;
-        String placeholders = String.join(",", clothingSlotIds.stream().map(id -> "?").toArray(String[]::new));
-        List<String> activeSlots = jdbcTemplate.queryForList(
-            "SELECT clothing_slot_id FROM clothing_slot_definitions WHERE clothing_slot_id IN (" + placeholders + ") AND is_active = true",
-            String.class,
-            clothingSlotIds.toArray()
-        );
+        Set<String> activeSlots = catalogValidationData.getActiveClothingSlots();
         for (String slotId : clothingSlotIds) {
             if (!activeSlots.contains(slotId)) {
                 throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Clothing slot is not active: " + slotId);

@@ -1,11 +1,44 @@
-.idea
-.vs
-.env
+# --- IDE ---
+.idea/
+.vs/
+.vscode/
+*.iml
+
+# --- OS ---
+Thumbs.db
+Desktop.ini
+.DS_Store
+._*
+
+# --- Java/Gradle ---
 *.class
+*.jar
+*.war
+*.ear
+!gradle-wrapper.jar
 .gradle/
 build/
+out/
+bin/
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Temp/Backup ---
+*.tmp
+*.bak
+*.orig
+*.swp
+*.swo
+*~
+
+# --- Environment ---
+.env
+
+# --- Project-specific ---
 tools/mtls/**/out/
 tools/mtls/logs/
 tools/mtls/work/
-backend.log
 tools/load/k6/results/
+tools/load/tank/*.log

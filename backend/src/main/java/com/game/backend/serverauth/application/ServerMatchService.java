@@ -32,7 +32,20 @@ public class ServerMatchService {
         ensureRealmMatchesIdentity(identity, request.realmId());
         ensureBuildMatchesIdentity(identity, request.serverBuildId());
 
-        jdbcTemplate.update(
+        ServerMatch match = insertWithReturning(identity, request);
+        if (match == null) {
+            match = loadMatch(request.matchId());
+        }
+        if (match == null) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "MATCH_ASSIGNMENT_FAILED", "Unable to assign match to server");
+        }
+        ensureOwnedBy(identity, match);
+        ensureRealmMatchesRequest(match, request.realmId());
+        ensureMatchIsActive(match);
+    }
+
+    private ServerMatch insertWithReturning(ServerIdentity identity, BuildMatchProfileRequest request) {
+        List<ServerMatch> matches = jdbcTemplate.query(
             """
                 INSERT INTO server_matches(
                   match_id,
@@ -43,20 +56,20 @@ public class ServerMatchService {
                 )
                 VALUES (?, ?, ?, 'running', ?)
                 ON CONFLICT (match_id) DO NOTHING
+                RETURNING match_id, server_id, realm_id, status
                 """,
+            (rs, rowNum) -> new ServerMatch(
+                rs.getObject("match_id", UUID.class),
+                rs.getObject("server_id", UUID.class),
+                rs.getString("realm_id"),
+                rs.getString("status")
+            ),
             request.matchId(),
             identity.serverId(),
             request.realmId(),
             OffsetDateTime.now()
         );
-
-        ServerMatch match = loadMatch(request.matchId());
-        if (match == null) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "MATCH_ASSIGNMENT_FAILED", "Unable to assign match to server");
-        }
-        ensureOwnedBy(identity, match);
-        ensureRealmMatchesRequest(match, request.realmId());
-        ensureMatchIsActive(match);
+        return matches.isEmpty() ? null : matches.getFirst();
     }
 
     /**
