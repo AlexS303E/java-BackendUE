@@ -72,15 +72,13 @@ public class MatchProfileService {
 
             long catalogVersion = chooseCatalogVersion(request);
 
-
             MatchProfileResponse existing = findExistingProfile(request, catalogVersion);
             if (existing != null) {
                 return existing;
             }
 
-            PresetHeader weaponPreset = weaponPreset(request, catalogVersion);
+            WeaponPresetAndAccess weaponPreset = weaponPresetWithAccess(request, catalogVersion);
             PresetHeader outfitPreset = outfitPreset(request, catalogVersion);
-            long accessRevision = accessRevision(request.playerId());
             long profileRevision = System.currentTimeMillis();
 
             List<MatchWeaponDto> weapons = weapons(request, catalogVersion);
@@ -102,7 +100,7 @@ public class MatchProfileService {
                 new DependencyRevisionsDto(
                     weaponPreset.revision(),
                     outfitPreset.revision(),
-                    accessRevision,
+                    weaponPreset.accessRevision(),
                     profileRevision
                 )
             );
@@ -119,7 +117,7 @@ public class MatchProfileService {
     }
 
     private void auditSuccess(ServerIdentity server, BuildMatchProfileRequest request, MatchProfileResponse response) {
-        serverAuditService.record(
+        serverAuditService.recordSync(
             server,
             request.matchId(),
             AUDIT_ACTION,
@@ -235,26 +233,32 @@ public class MatchProfileService {
         };
     }
 
-    private PresetHeader weaponPreset(BuildMatchProfileRequest request, long catalogVersion) {
-        List<PresetHeader> presets = jdbcTemplate.query(
+    private WeaponPresetAndAccess weaponPresetWithAccess(BuildMatchProfileRequest request, long catalogVersion) {
+        List<Object[]> rows = jdbcTemplate.query(
             """
-                SELECT revision, sanitized
-                FROM player_weapon_presets
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
+                SELECT wp.revision, wp.sanitized, pas.access_revision
+                FROM player_weapon_presets wp
+                JOIN player_access_projection_state pas ON pas.player_id = wp.player_id
+                WHERE wp.player_id = ?
+                  AND wp.class_tag = ?
+                  AND wp.preset_slot = ?
+                  AND wp.catalog_version = ?
                 """,
-            (rs, rowNum) -> new PresetHeader(rs.getLong("revision"), rs.getBoolean("sanitized")),
+            (rs, rowNum) -> new Object[]{
+                rs.getLong("revision"),
+                rs.getBoolean("sanitized"),
+                rs.getLong("access_revision")
+            },
             request.playerId(),
             request.classTag(),
             request.weaponPresetSlot(),
             catalogVersion
         );
-        if (presets.isEmpty()) {
+        if (rows.isEmpty()) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "WEAPON_PRESET_NOT_FOUND", "Weapon preset was not found for selected catalog version");
         }
-        return presets.getFirst();
+        Object[] row = rows.getFirst();
+        return new WeaponPresetAndAccess((Long) row[0], (Boolean) row[1], (Long) row[2]);
     }
 
     private PresetHeader outfitPreset(BuildMatchProfileRequest request, long catalogVersion) {
@@ -279,18 +283,6 @@ public class MatchProfileService {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "OUTFIT_PRESET_NOT_FOUND", "Outfit preset was not found for selected team and catalog version");
         }
         return presets.getFirst();
-    }
-
-    private long accessRevision(UUID playerId) {
-        List<Long> revisions = jdbcTemplate.queryForList(
-            "SELECT access_revision FROM player_access_projection_state WHERE player_id = ?",
-            Long.class,
-            playerId
-        );
-        if (revisions.isEmpty()) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "ACCESS_PROJECTION_NOT_FOUND", "Access projection was not found");
-        }
-        return revisions.getFirst();
     }
 
     private List<MatchWeaponDto> weapons(BuildMatchProfileRequest request, long catalogVersion) {
@@ -566,5 +558,8 @@ public class MatchProfileService {
     }
 
     private record PresetHeader(long revision, boolean sanitized) {
+    }
+
+    private record WeaponPresetAndAccess(long revision, boolean sanitized, long accessRevision) {
     }
 }

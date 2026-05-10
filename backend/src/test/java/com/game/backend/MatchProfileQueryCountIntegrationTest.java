@@ -58,7 +58,7 @@ class MatchProfileQueryCountIntegrationTest {
     }
 
     @Test
-    void matchProfileBuildShouldExecuteAtMost13Queries() throws Exception {
+    void matchProfileBuildShouldExecuteAtMost12Queries() throws Exception {
         UUID playerId = registerPlayer();
         long catalogVersion = activeCatalogVersion();
         UUID matchId = UUID.randomUUID();
@@ -85,8 +85,8 @@ class MatchProfileQueryCountIntegrationTest {
 
         int queries = queryCounter.getQueryCount();
         assertThat(queries)
-                .as("POST /server/match-profile/build should execute <= 13 SQL queries (no N+1)")
-                .isLessThanOrEqualTo(13);
+                .as("POST /server/match-profile/build should execute <= 12 SQL queries (no N+1)")
+                .isLessThanOrEqualTo(12);
     }
 
     private UUID registerPlayer() throws Exception {

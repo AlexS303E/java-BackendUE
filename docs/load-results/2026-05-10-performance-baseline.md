@@ -17,14 +17,42 @@
 | GET /catalog/snapshot | 262 000 | 0% | — | — | 28ms | — | — | 1 454 |
 | GET /me/access | 154 000 | 0% | 29ms | — | 49ms | — | — | 813 |
 | GET /me/presets | 140 000 | 0% | 32ms | — | 69ms | — | — | ~777 |
-| POST /server/match-profile/build | 8 125 | 0% | 557ms | 909ms | 1 120ms | 2 387ms | 4 793ms | 39 |
+| POST /server/match-profile/build (old, mixed) | 8 125 | 0% | 557ms | 909ms | 1 120ms | 2 387ms | 4 793ms | 39 |
+| POST /server/match-profile/build (cold, post-opt) | **65 800** | **0%** | **68ms** | **94ms** | **135ms** | — | 2.94s | **346** |
+| POST /server/match-profile/build (warm, post-opt) | **85 841** | **0%** | **52ms** | **68ms** | **82ms** | — | 304ms | **462** |
 | POST /server/runtime-preset-changes | 87 041 | 0% | 51ms | — | 81ms | — | — | 475 |
 
 **Условия:** Все endpoint'ы tested in isolation (1 endpoint per script). Auth-зависимые используют предварительную регистрацию в setup() + JWT bearer token.
 
 ---
 
-## 2. Mixed Smoke Test (25 VUs, 3 min)
+## 2. Match-Profile Cold vs Warm (25 VUs, 3 min)
+
+Изолированные сценарии для точного измерения двух режимов работы.
+
+| Сценарий | Reqs | Failures | avg | p90 | p95 | p99 | max | RPS |
+|---|---|---|---|---|---|---|---|---|
+| **Cold build** (новый match_id) | 65 800 | 0% | 68ms | 94ms | **135ms** | — | 2.94s | 346 |
+| **Warm reuse** (тот же match_id) | 85 841 | 0% | 52ms | 68ms | **82ms** | — | 304ms | 462 |
+
+### Целевые ориентиры
+
+| Сценарий | Цель | Факт | Статус |
+|---|---|---|---|
+| Warm p95 | ≤ 120ms | **82ms** | ✅ PASS |
+| Cold p95 | ≤ 300–500ms | **135ms** | ✅ PASS (hugely below target) |
+
+### Что изменилось (от baseline 557ms avg / 1.12s p95)
+
+| Оптимизация | Влияние |
+|---|---|
+| SQL count 18 → 12 | −6 SQL (profile reuse, Redis cache, merge queries, accessRevision join) |
+| Sync audit (no REQUIRES_NEW) | −overhead транзакции на success-пути |
+| Индексы V017 | heap lookups устранены в validateCanUseBatch |
+
+---
+
+## 4. Mixed Smoke Test (25 VUs, 3 min)
 
 **Сценарий:** 7 endpoint'ов round-robin на 1 iteration + 0.1s sleep
 1. POST /auth/login
@@ -46,14 +74,19 @@
 
 ---
 
-## 3. SQL Query Count Regression
+## 6. SQL Query Count Regression
 
 | Endpoint | Threshold | Baseline | Status |
 |---|---|---|---|
 | GET /me/presets | ≤ 8 | ≤ 8 | ✅ PASS |
-| POST /server/match-profile/build | ≤ 13 | ≤ 13 | ✅ PASS |
+| POST /server/match-profile/build | ≤ 12 | ≤ 12 | ✅ PASS |
 
-**Прирост:** 15 → 13 SQL (Redis cache для `catalogVersionAllowsNewMatches`, merge weapons+modules в LEFT JOIN)
+**Прирост:** 15 → 12 SQL (Redis cache −1, merge weapons+modules −1, merge accessRevision −1)
+
+**Прочие оптимизации:**
+- Sync audit (no REQUIRES_NEW) для success-пути — убран overhead транзакции
+- Индексы V017: `idx_catalog_items_catalog_enabled`, `idx_item_class_rules_lookup`, `idx_item_team_rules_lookup`
+- k6 скрипты: cold-build и warm-reuse изолированы для точного измерения
 
 **Механизм:** `DataSourceQueryCounter` — JDK dynamic proxy, оборачивающий DataSource. Нулевая зависимость от внешних библиотек.
 
@@ -65,7 +98,7 @@ cd backend
 
 ---
 
-## 4. Hikari Connection Pool
+## 7. Hikari Connection Pool
 
 | Параметр | До (v1 broken) | После (v2 fixed) |
 |---|---|---|
@@ -78,7 +111,7 @@ cd backend
 
 ---
 
-## 5. N+1 SQL Fixes
+## 8. N+1 SQL Fixes
 
 | Сервис | До | После | Метод |
 |---|---|---|---|
@@ -92,7 +125,7 @@ cd backend
 
 ---
 
-## 6. Configuration Reference
+## 9. Configuration Reference
 
 ### application.yml (backend/src/main/resources/application.yml)
 ```yaml
@@ -116,7 +149,9 @@ export const options = {
 ```
 
 ### Скрипты
-- `tools/load/k6/endpoint-match-profile-only.js`
+- `tools/load/k6/endpoint-match-profile-only.js` — mixed cold/warm
+- `tools/load/k6/endpoint-match-profile-cold-only.js` — **new match_id на каждую iteration** (cold build path)
+- `tools/load/k6/endpoint-match-profile-warm-only.js` — **тот же match_id из setup** (profile reuse path)
 - `tools/load/k6/endpoint-presets-only.js`
 - `tools/load/k6/endpoint-access-only.js`
 - `tools/load/k6/endpoint-auth-only.js`
@@ -125,12 +160,13 @@ export const options = {
 
 ---
 
-## 7. Точки роста (post-baseline)
+## 10. Точки роста (post-baseline)
 
 | Область | Текущее | Цель | Подход |
 |---|---|---|---|
-| match-profile/build p95 | 1 120ms | ≤ 500ms | Оптимизация validateCanUseBatch (индексы), async audit (убрать REQUIRES_NEW) |
-| match-profile/build SQL | 13 | ≤ 11 | Дальнейшая оптимизация: merge accessRevision с findExistingProfile, cache validateCanUseBatch |
+| match-profile/build cold p95 | **135ms** ✅ | ≤ 500ms | **Цель достигнута** |
+| match-profile/build warm p95 | **82ms** ✅ | ≤ 120ms | **Цель достигнута** |
+| match-profile/build SQL | **12** | ≤ 10 | Cache validateCanUseBatch (Redis access projection), async audit outbox |
 | Hikari pool saturation | 30 @ 25 VUs | 30 @ 50 VUs | Оптимизация write-запросов, async audit |
 | mTLS | dev only | production | Включить mTLS, отключить header fallback |
 

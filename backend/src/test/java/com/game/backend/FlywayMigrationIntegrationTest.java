@@ -48,21 +48,22 @@ class FlywayMigrationIntegrationTest {
 
         assertThat(appliedVersions).contains(
                 "001", "002", "003", "004", "005", "006", "007", "008",
-                "009", "010", "011", "012", "013", "014", "015", "016"
+                "009", "010", "011", "012", "013", "014", "015", "016",
+                "017"
         );
 
         String latestMandatoryScript = jdbcTemplate.queryForObject(
                 """
                     SELECT script
                     FROM flyway_schema_history
-                    WHERE version = '016'
+                    WHERE version = '017'
                       AND success = true
                     ORDER BY installed_rank DESC
                     LIMIT 1
                     """,
                 String.class
         );
-        assertThat(latestMandatoryScript).isEqualTo("V016__player_notifications.sql");
+        assertThat(latestMandatoryScript).isEqualTo("V017__performance_indexes.sql");
     }
 
     @Test
@@ -123,6 +124,9 @@ class FlywayMigrationIntegrationTest {
         assertThat(indexExists("idx_server_runtime_events_type_received")).isTrue();
         assertThat(indexExists("idx_player_notifications_player_status_created")).isTrue();
         assertThat(indexExists("idx_player_notifications_player_created")).isTrue();
+        assertThat(indexExists("idx_catalog_items_catalog_enabled")).isTrue();
+        assertThat(indexExists("idx_item_class_rules_lookup")).isTrue();
+        assertThat(indexExists("idx_item_team_rules_lookup")).isTrue();
 
         Map<String, Object> activeCatalogIndex = uniquePartialIndex("uq_catalog_active_new_matches");
         assertThat(activeCatalogIndex.get("is_unique")).isEqualTo(true);

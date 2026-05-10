@@ -44,6 +44,21 @@ public class ServerAuditService {
     }
 
     /**
+     * Пишет audit event в той же транзакции (без REQUIRES_NEW).
+     * Для hot path (success audit), где rollback-survival не нужен.
+     */
+    public void recordSync(
+        ServerIdentity identity,
+        UUID matchId,
+        String action,
+        String scope,
+        String result,
+        Map<String, Object> payload
+    ) {
+        record(identity.serverId(), matchId, action, scope, result, payload);
+    }
+
+    /**
      * Пишет denied audit event для запросов, где server_id распознан, но principal еще не создан
      * из-за revoked/expired identity, неправильного fingerprint или неверного mTLS канала.
      */

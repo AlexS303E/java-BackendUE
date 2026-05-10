@@ -228,7 +228,16 @@ gradlew.bat test --tests *PresetsQueryCountIntegrationTest --tests *MatchProfile
 | Merge weapons + modules (LEFT JOIN) | −1 | ✅ |
 | **Итого (fresh build path)** | **18 → 13 SQL** | ✅ |
 
+### Дополнительные оптимизации (post-baseline)
+
+| Оптимизация | SQL saved | Status |
+|---|---|---|
+| Merge accessRevision into weaponPreset (JOIN) | −1 | ✅ |
+| Sync audit for success path (remove REQUIRES_NEW) | −0 (latency) | ✅ |
+| Indexes: `catalog_items(catalog,enabled,item)`, `item_class_rules_lookup`, `item_team_rules_lookup` | −0 (latency) | ✅ (V017) |
+| **Итого (fresh build path)** | **18 → 12 SQL** | ✅ |
+
 ### Оставшиеся возможности
-1. **Слить accessRevision** с findExistingProfile или validateCanUseBatch → −1 SQL
-2. **Async audit** (outbox) → eliminate REQUIRES_NEW overhead (−2-3 SQL, −savepoint cost)
-3. **Оптимизировать validateCanUseBatch** через покрытие индексами или кэширование access projection
+1. **Async audit** (outbox) → eliminate REQUIRES_NEW overhead для failure audit (−savepoint cost, currently only for error path)
+2. **Cache validateCanUseBatch** через Redis access projection (−1 SQL, heavy query)
+3. **Cold vs warm separation** — скрипты `endpoint-match-profile-cold-only.js` / `warm-only.js`
