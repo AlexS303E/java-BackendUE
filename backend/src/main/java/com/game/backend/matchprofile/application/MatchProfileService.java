@@ -72,6 +72,7 @@ public class MatchProfileService {
 
             long catalogVersion = chooseCatalogVersion(request);
 
+
             MatchProfileResponse existing = findExistingProfile(request, catalogVersion);
             if (existing != null) {
                 return existing;
@@ -293,24 +294,28 @@ public class MatchProfileService {
     }
 
     private List<MatchWeaponDto> weapons(BuildMatchProfileRequest request, long catalogVersion) {
-        List<MatchWeaponDto> result = jdbcTemplate.query(
+        List<Object[]> rows = jdbcTemplate.query(
             """
-                SELECT weapon_slot_id, selected_weapon_id
-                FROM player_weapon_preset_slots
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                ORDER BY weapon_slot_id
+                SELECT ws.weapon_slot_id, ws.selected_weapon_id,
+                       wcm.mount_id, wcm.module_id
+                FROM player_weapon_preset_slots ws
+                LEFT JOIN player_weapon_preset_weapon_config_modules wcm
+                  ON  wcm.player_id = ws.player_id
+                  AND wcm.class_tag = ws.class_tag
+                  AND wcm.preset_slot = ws.preset_slot
+                  AND wcm.catalog_version = ws.catalog_version
+                  AND wcm.weapon_slot_id = ws.weapon_slot_id
+                WHERE ws.player_id = ?
+                  AND ws.class_tag = ?
+                  AND ws.preset_slot = ?
+                  AND ws.catalog_version = ?
+                ORDER BY ws.weapon_slot_id, wcm.mount_id
                 """,
-            (rs, rowNum) -> {
-                String weaponSlotId = rs.getString("weapon_slot_id");
-                String weaponId = rs.getString("selected_weapon_id");
-                return new MatchWeaponDto(
-                    weaponSlotId,
-                    weaponId,
-                    weaponId == null ? new ArrayList<>() : new ArrayList<>()
-                );
+            (rs, rowNum) -> new Object[]{
+                rs.getString("weapon_slot_id"),
+                rs.getString("selected_weapon_id"),
+                rs.getString("mount_id"),
+                rs.getString("module_id")
             },
             request.playerId(),
             request.classTag(),
@@ -318,40 +323,24 @@ public class MatchProfileService {
             catalogVersion
         );
 
-        Map<String, List<MatchModuleDto>> modulesBySlot = new HashMap<>();
-        for (MatchWeaponDto w : result) {
-            if (w.weaponId() != null) {
-                modulesBySlot.put(w.weaponSlotId(), w.modules());
+        Map<String, MatchWeaponDto> weaponMap = new HashMap<>();
+        for (Object[] row : rows) {
+            String slotId = (String) row[0];
+            String weaponId = (String) row[1];
+            String mountId = (String) row[2];
+            String moduleId = (String) row[3];
+
+            MatchWeaponDto weapon = weaponMap.get(slotId);
+            if (weapon == null) {
+                weapon = new MatchWeaponDto(slotId, weaponId, new ArrayList<>());
+                weaponMap.put(slotId, weapon);
+            }
+            if (mountId != null && moduleId != null) {
+                weapon.modules().add(new MatchModuleDto(mountId, moduleId));
             }
         }
 
-        if (!modulesBySlot.isEmpty()) {
-            jdbcTemplate.query(
-                """
-                    SELECT weapon_slot_id, weapon_id, mount_id, module_id
-                    FROM player_weapon_preset_weapon_config_modules
-                    WHERE player_id = ?
-                      AND class_tag = ?
-                      AND preset_slot = ?
-                      AND catalog_version = ?
-                    ORDER BY weapon_slot_id, weapon_id, mount_id
-                    """,
-                (rs, rowNum) -> {
-                    String weaponSlotId = rs.getString("weapon_slot_id");
-                    List<MatchModuleDto> slotModules = modulesBySlot.get(weaponSlotId);
-                    if (slotModules != null) {
-                        slotModules.add(new MatchModuleDto(rs.getString("mount_id"), rs.getString("module_id")));
-                    }
-                    return null;
-                },
-                request.playerId(),
-                request.classTag(),
-                request.weaponPresetSlot(),
-                catalogVersion
-            );
-        }
-
-        return result;
+        return new ArrayList<>(weaponMap.values());
     }
 
     private List<MatchOutfitItemDto> outfit(BuildMatchProfileRequest request, long catalogVersion) {

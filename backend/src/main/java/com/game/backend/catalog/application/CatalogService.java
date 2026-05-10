@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Сервис чтения каталога и выбора активной версии для матчей.
@@ -69,8 +70,13 @@ public class CatalogService {
 
     /**
      * Проверяет, может ли DS использовать указанную версию каталога для нового матча.
+     * Результат кэшируется в Redis на 5 минут, т.к. catalog deployments редки.
      */
     public boolean catalogVersionAllowsNewMatches(String realmId, long catalogVersion) {
+        Optional<Boolean> cached = cacheService.getCatalogAllowsNewMatches(realmId, catalogVersion);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
         Boolean exists = jdbcTemplate.queryForObject(
             """
                 SELECT EXISTS(
@@ -86,7 +92,9 @@ public class CatalogService {
             realmId,
             catalogVersion
         );
-        return Boolean.TRUE.equals(exists);
+        boolean allowed = Boolean.TRUE.equals(exists);
+        cacheService.putCatalogAllowsNewMatches(realmId, catalogVersion, allowed);
+        return allowed;
     }
 
     private List<CatalogItemDto> items(long catalogVersion) {

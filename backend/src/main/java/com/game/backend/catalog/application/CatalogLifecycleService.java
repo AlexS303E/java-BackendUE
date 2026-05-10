@@ -96,6 +96,7 @@ public class CatalogLifecycleService {
 
             activateCatalog(realmId, previousVersion, targetVersion, rolloutPercent, allowExistingMatches, now);
             cacheService.evictCatalogSnapshots(realmId);
+            cacheService.evictCatalogAllowsNewMatches(realmId);
             int staleProfiles = invalidateRealmProfiles(realmId, "catalog_published", operationId, now);
             recordOutbox(ACTION_PUBLISH, operationId, realmId, previousVersion, targetVersion, migration, staleProfiles, now);
 

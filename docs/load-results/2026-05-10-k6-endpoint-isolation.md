@@ -217,7 +217,18 @@ gradlew.bat test --tests *PresetsQueryCountIntegrationTest --tests *MatchProfile
 - **Экономия: ~2-3 queries**
 - **Сложность: высокая** (требует async audit или in-memory audit буфер)
 
-### Рекомендуемый план
-1. **Сейчас:** profile reuse (read-before-write) → 18 → ~6 queries
-2. **Затем:** Redis caching статических правил → ~2-3 additional queries saved
-3. **Долгосрочно:** async audit → eliminate REQUIRES_NEW overhead
+### Фактически выполнено
+
+| Оптимизация | SQL saved | Status |
+|---|---|---|
+| Profile reuse (read-before-write) | ~12 (18 → 6 на hit) | ✅ |
+| `INSERT ... RETURNING` (ServerMatchService) | −1 | ✅ |
+| In-memory cache for static validation rules | −3 | ✅ |
+| Redis cache for `catalogVersionAllowsNewMatches` | −1 | ✅ |
+| Merge weapons + modules (LEFT JOIN) | −1 | ✅ |
+| **Итого (fresh build path)** | **18 → 13 SQL** | ✅ |
+
+### Оставшиеся возможности
+1. **Слить accessRevision** с findExistingProfile или validateCanUseBatch → −1 SQL
+2. **Async audit** (outbox) → eliminate REQUIRES_NEW overhead (−2-3 SQL, −savepoint cost)
+3. **Оптимизировать validateCanUseBatch** через покрытие индексами или кэширование access projection

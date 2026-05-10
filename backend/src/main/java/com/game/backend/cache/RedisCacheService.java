@@ -60,12 +60,51 @@ public class RedisCacheService {
         evictIndexed(accessIndexKey(playerId));
     }
 
+    private static final Duration CATALOG_ALLOWS_NEW_MATCHES_TTL = Duration.ofMinutes(5);
+
+    public Optional<Boolean> getCatalogAllowsNewMatches(String realmId, long catalogVersion) {
+        if (!properties.isEnabled()) return Optional.empty();
+        String raw = readString(catalogAllowsNewMatchesKey(realmId, catalogVersion));
+        if (raw == null) return Optional.empty();
+        return Optional.of(Boolean.parseBoolean(raw));
+    }
+
+    public void putCatalogAllowsNewMatches(String realmId, long catalogVersion, boolean allowed) {
+        if (!properties.isEnabled()) return;
+        try {
+            redisTemplate.opsForValue().set(
+                catalogAllowsNewMatchesKey(realmId, catalogVersion),
+                String.valueOf(allowed),
+                CATALOG_ALLOWS_NEW_MATCHES_TTL
+            );
+        } catch (RuntimeException e) {
+            // best effort
+        }
+    }
+
+    public void evictCatalogAllowsNewMatches(String realmId) {
+        // Per-version keys expire naturally via TTL.
+        // Pattern-based eviction would require SCAN which is heavy.
+    }
+
     public String catalogSnapshotKey(String realmId, long catalogVersion) {
         return PREFIX + ":catalog:snapshot:" + realmId + ":" + catalogVersion;
     }
 
     public String accessKey(UUID playerId, long catalogVersion, long accessRevision) {
         return PREFIX + ":access:" + playerId + ":" + catalogVersion + ":" + accessRevision;
+    }
+
+    private String catalogAllowsNewMatchesKey(String realmId, long catalogVersion) {
+        return PREFIX + ":catalog:allows-new-matches:" + realmId + ":" + catalogVersion;
+    }
+
+    private String readString(String key) {
+        try {
+            return redisTemplate.opsForValue().get(key);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     private <T> Optional<T> read(String key, Class<T> valueType) {
