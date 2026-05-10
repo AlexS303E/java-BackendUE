@@ -1,2 +1,6 @@
 /generated/
 /results/
+/logs/
+*.stpd
+*.stpd_si.json
+tank_errors.log

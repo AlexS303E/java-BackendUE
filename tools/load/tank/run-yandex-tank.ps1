@@ -153,12 +153,13 @@ function Write-LoadYaml {
         [string]$Path,
         [string]$TargetAddress,
         [string]$Schedule,
-        [string]$AmmoPath,
-        [string]$PhoutPath
+        [string]$AmmoPath
     )
 
     $yaml = @"
 phantom:
+  enabled: true
+  package: yandextank.plugins.Phantom
   address: $TargetAddress
   ammo_type: phantom
   ammofile: $AmmoPath
@@ -167,19 +168,23 @@ phantom:
     schedule: $Schedule
   instances: 1000
   loop: -1
-  writelog: none
-  phout_file: $PhoutPath
+  use_caching: false
+  writelog: "0"
 console:
   enabled: true
+  package: yandextank.plugins.Console
 telegraf:
   enabled: false
+  package: yandextank.plugins.Telegraf
 autostop:
+  enabled: true
+  package: yandextank.plugins.Autostop
   autostop:
     - http(5xx,10%,10s)
     - net(xx,1,30s)
     - time(2s,15s)
 "@
-    Set-Content -Path $Path -Value $yaml -Encoding UTF8
+    [System.IO.File]::WriteAllText($Path, $yaml)
 }
 
 function Analyze-Phout {
@@ -399,7 +404,7 @@ try {
             }
         }
     }
-    Set-Content -Path $ammoPath -Value $ammoBuilder.ToString() -Encoding UTF8
+    [System.IO.File]::WriteAllText($ammoPath, $ammoBuilder.ToString())
     Write-Ok "ammo generated: $ammoPath"
 
     Write-Step "Generate Yandex.Tank load.yaml"
@@ -408,7 +413,7 @@ try {
     $summaryPath = Join-Path $resultsDir "phout-summary.csv"
     if (Test-Path $phoutPathHost) { Remove-Item $phoutPathHost -Force }
     if (Test-Path $summaryPath) { Remove-Item $summaryPath -Force }
-    Write-LoadYaml -Path $loadYamlPath -TargetAddress $targetAddress -Schedule $Schedule -AmmoPath "/var/loadtest/generated/mixed.ammo" -PhoutPath "/var/loadtest/results/phout.log"
+    Write-LoadYaml -Path $loadYamlPath -TargetAddress $targetAddress -Schedule $Schedule -AmmoPath "/var/loadtest/generated/mixed.ammo"
     Write-Ok "load.yaml generated: $loadYamlPath"
 
     Write-Step "Run Yandex.Tank Docker image"
