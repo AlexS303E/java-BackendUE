@@ -287,6 +287,17 @@ class CatalogLifecycleIntegrationTest {
         );
         jdbcTemplate.update(
                 """
+                    INSERT INTO outfit_item_team_rules(rule_id, item_id, catalog_version, team_scope, team_tag)
+                    VALUES
+                      (?, 'clothing.team_red.jacket_01', 2, 'specific', 'team.red'),
+                      (?, 'clothing.team_blue.jacket_01', 2, 'specific', 'team.blue')
+                    ON CONFLICT DO NOTHING
+                    """,
+                UUID.randomUUID(),
+                UUID.randomUUID()
+        );
+        jdbcTemplate.update(
+                """
                     INSERT INTO item_class_rules(item_id, catalog_version, class_tag, rule_effect)
                     VALUES
                       ('weapon.ak12', 2, 'class.assault', 'allow'),
@@ -376,6 +387,19 @@ class CatalogLifecycleIntegrationTest {
                 UUID.randomUUID(),
                 targetModuleId,
                 catalogVersion,
+                UUID.randomUUID(),
+                catalogVersion,
+                UUID.randomUUID(),
+                catalogVersion
+        );
+        jdbcTemplate.update(
+                """
+                    INSERT INTO outfit_item_team_rules(rule_id, item_id, catalog_version, team_scope, team_tag)
+                    VALUES
+                      (?, 'clothing.team_red.jacket_01', ?, 'specific', 'team.red'),
+                      (?, 'clothing.team_blue.jacket_01', ?, 'specific', 'team.blue')
+                    ON CONFLICT DO NOTHING
+                    """,
                 UUID.randomUUID(),
                 catalogVersion,
                 UUID.randomUUID(),

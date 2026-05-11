@@ -3,6 +3,7 @@ package com.game.backend.presets.api;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -16,6 +17,7 @@ public record SaveWeaponSlotRequest(
     String weaponId,
 
     @NotNull
+    @Size(max = 20)
     List<@Valid SaveModuleRequest> modules
 ) {
 }

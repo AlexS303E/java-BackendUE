@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 import java.util.UUID;
@@ -27,14 +28,15 @@ public record BuildMatchProfileRequest(
     @NotBlank
     String teamTag,
 
-    @Min(0)
+    @Min(1)
     int weaponPresetSlot,
 
-    @Min(0)
+    @Min(1)
     int outfitPresetSlot,
 
     @NotEmpty
-    List<Long> supportedCatalogVersions,
+    @Size(max = 10)
+    List<@NotNull Long> supportedCatalogVersions,
 
     Long preferredCatalogVersion,
 

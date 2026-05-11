@@ -86,8 +86,8 @@ class MatchProfileQueryCountIntegrationTest {
 
         int queries = queryCounter.getQueryCount();
         assertThat(queries)
-                .as("POST /server/match-profile/build should execute <= 12 SQL queries (no N+1)")
-                .isLessThanOrEqualTo(14);
+                .as("POST /server/match-profile/build should execute <= 15 SQL queries (no N+1)")
+                .isLessThanOrEqualTo(15);
     }
 
     private UUID registerPlayer() throws Exception {

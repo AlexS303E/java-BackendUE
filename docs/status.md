@@ -21,8 +21,41 @@ Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, acc
 | V021 | Упрощён: только FK runtime_preset_change_operations.pending_change_id → post_match_pending_changes(change_id) (FK на match_id удалены из-за нарушения тестовыми данными) |
 | V021 NOT VALID | Удалён (единственный FK ссылается на NULL-able pending_change_id, NOT VALID не нужен) |
 | Bug | MatchProfileService.queryTeamCompliantItems(): params[] размер 1+itemIds.size() вместо 2+itemIds.size() — пропущен teamTag |
+| Bug | MatchProfileService.weapons(): LEFT JOIN player_weapon_preset_weapon_config_modules не содержит AND wcm.weapon_id = ws.selected_weapon_id — при нескольких конфигах оружия в одном слоте (AK12/M4 на primary) возвращались модули от старого оружия |
+| Bug | MatchProfileService.filterRestrictedItems(): team-restricted weapon добавлял warning + continue, но не удалял weapon из snapshot |
+| Bug | MatchProfileService.queryTeamCompliantItems(): NOT EXISTS с team_tag <> ? некорректно для предметов, разрешенных нескольким командам. Заменено на AND (EXISTS 'all' OR EXISTS 'specific' AND team_tag = ? OR NOT EXISTS any rule) |
+| Bug | WeaponPresetRuntimeChangeApplier.validateCanUse(): team rules проверялись на runtime preset change с teamTag = "all". Удалены — team restrictions только в MatchProfileService (с gameModeId) |
+| V023 | outfit_item_team_rules: отдельная таблица для командных ограничений одежды (вместо item_team_rules). MatchProfileService: queryOutfitTeamCompliantItems() для одежды, filterRestrictedItems() принимает outfitTeamUsableItems отдельно |
+| Validation | BuildMatchProfileRequest: weaponPresetSlot/outfitPresetSlot @Min(0)→@Min(1), @Size(max=10) на supportedCatalogVersions |
+| Validation | RuntimePresetChangePayload: @Size(max=100) на changes |
+| Validation | RuntimePresetChangeRequest: weaponPresetSlot @Min(0)→@Min(1) |
+| Validation | WeaponPresetSaveRequest: @Size(max=20) на slots |
+| Validation | SaveWeaponSlotRequest: @Size(max=20) на modules |
+| Validation | MatchProfileService.chooseCatalogVersion: .distinct() для supportedCatalogVersions (нормализация дублей) |
 | Load smoke | load-smoke.js: добавлен game_mode_id в matchProfileBuildBody |
 | mTLS smoke | run-mtls-smoke.ps1: добавлен game_mode_id в buildBody |
+
+## Compatibility (Transition Mode)
+
+DS authoritative сохраняется. Backend выполняет best-effort validation на основе своей (возможно частичной) БД-версии compatibility. При расхождении:
+
+- DS говорит **можно** → в transition mode **можно**
+- DS говорит **нельзя** → **нельзя**
+
+Backend-версия compatibility используется для UI, предварительной проверки, админки и диагностики, но **не является финальным authority** до завершения catalog pipeline.
+
+Backend catalog transition mode **(вариант B)** — backend знает:
+
+- `item_id`, `item_type`, `country_code`, `factory_id`
+- display metadata (display_name, и т.д.)
+- `mount_id`, `mount_type`, `allowed_module_ids`
+- связь weapon → mounts → modules
+
+Backend **не является source of truth** для:
+
+- `damage`, `recoil`, `fire_rate`, `reload_time`, `spread_curve`
+- actual hard references
+- sockets/meshes/animations (если живут только в UE)
 
 ## Updating
 

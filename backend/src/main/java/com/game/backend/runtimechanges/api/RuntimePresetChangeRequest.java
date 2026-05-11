@@ -27,7 +27,7 @@ public record RuntimePresetChangeRequest(
     @NotBlank
     String classTag,
 
-    @Min(0)
+    @Min(1)
     int weaponPresetSlot,
 
     @NotNull

@@ -68,7 +68,7 @@ public class WeaponPresetRuntimeChangeApplier {
     ) {
         requireField(change.weaponId(), "weapon_id", change.op());
         validateWeaponSlotAllowed(classTag, change.weaponSlotId());
-        validateCanUse(playerId, change.weaponId(), catalogVersion, classTag, "all", "weapon");
+        validateCanUse(playerId, change.weaponId(), catalogVersion, classTag, "weapon");
         upsertSelectedSlot(playerId, classTag, weaponPresetSlot, catalogVersion, change.weaponSlotId(), change.weaponId());
         upsertWeaponConfig(playerId, classTag, weaponPresetSlot, catalogVersion, change.weaponSlotId(), change.weaponId(), now);
     }
@@ -97,8 +97,8 @@ public class WeaponPresetRuntimeChangeApplier {
         requireField(change.moduleId(), "module_id", change.op());
         validateWeaponSlotAllowed(classTag, change.weaponSlotId());
         validateSelectedWeapon(playerId, classTag, weaponPresetSlot, catalogVersion, change.weaponSlotId(), change.weaponId());
-        validateCanUse(playerId, change.weaponId(), catalogVersion, classTag, "all", "weapon");
-        validateCanUse(playerId, change.moduleId(), catalogVersion, classTag, "all", "module");
+        validateCanUse(playerId, change.weaponId(), catalogVersion, classTag, "weapon");
+        validateCanUse(playerId, change.moduleId(), catalogVersion, classTag, "module");
         validateMountModuleAllowed(catalogVersion, change.weaponId(), change.mountId(), change.moduleId());
         upsertWeaponConfig(playerId, classTag, weaponPresetSlot, catalogVersion, change.weaponSlotId(), change.weaponId(), now);
         replaceSingleModule(playerId, classTag, weaponPresetSlot, catalogVersion, change);
@@ -213,7 +213,6 @@ public class WeaponPresetRuntimeChangeApplier {
         String itemId,
         long catalogVersion,
         String classTag,
-        String teamTag,
         String itemType
     ) {
         Boolean canUse = jdbcTemplate.queryForObject(
@@ -258,16 +257,6 @@ public class WeaponPresetRuntimeChangeApplier {
                           AND icr.rule_effect = 'allow'
                       )
                     )
-                    AND EXISTS (
-                      SELECT 1
-                      FROM item_team_rules itr
-                      WHERE itr.item_id = ci.item_id
-                        AND itr.catalog_version = ci.catalog_version
-                        AND (
-                          itr.team_scope = 'all'
-                          OR (itr.team_scope = 'specific' AND itr.team_tag = ?)
-                        )
-                    )
                 )
                 """,
             Boolean.class,
@@ -276,8 +265,7 @@ public class WeaponPresetRuntimeChangeApplier {
             catalogVersion,
             itemType,
             classTag,
-            classTag,
-            teamTag
+            classTag
         );
         if (!Boolean.TRUE.equals(canUse)) {
             throw new ApiException(

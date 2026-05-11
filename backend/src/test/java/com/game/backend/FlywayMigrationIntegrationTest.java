@@ -49,10 +49,10 @@ class FlywayMigrationIntegrationTest {
         assertThat(appliedVersions).contains(
                 "001", "002", "003", "004", "005", "006", "007", "008",
                 "009", "010", "011", "012", "013", "014", "015", "016",
-                "017", "018", "019", "020"
+                "017", "018", "019", "020", "021", "022", "023"
         );
 
-        String latestMandatoryScript = jdbcTemplate.queryForObject(
+        String v021Script = jdbcTemplate.queryForObject(
                 """
                     SELECT script
                     FROM flyway_schema_history
@@ -63,7 +63,20 @@ class FlywayMigrationIntegrationTest {
                     """,
                 String.class
         );
-        assertThat(latestMandatoryScript).isEqualTo("V021__fk_match_id_pending_change_id.sql");
+        assertThat(v021Script).isEqualTo("V021__fk_match_id_pending_change_id.sql");
+
+        String v023Script = jdbcTemplate.queryForObject(
+                """
+                    SELECT script
+                    FROM flyway_schema_history
+                    WHERE version = '023'
+                      AND success = true
+                    ORDER BY installed_rank DESC
+                    LIMIT 1
+                    """,
+                String.class
+        );
+        assertThat(v023Script).isEqualTo("V023__outfit_item_team_rules.sql");
     }
 
     @Test
