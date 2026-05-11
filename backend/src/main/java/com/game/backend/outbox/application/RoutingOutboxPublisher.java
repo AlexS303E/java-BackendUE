@@ -3,10 +3,12 @@ package com.game.backend.outbox.application;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.cache.RedisCacheService;
+import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -17,10 +19,16 @@ public class RoutingOutboxPublisher implements OutboxPublisher {
 
     private final ObjectMapper objectMapper;
     private final RedisCacheService cacheService;
+    private final MatchProfileInvalidationService invalidationService;
 
-    public RoutingOutboxPublisher(ObjectMapper objectMapper, RedisCacheService cacheService) {
+    public RoutingOutboxPublisher(
+        ObjectMapper objectMapper,
+        RedisCacheService cacheService,
+        MatchProfileInvalidationService invalidationService
+    ) {
         this.objectMapper = objectMapper;
         this.cacheService = cacheService;
+        this.invalidationService = invalidationService;
     }
 
     @Override
@@ -39,9 +47,9 @@ public class RoutingOutboxPublisher implements OutboxPublisher {
         }
 
         if (eventType.startsWith("weapon_preset.") || eventType.startsWith("outfit_preset.")) {
-            handlePresetEvent(payload);
+            handlePresetEvent(payload, event);
         } else if (eventType.startsWith("player_access.")) {
-            handleAccessEvent(payload);
+            handleAccessEvent(payload, event);
         } else if ("match_profile.staled".equals(eventType)) {
             try {
                 handleProfileStaledEvent(payload);
@@ -52,17 +60,20 @@ public class RoutingOutboxPublisher implements OutboxPublisher {
         }
     }
 
-    private void handlePresetEvent(Map<String, Object> payload) {
+    private void handlePresetEvent(Map<String, Object> payload, OutboxEvent event) {
         UUID playerId = extractPlayerId(payload);
         if (playerId != null) {
-            cacheService.evictPlayerAccess(playerId);
+            invalidationService.invalidateForPlayer(
+                playerId, "preset_updated", event.eventId(), OffsetDateTime.now());
         }
     }
 
-    private void handleAccessEvent(Map<String, Object> payload) {
+    private void handleAccessEvent(Map<String, Object> payload, OutboxEvent event) {
         UUID playerId = extractPlayerId(payload);
         if (playerId != null) {
             cacheService.evictPlayerAccess(playerId);
+            invalidationService.invalidateForPlayer(
+                playerId, "access_changed", event.eventId(), OffsetDateTime.now());
         }
     }
 

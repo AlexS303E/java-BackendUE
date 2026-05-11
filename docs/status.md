@@ -34,7 +34,7 @@ Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, acc
 | Validation | MatchProfileService.chooseCatalogVersion: .distinct() для supportedCatalogVersions (нормализация дублей) |
 | Fix 6 | chooseCatalogVersion: добавлена проверка дубликатов supported_catalog_versions → DUPLICATE_CATALOG_VERSIONS error |
 | Fix 7 | RuntimePresetChangeStep.op: @Pattern(regexp = "set_weapon|clear_weapon|set_module|clear_module") |
-| Fix 5 | RoutingOutboxPublisher: critical side effects (preset/access) пробрасывают исключение; только notification-like (match_profile.staled) логирует и глотает |
+| Fix 5 | RoutingOutboxPublisher: critical side effects (preset/access) пробрасывают исключение; только notification-like (match_profile.staled) логирует и глотает. weapon_preset.*/outfit_preset.* → invalidationService.invalidateForPlayer (mark match profiles stale); player_access.* → evictPlayerAccess + invalidateForPlayer |
 | Load smoke | load-smoke.js: добавлен game_mode_id в matchProfileBuildBody |
 | mTLS smoke | run-mtls-smoke.ps1: добавлен game_mode_id в buildBody |
 
