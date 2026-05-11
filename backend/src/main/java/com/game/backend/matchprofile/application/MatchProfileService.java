@@ -229,9 +229,12 @@ public class MatchProfileService {
     }
 
     private long chooseCatalogVersion(BuildMatchProfileRequest request) {
-        return request.supportedCatalogVersions()
-            .stream()
-            .distinct()
+        List<Long> versions = request.supportedCatalogVersions();
+        if (versions.size() != versions.stream().distinct().count()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "DUPLICATE_CATALOG_VERSIONS",
+                "supported_catalog_versions must not contain duplicates");
+        }
+        return versions.stream()
             .filter(version -> catalogService.catalogVersionAllowsNewMatches(request.realmId(), version))
             .sorted(preferredFirst(request.preferredCatalogVersion()))
             .findFirst()

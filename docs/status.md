@@ -4,7 +4,7 @@ Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, acc
 
 | Script | Result | Details |
 |---|---|---|
-| `.\gradlew.bat test` (Gradle) | ✅ pass | 31/31 tests pass (2026-05-11 after Fix 9-14) |
+| `.\gradlew.bat test` (Gradle) | ✅ pass | 31/31 tests pass (2026-05-11 after Fix 5-7) |
 | `tools/test/run-all-tests.ps1` | ✅ pass | Gradle tests + OpenAPI stage 3 |
 | `tools/mtls/run-mtls-smoke.ps1` | ✅ pass | 6 checks (1 positive + 5 negative) |
 | `tools/load/run-load-smoke.ps1 -Vus 25 -Duration 3m` | ✅ pass | 2950 iters, 20650 checks (100%), 0% failures, avg 70ms, p95 315ms |
@@ -32,6 +32,9 @@ Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, acc
 | Validation | WeaponPresetSaveRequest: @Size(max=20) на slots |
 | Validation | SaveWeaponSlotRequest: @Size(max=20) на modules |
 | Validation | MatchProfileService.chooseCatalogVersion: .distinct() для supportedCatalogVersions (нормализация дублей) |
+| Fix 6 | chooseCatalogVersion: добавлена проверка дубликатов supported_catalog_versions → DUPLICATE_CATALOG_VERSIONS error |
+| Fix 7 | RuntimePresetChangeStep.op: @Pattern(regexp = "set_weapon|clear_weapon|set_module|clear_module") |
+| Fix 5 | RoutingOutboxPublisher: critical side effects (preset/access) пробрасывают исключение; только notification-like (match_profile.staled) логирует и глотает |
 | Load smoke | load-smoke.js: добавлен game_mode_id в matchProfileBuildBody |
 | mTLS smoke | run-mtls-smoke.ps1: добавлен game_mode_id в buildBody |
 

@@ -38,17 +38,17 @@ public class RoutingOutboxPublisher implements OutboxPublisher {
             return;
         }
 
-        try {
-            if (eventType.startsWith("weapon_preset.") || eventType.startsWith("outfit_preset.")) {
-                handlePresetEvent(payload);
-            } else if (eventType.startsWith("player_access.")) {
-                handleAccessEvent(payload);
-            } else if ("match_profile.staled".equals(eventType)) {
+        if (eventType.startsWith("weapon_preset.") || eventType.startsWith("outfit_preset.")) {
+            handlePresetEvent(payload);
+        } else if (eventType.startsWith("player_access.")) {
+            handleAccessEvent(payload);
+        } else if ("match_profile.staled".equals(eventType)) {
+            try {
                 handleProfileStaledEvent(payload);
+            } catch (RuntimeException exception) {
+                log.warn("Outbox routing failed for non-critical event_id={} event_type={}: {}",
+                    event.eventId(), event.eventType(), exception.getMessage());
             }
-        } catch (RuntimeException exception) {
-            log.warn("Outbox routing failed for event_id={} event_type={}: {}",
-                event.eventId(), event.eventType(), exception.getMessage());
         }
     }
 
