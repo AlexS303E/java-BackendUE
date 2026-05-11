@@ -72,19 +72,18 @@ public class RedisCacheService {
     public void putCatalogAllowsNewMatches(String realmId, long catalogVersion, boolean allowed) {
         if (!properties.isEnabled()) return;
         try {
-            redisTemplate.opsForValue().set(
-                catalogAllowsNewMatchesKey(realmId, catalogVersion),
-                String.valueOf(allowed),
-                CATALOG_ALLOWS_NEW_MATCHES_TTL
-            );
+            String key = catalogAllowsNewMatchesKey(realmId, catalogVersion);
+            String indexKey = catalogAllowsNewMatchesIndexKey(realmId);
+            redisTemplate.opsForValue().set(key, String.valueOf(allowed), CATALOG_ALLOWS_NEW_MATCHES_TTL);
+            redisTemplate.opsForSet().add(indexKey, key);
+            redisTemplate.expire(indexKey, CATALOG_ALLOWS_NEW_MATCHES_TTL.plus(INDEX_TTL_GRACE));
         } catch (RuntimeException e) {
             // best effort
         }
     }
 
     public void evictCatalogAllowsNewMatches(String realmId) {
-        // Per-version keys expire naturally via TTL.
-        // Pattern-based eviction would require SCAN which is heavy.
+        evictIndexed(catalogAllowsNewMatchesIndexKey(realmId));
     }
 
     public String catalogSnapshotKey(String realmId, long catalogVersion) {
@@ -97,6 +96,10 @@ public class RedisCacheService {
 
     private String catalogAllowsNewMatchesKey(String realmId, long catalogVersion) {
         return PREFIX + ":catalog:allows-new-matches:" + realmId + ":" + catalogVersion;
+    }
+
+    private String catalogAllowsNewMatchesIndexKey(String realmId) {
+        return PREFIX + ":catalog:allows-new-matches:index:" + realmId;
     }
 
     private String readString(String key) {

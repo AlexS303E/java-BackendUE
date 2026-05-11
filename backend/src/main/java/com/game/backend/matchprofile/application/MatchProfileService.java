@@ -399,7 +399,6 @@ public class MatchProfileService {
         Set<String> itemIds = new HashSet<>();
         Set<String> clothingItemIds = new HashSet<>();
         Set<String> clothingSlotIds = new HashSet<>();
-        List<ModuleMountPair> moduleMountPairs = new ArrayList<>();
 
         for (MatchWeaponDto weapon : weapons) {
             weaponSlotIds.add(weapon.weaponSlotId());
@@ -407,7 +406,6 @@ public class MatchProfileService {
             itemIds.add(weapon.weaponId());
             for (MatchModuleDto module : weapon.modules()) {
                 itemIds.add(module.moduleId());
-                moduleMountPairs.add(new ModuleMountPair(module.mountId(), module.moduleId()));
             }
         }
 
@@ -422,7 +420,8 @@ public class MatchProfileService {
         Set<String> teamUsableItems = queryTeamCompliantItems(catalogVersion, itemIds, request.teamTag());
         Set<String> outfitTeamUsableItems = queryOutfitTeamCompliantItems(catalogVersion, clothingItemIds, request.teamTag());
         filterRestrictedItems(weapons, outfit, baseUsableItems, teamUsableItems, outfitTeamUsableItems, enforceTeamItemRules, warnings);
-        validateMountModulesAllowedBatch(catalogVersion, moduleMountPairs, baseUsableItems);
+        List<ModuleMountPair> filteredPairs = collectModuleMountPairs(weapons);
+        validateMountModulesAllowedBatch(catalogVersion, filteredPairs, baseUsableItems);
         validateClothingSlotsBatch(clothingSlotIds);
     }
 
@@ -731,6 +730,17 @@ public class MatchProfileService {
         } catch (JsonProcessingException exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "MATCH_PROFILE_SERIALIZATION_FAILED", "Unable to serialize match profile");
         }
+    }
+
+    private List<ModuleMountPair> collectModuleMountPairs(List<MatchWeaponDto> weapons) {
+        List<ModuleMountPair> pairs = new ArrayList<>();
+        for (MatchWeaponDto weapon : weapons) {
+            if (weapon.weaponId() == null) continue;
+            for (MatchModuleDto module : weapon.modules()) {
+                pairs.add(new ModuleMountPair(module.mountId(), module.moduleId()));
+            }
+        }
+        return pairs;
     }
 
     private record PresetHeader(long revision, boolean sanitized) {

@@ -1001,7 +1001,7 @@ public class CatalogLifecycleService {
                 """,
             changeId,
             preset.playerId(),
-            operationId,
+            null,
             preset.classTag(),
             preset.presetSlot(),
             preset.revision(),

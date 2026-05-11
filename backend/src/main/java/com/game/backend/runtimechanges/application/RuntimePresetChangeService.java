@@ -114,10 +114,24 @@ public class RuntimePresetChangeService {
                 );
             }
 
-            runtimeChangeApplier.apply(
-                request.playerId(), request.classTag(), request.weaponPresetSlot(),
-                preset.catalogVersion(), request.runtimeChangePayload(), now
-            );
+            try {
+                runtimeChangeApplier.apply(
+                    request.playerId(), request.classTag(), request.weaponPresetSlot(),
+                    preset.catalogVersion(), request.runtimeChangePayload(), now
+                );
+            } catch (ApiException exception) {
+                String opStatus = exception.status() == HttpStatus.UNPROCESSABLE_ENTITY ? "rejected" : "failed";
+                String reason = exception.code();
+                updateOperationStatus(request.operationId(), opStatus, null, null, now);
+                updateOperationStream(request);
+                recordRuntimePresetFailed(request, preset.catalogVersion(), opStatus, reason, now);
+                return auditedResponse(
+                    server, request,
+                    new RuntimePresetChangeResponse(
+                        request.operationId(), opStatus, null, null, false, reason
+                    )
+                );
+            }
 
             long resultRevision = preset.revision() + 1;
             jdbcTemplate.update(
@@ -244,6 +258,34 @@ public class RuntimePresetChangeService {
                 "catalog_version", catalogVersion,
                 "base_revision", request.baseWeaponPresetRevision(),
                 "revision", resultRevision,
+                "source", "runtime"
+            ),
+            now
+        );
+    }
+
+    private void recordRuntimePresetFailed(
+        RuntimePresetChangeRequest request,
+        long catalogVersion,
+        String status,
+        String reason,
+        OffsetDateTime now
+    ) {
+        outboxService.record(
+            "weapon_preset.runtime_failed",
+            "weapon_preset",
+            weaponPresetAggregateId(request.playerId(), request.classTag(), request.weaponPresetSlot(), catalogVersion),
+            1,
+            Map.of(
+                "player_id", request.playerId(),
+                "match_id", request.matchId(),
+                "operation_id", request.operationId(),
+                "class_tag", request.classTag(),
+                "preset_slot", request.weaponPresetSlot(),
+                "catalog_version", catalogVersion,
+                "base_revision", request.baseWeaponPresetRevision(),
+                "status", status,
+                "reason", reason,
                 "source", "runtime"
             ),
             now

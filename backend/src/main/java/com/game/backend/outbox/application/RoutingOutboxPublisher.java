@@ -36,20 +36,36 @@ public class RoutingOutboxPublisher implements OutboxPublisher {
         log.info("Outbox event delivered event_id={} event_type={} aggregate_type={} aggregate_id={}",
             event.eventId(), event.eventType(), event.aggregateType(), event.aggregateId());
 
-        Map<String, Object> payload = parsePayload(event.payload());
-        if (payload == null) {
-            return;
-        }
-
         String eventType = event.eventType();
         if (eventType == null) {
             return;
         }
 
-        if (eventType.startsWith("weapon_preset.") || eventType.startsWith("outfit_preset.")) {
-            handlePresetEvent(payload, event);
-        } else if (eventType.startsWith("player_access.")) {
-            handleAccessEvent(payload, event);
+        boolean critical = eventType.startsWith("weapon_preset.")
+            || eventType.startsWith("outfit_preset.")
+            || eventType.startsWith("player_access.");
+
+        Map<String, Object> payload = parsePayload(event.payload());
+        if (payload == null) {
+            if (critical) {
+                throw new RuntimeException("Failed to parse payload for critical event " + event.eventId());
+            }
+            return;
+        }
+
+        if (critical) {
+            UUID playerId = extractPlayerId(payload);
+            if (playerId == null) {
+                throw new RuntimeException("Missing or invalid player_id in critical event " + event.eventId());
+            }
+            if (eventType.startsWith("weapon_preset.") || eventType.startsWith("outfit_preset.")) {
+                invalidationService.invalidateForPlayer(
+                    playerId, "preset_updated", event.eventId(), OffsetDateTime.now());
+            } else {
+                cacheService.evictPlayerAccess(playerId);
+                invalidationService.invalidateForPlayer(
+                    playerId, "access_changed", event.eventId(), OffsetDateTime.now());
+            }
         } else if ("match_profile.staled".equals(eventType)) {
             try {
                 handleProfileStaledEvent(payload);
@@ -57,23 +73,6 @@ public class RoutingOutboxPublisher implements OutboxPublisher {
                 log.warn("Outbox routing failed for non-critical event_id={} event_type={}: {}",
                     event.eventId(), event.eventType(), exception.getMessage());
             }
-        }
-    }
-
-    private void handlePresetEvent(Map<String, Object> payload, OutboxEvent event) {
-        UUID playerId = extractPlayerId(payload);
-        if (playerId != null) {
-            invalidationService.invalidateForPlayer(
-                playerId, "preset_updated", event.eventId(), OffsetDateTime.now());
-        }
-    }
-
-    private void handleAccessEvent(Map<String, Object> payload, OutboxEvent event) {
-        UUID playerId = extractPlayerId(payload);
-        if (playerId != null) {
-            cacheService.evictPlayerAccess(playerId);
-            invalidationService.invalidateForPlayer(
-                playerId, "access_changed", event.eventId(), OffsetDateTime.now());
         }
     }
 

@@ -194,6 +194,24 @@ public class PostMatchPendingChangesService {
             change.weaponPresetSlot(),
             preset.catalogVersion()
         );
+        outboxService.record(
+            "weapon_preset.post_match_applied",
+            "weapon_preset",
+            weaponPresetAggregateId(change.playerId(), change.classTag(), change.weaponPresetSlot(), preset.catalogVersion()),
+            1,
+            Map.of(
+                "player_id", change.playerId(),
+                "match_id", change.matchId(),
+                "pending_change_id", change.changeId(),
+                "class_tag", change.classTag(),
+                "preset_slot", change.weaponPresetSlot(),
+                "catalog_version", preset.catalogVersion(),
+                "base_revision", change.baseWeaponPresetRevision(),
+                "revision", resultRevision,
+                "source", "post_match"
+            ),
+            now
+        );
         updateChangeStatus(change.changeId(), "applied", now);
         recordPendingChangeResolved(change, "apply_if_still_valid", "applied", resultRevision, now);
         return new PostMatchPendingChangeResolutionResponse(change.changeId(), "applied", resultRevision, now);
@@ -374,6 +392,10 @@ public class PostMatchPendingChangesService {
         } catch (JsonProcessingException exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "PENDING_CHANGE_PAYLOAD_PARSE_FAILED", "Unable to parse pending change payload");
         }
+    }
+
+    private String weaponPresetAggregateId(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
+        return "weapon_preset:" + playerId + ":" + classTag + ":" + presetSlot + ":" + catalogVersion;
     }
 
     private void validatePendingPayload(PendingPayload payload) {

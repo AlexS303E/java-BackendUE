@@ -77,6 +77,19 @@ class FlywayMigrationIntegrationTest {
                 String.class
         );
         assertThat(v023Script).isEqualTo("V023__outfit_item_team_rules.sql");
+
+        String v024Script = jdbcTemplate.queryForObject(
+                """
+                    SELECT script
+                    FROM flyway_schema_history
+                    WHERE version = '024'
+                      AND success = true
+                    ORDER BY installed_rank DESC
+                    LIMIT 1
+                    """,
+                String.class
+        );
+        assertThat(v024Script).isEqualTo("V024__match_id_fk_server_matches.sql");
     }
 
     @Test

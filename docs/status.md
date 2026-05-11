@@ -35,6 +35,9 @@ Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, acc
 | Fix 6 | chooseCatalogVersion: добавлена проверка дубликатов supported_catalog_versions → DUPLICATE_CATALOG_VERSIONS error |
 | Fix 7 | RuntimePresetChangeStep.op: @Pattern(regexp = "set_weapon|clear_weapon|set_module|clear_module") |
 | Fix 5 | RoutingOutboxPublisher: critical side effects (preset/access) пробрасывают исключение; только notification-like (match_profile.staled) логирует и глотает. weapon_preset.*/outfit_preset.* → invalidationService.invalidateForPlayer (mark match profiles stale); player_access.* → evictPlayerAccess + invalidateForPlayer |
+| V024 | match_id nullable + FK REFERENCES server_matches(match_id) на runtime_preset_change_operations и post_match_pending_changes. CatalogLifecycleService.createManualCatalogConflict: match_id=null вместо operationId |
+| Fix 1 | RuntimePresetChangeService.submit(): `runtimeChangeApplier.apply()` failure caught inside transaction → operation status updated to `rejected`/`failed`, operation stream advanced, controlled response returned. Operation history preserved (no rollback). |
+| Fix 2 | OutboxWorker.markFailed(): `attempts >= maxAttempts` → status = `dead_letter` (instead of silent exclusion from poll). |
 | Load smoke | load-smoke.js: добавлен game_mode_id в matchProfileBuildBody |
 | mTLS smoke | run-mtls-smoke.ps1: добавлен game_mode_id в buildBody |
 
@@ -59,6 +62,23 @@ Backend **не является source of truth** для:
 - `damage`, `recoil`, `fire_rate`, `reload_time`, `spread_curve`
 - actual hard references
 - sockets/meshes/animations (если живут только в UE)
+
+## Known Technical Debt (MVP)
+
+| Issue | Description | Priority |
+|---|---|---|
+| PlayerBootstrapService hardcoded | Default loadout baked into Java (class.assault, weapon.ak12, team.red/blue jacket). Needs `default_loadout_rules` / `starter_items` / `default_outfit_by_team_class` tables. | Medium |
+| match registration coupled with build | `POST /server/match-profile/build` creates match assignment implicitly. Production should separate: `POST /server/matches/register` then `POST /server/match-profile/build`. | Low |
+| Production security | `app.admin.token` plain header, JWT_SECRET dev default, dev mTLS certs in repo, /actuator/metrics accessible to any authenticated user, no rate limiting on /auth/* /server/* /admin/*. Needs dedicated security milestone before external testing. | High |
+
+## Critical Side Effects
+
+| Component | Severity | Behavior on failure |
+|---|---|---|
+| `RedisCacheService.evictPlayerAccess()` / `evictIndexed()` | **best-effort** | Catches `RuntimeException` internally — access keys are revisioned, stale reads are harmless |
+| `MatchProfileInvalidationService.invalidateForPlayer()` / `invalidateForPlayerAccessChange()` | **critical** | `JdbcTemplate` propagates exception → outbox event stays unprocessed → retry/dead-letter |
+| `RoutingOutboxPublisher` (critical events: preset/access) | **critical** | Parse failure or missing `player_id` → throws `RuntimeException` → retry via outbox worker |
+| `RoutingOutboxPublisher` (notification: `match_profile.staled`) | **best-effort** | Caught-and-logged; no downstream action in MVP |
 
 ## Updating
 

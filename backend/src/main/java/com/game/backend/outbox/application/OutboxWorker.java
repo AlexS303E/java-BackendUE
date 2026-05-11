@@ -132,18 +132,32 @@ public class OutboxWorker {
     }
 
     private void markFailed(OutboxEvent event, OffsetDateTime now, RuntimeException exception) {
-        jdbcTemplate.update(
-            """
-                UPDATE outbox_events
-                SET status = 'failed',
-                    next_attempt_at = ?,
-                    last_error = ?
-                WHERE event_id = ?
-                """,
-            now.plusSeconds(retryDelaySeconds * Math.max(1, event.attempts())),
-            exception.getMessage(),
-            event.eventId()
-        );
+        int newAttempts = event.attempts();
+        if (newAttempts >= maxAttempts) {
+            jdbcTemplate.update(
+                """
+                    UPDATE outbox_events
+                    SET status = 'dead_letter',
+                        last_error = ?
+                    WHERE event_id = ?
+                    """,
+                exception.getMessage(),
+                event.eventId()
+            );
+        } else {
+            jdbcTemplate.update(
+                """
+                    UPDATE outbox_events
+                    SET status = 'failed',
+                        next_attempt_at = ?,
+                        last_error = ?
+                    WHERE event_id = ?
+                    """,
+                now.plusSeconds(retryDelaySeconds * Math.max(1, newAttempts)),
+                exception.getMessage(),
+                event.eventId()
+            );
+        }
     }
 
     private void requeueTimedOutProcessingEvents(OffsetDateTime now) {
