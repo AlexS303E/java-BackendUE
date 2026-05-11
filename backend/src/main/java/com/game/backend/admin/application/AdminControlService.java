@@ -152,7 +152,8 @@ public class AdminControlService {
             updated.disabledReason(),
             updated.unlockHintCode(),
             null,
-            request.reason()
+            request.reason(),
+            request.action()
         );
         return adminPlayerAccessService.updateItemAccess(
             admin,

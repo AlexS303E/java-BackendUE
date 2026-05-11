@@ -168,7 +168,7 @@ class RuntimePresetChangeIdempotencyTest {
                         .headers(serverHeaders())
                         .header("Idempotency-Key", repeatedSeqOperationId.toString()))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("RUNTIME_OPERATION_SEQ_ALREADY_USED"));
+                .andExpect(jsonPath("$.code").value("RUNTIME_OPERATION_SEQ_OUT_OF_ORDER"));
 
         assertThat(weaponPresetRevision(playerId)).isEqualTo(appliedRevision);
         assertThat(moduleCount(playerId, catalogVersion)).isZero();
@@ -188,17 +188,18 @@ class RuntimePresetChangeIdempotencyTest {
     }
 
     private Map<String, Object> matchProfileBuildBody(UUID matchId, UUID playerId, long catalogVersion) {
-        return Map.of(
-                "match_id", matchId.toString(),
-                "player_id", playerId.toString(),
-                "realm_id", "global",
-                "class_tag", CLASS_TAG,
-                "team_tag", "team.red",
-                "weapon_preset_slot", WEAPON_PRESET_SLOT,
-                "outfit_preset_slot", 1,
-                "supported_catalog_versions", List.of(catalogVersion),
-                "preferred_catalog_version", catalogVersion,
-                "server_build_id", devServerBuildId()
+        return Map.ofEntries(
+                Map.entry("match_id", matchId.toString()),
+                Map.entry("player_id", playerId.toString()),
+                Map.entry("realm_id", "global"),
+                Map.entry("class_tag", CLASS_TAG),
+                Map.entry("team_tag", "team.red"),
+                Map.entry("weapon_preset_slot", WEAPON_PRESET_SLOT),
+                Map.entry("outfit_preset_slot", 1),
+                Map.entry("supported_catalog_versions", List.of(catalogVersion)),
+                Map.entry("preferred_catalog_version", catalogVersion),
+                Map.entry("server_build_id", devServerBuildId()),
+                Map.entry("game_mode_id", "tdm")
         );
     }
 

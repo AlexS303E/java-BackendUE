@@ -1,0 +1,6 @@
+-- Solution A: preset has only one current catalog_version at a time.
+-- player_weapon_presets stores only the current preset version.
+-- History/catalog versioning lives in audit/ledger/snapshot, not in preset tables.
+-- PK omits catalog_version; UNIQUE(player_id, class_tag, preset_slot, catalog_version)
+-- prevents duplicates. Catalog publish/rollback migrates presets in place.
+-- See docs/ddl-decisions.md and CatalogLifecycleService Javadoc for details.

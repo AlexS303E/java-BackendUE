@@ -37,7 +37,6 @@ public class SecurityConfig {
                     "/api/health",
                     "/actuator/health",
                     "/actuator/info",
-                    "/actuator/metrics/**",
                     "/auth/**",
                     "/catalog/**"
                 ).permitAll()

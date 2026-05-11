@@ -589,6 +589,7 @@ try {
         supported_catalog_versions = @(1)
         preferred_catalog_version = 1
         server_build_id = "ds-dev-smoke"
+        game_mode_id = "tdm"
     }
 
     Write-Step "Positive check: private /server/* with valid client certificate"

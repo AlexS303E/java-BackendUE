@@ -2,12 +2,11 @@ package com.game.backend.outbox.application;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 
 /**
  * MVP publisher: фиксирует доставку в логах, позже заменяется на Kafka/Rabbit/HTTP publisher.
+ * Заменен на {@link RoutingOutboxPublisher} — оставлен для reference и fallback-тестов.
  */
-@Service
 public class LoggingOutboxPublisher implements OutboxPublisher {
     private static final Logger log = LoggerFactory.getLogger(LoggingOutboxPublisher.class);
 

@@ -460,7 +460,7 @@ public class PresetsService {
                 continue;
             }
 
-            validateCanUse(playerId, slot.weaponId(), request.catalogVersion(), classTag, "all", "weapon");
+            validateCanUse(playerId, slot.weaponId(), request.catalogVersion(), classTag, "weapon");
             Set<String> mountIds = new HashSet<>();
             for (SaveModuleRequest module : slot.modules()) {
                 if (!mountIds.add(module.mountId())) {
@@ -470,7 +470,7 @@ public class PresetsService {
                         "Duplicate mount_id in request: " + module.mountId()
                     );
                 }
-                validateCanUse(playerId, module.moduleId(), request.catalogVersion(), classTag, "all", "module");
+                validateCanUse(playerId, module.moduleId(), request.catalogVersion(), classTag, "module");
                 validateMountModuleAllowed(request.catalogVersion(), slot.weaponId(), module.mountId(), module.moduleId());
             }
         }
@@ -505,7 +505,6 @@ public class PresetsService {
         String itemId,
         long catalogVersion,
         String classTag,
-        String teamTag,
         String itemType
     ) {
         Boolean canUse = jdbcTemplate.queryForObject(
@@ -525,23 +524,30 @@ public class PresetsService {
                     AND pia.is_locked_in_shop = false
                     AND pia.is_locked_by_quest = false
                     AND pia.is_disabled = false
-                    AND EXISTS (
+                    AND NOT EXISTS (
                       SELECT 1
                       FROM item_class_rules icr
                       WHERE icr.item_id = ci.item_id
                         AND icr.catalog_version = ci.catalog_version
                         AND icr.class_tag = ?
-                        AND icr.rule_effect = 'allow'
+                        AND icr.rule_effect = 'deny'
                     )
-                    AND EXISTS (
-                      SELECT 1
-                      FROM item_team_rules itr
-                      WHERE itr.item_id = ci.item_id
-                        AND itr.catalog_version = ci.catalog_version
-                        AND (
-                          itr.team_scope = 'all'
-                          OR (itr.team_scope = 'specific' AND itr.team_tag = ?)
-                        )
+                    AND (
+                      NOT EXISTS (
+                        SELECT 1
+                        FROM item_class_rules icr
+                        WHERE icr.item_id = ci.item_id
+                          AND icr.catalog_version = ci.catalog_version
+                          AND icr.rule_effect = 'allow'
+                      )
+                      OR EXISTS (
+                        SELECT 1
+                        FROM item_class_rules icr
+                        WHERE icr.item_id = ci.item_id
+                          AND icr.catalog_version = ci.catalog_version
+                          AND icr.class_tag = ?
+                          AND icr.rule_effect = 'allow'
+                      )
                     )
                 )
                 """,
@@ -551,13 +557,13 @@ public class PresetsService {
             catalogVersion,
             itemType,
             classTag,
-            teamTag
+            classTag
         );
         if (!Boolean.TRUE.equals(canUse)) {
             throw new ApiException(
                 HttpStatus.UNPROCESSABLE_ENTITY,
                 "LOADOUT_VALIDATION_FAILED",
-                "Item is not usable in selected weapon preset: " + itemId
+                "Item is not usable in preset: " + itemId
             );
         }
     }

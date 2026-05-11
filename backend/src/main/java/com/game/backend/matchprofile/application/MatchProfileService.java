@@ -60,9 +60,6 @@ public class MatchProfileService {
         this.serverAuditService = serverAuditService;
     }
 
-    /**
-     * Привязывает матч к DS, выбирает совместимую версию каталога и сохраняет snapshot профиля.
-     */
     @Transactional
     public MatchProfileResponse build(ServerIdentity server, BuildMatchProfileRequest request) {
         boolean matchAssigned = false;
@@ -71,19 +68,25 @@ public class MatchProfileService {
             matchAssigned = true;
 
             long catalogVersion = chooseCatalogVersion(request);
+            boolean enforceTeamItemRules = loadEnforceTeamItemRules(request.gameModeId());
 
-            MatchProfileResponse existing = findExistingProfile(request, catalogVersion);
+            WeaponPresetAndAccess weaponPreset = weaponPresetWithAccess(request, catalogVersion);
+            PresetHeader outfitPreset = outfitPreset(request, catalogVersion);
+
+            MatchProfileResponse existing = findExistingProfile(
+                request, catalogVersion,
+                weaponPreset.revision(), outfitPreset.revision(), weaponPreset.accessRevision()
+            );
             if (existing != null) {
                 return existing;
             }
 
-            WeaponPresetAndAccess weaponPreset = weaponPresetWithAccess(request, catalogVersion);
-            PresetHeader outfitPreset = outfitPreset(request, catalogVersion);
             long profileRevision = System.currentTimeMillis();
 
             List<MatchWeaponDto> weapons = weapons(request, catalogVersion);
             List<MatchOutfitItemDto> outfit = outfit(request, catalogVersion);
-            validateLoadout(request, catalogVersion, weapons, outfit);
+            List<String> warnings = new ArrayList<>();
+            validateLoadout(request, catalogVersion, weapons, outfit, enforceTeamItemRules, warnings);
 
             MatchProfileResponse response = new MatchProfileResponse(
                 1,
@@ -96,7 +99,7 @@ public class MatchProfileService {
                 request.outfitPresetSlot(),
                 weapons,
                 outfit,
-                List.of(),
+                warnings,
                 new DependencyRevisionsDto(
                     weaponPreset.revision(),
                     outfitPreset.revision(),
@@ -116,6 +119,18 @@ public class MatchProfileService {
         }
     }
 
+    private boolean loadEnforceTeamItemRules(String gameModeId) {
+        List<Boolean> results = jdbcTemplate.queryForList(
+            "SELECT enforce_team_item_rules FROM game_mode_rules WHERE game_mode_id = ?",
+            Boolean.class,
+            gameModeId
+        );
+        if (results.isEmpty()) {
+            return false;
+        }
+        return Boolean.TRUE.equals(results.getFirst());
+    }
+
     private void auditSuccess(ServerIdentity server, BuildMatchProfileRequest request, MatchProfileResponse response) {
         serverAuditService.recordSync(
             server,
@@ -129,6 +144,7 @@ public class MatchProfileService {
                 "realm_id", request.realmId(),
                 "class_tag", request.classTag(),
                 "team_tag", request.teamTag(),
+                "game_mode_id", request.gameModeId(),
                 "catalog_version", response.catalogVersion(),
                 "weapon_preset_revision", response.dependencyRevisions().weaponPresetRevision(),
                 "outfit_preset_revision", response.dependencyRevisions().outfitPresetRevision()
@@ -156,6 +172,7 @@ public class MatchProfileService {
                 "realm_id", request.realmId(),
                 "class_tag", request.classTag(),
                 "team_tag", request.teamTag(),
+                "game_mode_id", request.gameModeId(),
                 "code", code,
                 "status", status
             )
@@ -166,7 +183,10 @@ public class MatchProfileService {
         return exception.status() == HttpStatus.FORBIDDEN ? "denied" : "failed";
     }
 
-    private MatchProfileResponse findExistingProfile(BuildMatchProfileRequest request, long catalogVersion) {
+    private MatchProfileResponse findExistingProfile(
+        BuildMatchProfileRequest request, long catalogVersion,
+        long weaponPresetRevision, long outfitPresetRevision, long accessRevision
+    ) {
         List<String> payloads = jdbcTemplate.queryForList(
             """
                 SELECT payload
@@ -178,6 +198,9 @@ public class MatchProfileService {
                   AND weapon_preset_slot = ?
                   AND outfit_preset_slot = ?
                   AND catalog_version = ?
+                  AND weapon_preset_revision = ?
+                  AND outfit_preset_revision = ?
+                  AND access_revision = ?
                   AND is_stale = false
                   AND expires_at > NOW()
                 ORDER BY generated_at DESC
@@ -190,7 +213,10 @@ public class MatchProfileService {
             request.teamTag(),
             request.weaponPresetSlot(),
             request.outfitPresetSlot(),
-            catalogVersion
+            catalogVersion,
+            weaponPresetRevision,
+            outfitPresetRevision,
+            accessRevision
         );
         if (payloads.isEmpty()) {
             return null;
@@ -202,9 +228,6 @@ public class MatchProfileService {
         }
     }
 
-    /**
-     * Выбирает лучшую версию каталога из списка, который поддерживает Dedicated Server.
-     */
     private long chooseCatalogVersion(BuildMatchProfileRequest request) {
         return request.supportedCatalogVersions()
             .stream()
@@ -359,15 +382,13 @@ public class MatchProfileService {
         );
     }
 
-    /**
-     * Проверяет, что все выбранные предметы доступны игроку и разрешены для class/team/mount.
-     * Использует batch-проверки вместо N+1.
-     */
     private void validateLoadout(
         BuildMatchProfileRequest request,
         long catalogVersion,
         List<MatchWeaponDto> weapons,
-        List<MatchOutfitItemDto> outfit
+        List<MatchOutfitItemDto> outfit,
+        boolean enforceTeamItemRules,
+        List<String> warnings
     ) {
         Set<String> weaponSlotIds = new HashSet<>();
         Set<String> itemIds = new HashSet<>();
@@ -390,23 +411,15 @@ public class MatchProfileService {
         }
 
         validateWeaponSlotsAllowedBatch(request.classTag(), weaponSlotIds);
-        validateCanUseBatch(request, catalogVersion, itemIds);
-        validateMountModulesAllowedBatch(catalogVersion, moduleMountPairs);
+        Set<String> baseUsableItems = queryBaseUsableItems(request, catalogVersion, itemIds);
+        Set<String> teamUsableItems = queryTeamCompliantItems(catalogVersion, itemIds, request.teamTag());
+        filterRestrictedItems(weapons, outfit, baseUsableItems, teamUsableItems, enforceTeamItemRules, warnings);
+        validateMountModulesAllowedBatch(catalogVersion, moduleMountPairs, baseUsableItems);
         validateClothingSlotsBatch(clothingSlotIds);
     }
 
-    private void validateWeaponSlotsAllowedBatch(String classTag, Set<String> weaponSlotIds) {
-        if (weaponSlotIds.isEmpty()) return;
-        Map<String, Boolean> rules = catalogValidationData.getWeaponSlotRules(classTag);
-        for (String slotId : weaponSlotIds) {
-            if (!Boolean.TRUE.equals(rules.get(slotId))) {
-                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Weapon slot is not allowed for class: " + slotId);
-            }
-        }
-    }
-
-    private void validateCanUseBatch(BuildMatchProfileRequest request, long catalogVersion, Set<String> itemIds) {
-        if (itemIds.isEmpty()) return;
+    private Set<String> queryBaseUsableItems(BuildMatchProfileRequest request, long catalogVersion, Set<String> itemIds) {
+        if (itemIds.isEmpty()) return Set.of();
         String placeholders = String.join(",", itemIds.stream().map(id -> "?").toArray(String[]::new));
         Object[] params = new Object[4 + itemIds.size()];
         params[0] = request.playerId();
@@ -416,8 +429,9 @@ public class MatchProfileService {
             params[i++] = id;
         }
         params[i++] = request.classTag();
-        params[i] = request.teamTag();
-        List<String> usableItems = jdbcTemplate.queryForList(
+        params[i] = request.classTag();
+
+        return Set.copyOf(jdbcTemplate.queryForList(
             """
                 SELECT ci.item_id
                 FROM catalog_items ci
@@ -433,34 +447,129 @@ public class MatchProfileService {
                   AND pia.is_disabled = false
                   AND ci.item_id IN (""" + placeholders + """
                 )
-                  AND EXISTS (
+                  AND NOT EXISTS (
                     SELECT 1 FROM item_class_rules icr
                     WHERE icr.item_id = ci.item_id
                       AND icr.catalog_version = ci.catalog_version
                       AND icr.class_tag = ?
-                      AND icr.rule_effect = 'allow'
+                      AND icr.rule_effect = 'deny'
                   )
-                  AND EXISTS (
-                    SELECT 1 FROM item_team_rules itr
-                    WHERE itr.item_id = ci.item_id
-                      AND itr.catalog_version = ci.catalog_version
-                      AND (itr.team_scope = 'all' OR (itr.team_scope = 'specific' AND itr.team_tag = ?))
+                  AND (
+                    NOT EXISTS (
+                      SELECT 1 FROM item_class_rules icr
+                      WHERE icr.item_id = ci.item_id
+                        AND icr.catalog_version = ci.catalog_version
+                        AND icr.rule_effect = 'allow'
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM item_class_rules icr
+                      WHERE icr.item_id = ci.item_id
+                        AND icr.catalog_version = ci.catalog_version
+                        AND icr.class_tag = ?
+                        AND icr.rule_effect = 'allow'
+                    )
                   )
                 """,
             String.class,
             params
-        );
-        for (String itemId : itemIds) {
-            if (!usableItems.contains(itemId)) {
-                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Item is not usable in selected loadout: " + itemId);
+        ));
+    }
+
+    private Set<String> queryTeamCompliantItems(long catalogVersion, Set<String> itemIds, String teamTag) {
+        if (itemIds.isEmpty()) return Set.of();
+        String placeholders = String.join(",", itemIds.stream().map(id -> "?").toArray(String[]::new));
+        Object[] params = new Object[2 + itemIds.size()];
+        params[0] = catalogVersion;
+        int i = 1;
+        for (String id : itemIds) {
+            params[i++] = id;
+        }
+        params[i] = teamTag;
+        return Set.copyOf(jdbcTemplate.queryForList(
+            """
+                SELECT ci.item_id
+                FROM catalog_items ci
+                WHERE ci.catalog_version = ?
+                  AND ci.item_id IN (""" + placeholders + """
+                )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM item_team_rules itr
+                    WHERE itr.item_id = ci.item_id
+                      AND itr.catalog_version = ci.catalog_version
+                      AND itr.team_scope = 'specific'
+                      AND itr.team_tag <> ?
+                  )
+                """,
+            String.class,
+            params
+        ));
+    }
+
+    private void filterRestrictedItems(
+        List<MatchWeaponDto> weapons,
+        List<MatchOutfitItemDto> outfit,
+        Set<String> baseUsableItems,
+        Set<String> teamUsableItems,
+        boolean enforceTeamItemRules,
+        List<String> warnings
+    ) {
+        for (MatchWeaponDto weapon : List.copyOf(weapons)) {
+            if (weapon.weaponId() == null) continue;
+            if (!baseUsableItems.contains(weapon.weaponId())) {
+                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED",
+                    "Item is not usable in selected loadout: " + weapon.weaponId());
+            }
+            if (enforceTeamItemRules && !teamUsableItems.contains(weapon.weaponId())) {
+                warnings.add("Weapon restricted for team in this game mode, removed: " + weapon.weaponId());
+                continue;
+            }
+            List<MatchModuleDto> removedModules = new ArrayList<>();
+            for (MatchModuleDto module : List.copyOf(weapon.modules())) {
+                if (!baseUsableItems.contains(module.moduleId())) {
+                    throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED",
+                        "Item is not usable in selected loadout: " + module.moduleId());
+                }
+                if (enforceTeamItemRules && !teamUsableItems.contains(module.moduleId())) {
+                    removedModules.add(module);
+                }
+            }
+            weapon.modules().removeAll(removedModules);
+            for (MatchModuleDto removed : removedModules) {
+                warnings.add("Module restricted for team in this game mode, removed: " + removed.moduleId());
+            }
+        }
+
+        List<MatchOutfitItemDto> removedOutfit = new ArrayList<>();
+        for (MatchOutfitItemDto item : outfit) {
+            if (!baseUsableItems.contains(item.itemId())) {
+                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED",
+                    "Item is not usable in selected loadout: " + item.itemId());
+            }
+            if (!teamUsableItems.contains(item.itemId())) {
+                removedOutfit.add(item);
+            }
+        }
+        outfit.removeAll(removedOutfit);
+        for (MatchOutfitItemDto removed : removedOutfit) {
+            warnings.add("Clothing restricted for team, removed: " + removed.itemId());
+        }
+    }
+
+    private void validateWeaponSlotsAllowedBatch(String classTag, Set<String> weaponSlotIds) {
+        if (weaponSlotIds.isEmpty()) return;
+        Map<String, Boolean> rules = catalogValidationData.getWeaponSlotRules(classTag);
+        for (String slotId : weaponSlotIds) {
+            if (!Boolean.TRUE.equals(rules.get(slotId))) {
+                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Weapon slot is not allowed for class: " + slotId);
             }
         }
     }
 
-    private void validateMountModulesAllowedBatch(long catalogVersion, List<ModuleMountPair> pairs) {
+    private void validateMountModulesAllowedBatch(long catalogVersion, List<ModuleMountPair> pairs, Set<String> baseUsableItems) {
         if (pairs.isEmpty()) return;
         Map<String, Set<String>> allowedByMount = catalogValidationData.getMountAllowedModules(catalogVersion);
         for (ModuleMountPair p : pairs) {
+            if (!baseUsableItems.contains(p.moduleId)) continue;
             Set<String> modules = allowedByMount.get(p.mountId);
             if (modules == null || !modules.contains(p.moduleId)) {
                 throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED", "Module is not allowed for mount: " + p.moduleId);
@@ -480,9 +589,6 @@ public class MatchProfileService {
 
     private record ModuleMountPair(String mountId, String moduleId) {}
 
-    /**
-     * Сохраняет сгенерированный профиль как кэшируемый snapshot с ревизиями зависимостей.
-     */
     private void persistProfile(BuildMatchProfileRequest request, MatchProfileResponse response) {
         OffsetDateTime now = OffsetDateTime.now();
         String payload = toJson(response);

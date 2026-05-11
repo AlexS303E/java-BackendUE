@@ -1,6 +1,7 @@
 package com.game.backend.runtimechanges.api;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -14,6 +15,7 @@ public record RuntimePresetChangeRequest(
     UUID operationId,
 
     @NotNull
+    @Min(1)
     Long operationSeq,
 
     @NotNull
@@ -25,6 +27,7 @@ public record RuntimePresetChangeRequest(
     @NotBlank
     String classTag,
 
+    @Min(0)
     int weaponPresetSlot,
 
     @NotNull

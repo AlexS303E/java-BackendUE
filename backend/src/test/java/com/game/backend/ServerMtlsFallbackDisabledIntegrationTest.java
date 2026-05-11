@@ -60,17 +60,18 @@ class ServerMtlsFallbackDisabledIntegrationTest {
 
     private Map<String, Object> matchProfileBuildBody() {
         long activeCatalogVersion = activeCatalogVersion();
-        return Map.of(
-                "match_id", UUID.randomUUID().toString(),
-                "player_id", UUID.randomUUID().toString(),
-                "realm_id", "global",
-                "class_tag", "class.assault",
-                "team_tag", "team.red",
-                "weapon_preset_slot", 1,
-                "outfit_preset_slot", 1,
-                "supported_catalog_versions", List.of(activeCatalogVersion),
-                "preferred_catalog_version", activeCatalogVersion,
-                "server_build_id", devServerBuildId()
+        return Map.ofEntries(
+                Map.entry("match_id", UUID.randomUUID().toString()),
+                Map.entry("player_id", UUID.randomUUID().toString()),
+                Map.entry("realm_id", "global"),
+                Map.entry("class_tag", "class.assault"),
+                Map.entry("team_tag", "team.red"),
+                Map.entry("weapon_preset_slot", 1),
+                Map.entry("outfit_preset_slot", 1),
+                Map.entry("supported_catalog_versions", List.of(activeCatalogVersion)),
+                Map.entry("preferred_catalog_version", activeCatalogVersion),
+                Map.entry("server_build_id", devServerBuildId()),
+                Map.entry("game_mode_id", "tdm")
         );
     }
 

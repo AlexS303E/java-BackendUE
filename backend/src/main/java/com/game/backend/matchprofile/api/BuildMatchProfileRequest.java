@@ -1,5 +1,6 @@
 package com.game.backend.matchprofile.api;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -26,8 +27,10 @@ public record BuildMatchProfileRequest(
     @NotBlank
     String teamTag,
 
+    @Min(0)
     int weaponPresetSlot,
 
+    @Min(0)
     int outfitPresetSlot,
 
     @NotEmpty
@@ -36,6 +39,9 @@ public record BuildMatchProfileRequest(
     Long preferredCatalogVersion,
 
     @NotBlank
-    String serverBuildId
+    String serverBuildId,
+
+    @NotBlank
+    String gameModeId
 ) {
 }

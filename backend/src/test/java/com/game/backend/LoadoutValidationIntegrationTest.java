@@ -191,10 +191,10 @@ class LoadoutValidationIntegrationTest {
                                 wrongTeamClothingPlayer.catalogVersion()
                         ))
                         .headers(serverHeaders()))
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.code").value("LOADOUT_VALIDATION_FAILED"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sanitized_warnings[0]").value(org.hamcrest.Matchers.containsString("restricted for team")));
 
-        assertThat(profileCount(wrongTeamClothingPlayer.playerId(), wrongTeamMatchId)).isZero();
+        assertThat(profileCount(wrongTeamClothingPlayer.playerId(), wrongTeamMatchId)).isEqualTo(1);
     }
 
     private PlayerContext registerAndLoginPlayer() throws Exception {
@@ -255,17 +255,18 @@ class LoadoutValidationIntegrationTest {
     }
 
     private Map<String, Object> matchProfileBuildBody(UUID matchId, UUID playerId, String teamTag, long catalogVersion) {
-        return Map.of(
-                "match_id", matchId.toString(),
-                "player_id", playerId.toString(),
-                "realm_id", "global",
-                "class_tag", CLASS_TAG,
-                "team_tag", teamTag,
-                "weapon_preset_slot", WEAPON_PRESET_SLOT,
-                "outfit_preset_slot", OUTFIT_PRESET_SLOT,
-                "supported_catalog_versions", List.of(catalogVersion),
-                "preferred_catalog_version", catalogVersion,
-                "server_build_id", devServerBuildId()
+        return Map.ofEntries(
+                Map.entry("match_id", matchId.toString()),
+                Map.entry("player_id", playerId.toString()),
+                Map.entry("realm_id", "global"),
+                Map.entry("class_tag", CLASS_TAG),
+                Map.entry("team_tag", teamTag),
+                Map.entry("weapon_preset_slot", WEAPON_PRESET_SLOT),
+                Map.entry("outfit_preset_slot", OUTFIT_PRESET_SLOT),
+                Map.entry("supported_catalog_versions", List.of(catalogVersion)),
+                Map.entry("preferred_catalog_version", catalogVersion),
+                Map.entry("server_build_id", devServerBuildId()),
+                Map.entry("game_mode_id", "tdm")
         );
     }
 

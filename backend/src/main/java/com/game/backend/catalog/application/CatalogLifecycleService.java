@@ -42,19 +42,22 @@ public class CatalogLifecycleService {
     private final AdminAuditService adminAuditService;
     private final OutboxService outboxService;
     private final RedisCacheService cacheService;
+    private final CatalogValidationData catalogValidationData;
 
     public CatalogLifecycleService(
         JdbcTemplate jdbcTemplate,
         ObjectMapper objectMapper,
         AdminAuditService adminAuditService,
         OutboxService outboxService,
-        RedisCacheService cacheService
+        RedisCacheService cacheService,
+        CatalogValidationData catalogValidationData
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
         this.adminAuditService = adminAuditService;
         this.outboxService = outboxService;
         this.cacheService = cacheService;
+        this.catalogValidationData = catalogValidationData;
     }
 
     /**
@@ -97,6 +100,7 @@ public class CatalogLifecycleService {
             activateCatalog(realmId, previousVersion, targetVersion, rolloutPercent, allowExistingMatches, now);
             cacheService.evictCatalogSnapshots(realmId);
             cacheService.evictCatalogAllowsNewMatches(realmId);
+            catalogValidationData.evict();
             int staleProfiles = invalidateRealmProfiles(realmId, "catalog_published", operationId, now);
             recordOutbox(ACTION_PUBLISH, operationId, realmId, previousVersion, targetVersion, migration, staleProfiles, now);
 
@@ -154,6 +158,7 @@ public class CatalogLifecycleService {
             LifecycleMigrationResult migration = migrateDurablePlayerState(active.catalogVersion(), targetVersion, operationId, now);
             rollbackDeployment(realmId, active.catalogVersion(), targetVersion, now);
             cacheService.evictCatalogSnapshots(realmId);
+            catalogValidationData.evict();
             int staleProfiles = invalidateRealmProfiles(realmId, "catalog_rolled_back", operationId, now);
             recordOutbox(ACTION_ROLLBACK, operationId, realmId, active.catalogVersion(), targetVersion, migration, staleProfiles, now);
 
@@ -573,7 +578,7 @@ public class CatalogLifecycleService {
             if (newSlotId == null
                 || !clothingSlotActive(newSlotId)
                 || newItemId == null
-                || !catalogItemUsableForOutfit(newItemId, toVersion, preset.classTag(), preset.teamTag())) {
+                || !catalogItemUsableForOutfit(newItemId, toVersion, preset.classTag())) {
                 sanitized = true;
                 continue;
             }
@@ -1165,20 +1170,30 @@ public class CatalogLifecycleService {
                     AND ci.catalog_version = ?
                     AND ci.item_type = ?
                     AND ci.is_enabled = true
-                    AND EXISTS (
+                    AND NOT EXISTS (
                       SELECT 1
                       FROM item_class_rules icr
                       WHERE icr.item_id = ci.item_id
                         AND icr.catalog_version = ci.catalog_version
                         AND icr.class_tag = ?
-                        AND icr.rule_effect = 'allow'
+                        AND icr.rule_effect = 'deny'
                     )
-                    AND EXISTS (
-                      SELECT 1
-                      FROM item_team_rules itr
-                      WHERE itr.item_id = ci.item_id
-                        AND itr.catalog_version = ci.catalog_version
-                        AND itr.team_scope = 'all'
+                    AND (
+                      NOT EXISTS (
+                        SELECT 1
+                        FROM item_class_rules icr
+                        WHERE icr.item_id = ci.item_id
+                          AND icr.catalog_version = ci.catalog_version
+                          AND icr.rule_effect = 'allow'
+                      )
+                      OR EXISTS (
+                        SELECT 1
+                        FROM item_class_rules icr
+                        WHERE icr.item_id = ci.item_id
+                          AND icr.catalog_version = ci.catalog_version
+                          AND icr.class_tag = ?
+                          AND icr.rule_effect = 'allow'
+                      )
                     )
                 )
                 """,
@@ -1186,12 +1201,13 @@ public class CatalogLifecycleService {
             itemId,
             catalogVersion,
             itemType,
+            classTag,
             classTag
         );
         return Boolean.TRUE.equals(usable);
     }
 
-    private boolean catalogItemUsableForOutfit(String itemId, long catalogVersion, String classTag, String teamTag) {
+    private boolean catalogItemUsableForOutfit(String itemId, long catalogVersion, String classTag) {
         Boolean usable = jdbcTemplate.queryForObject(
             """
                 SELECT EXISTS(
@@ -1201,23 +1217,30 @@ public class CatalogLifecycleService {
                     AND ci.catalog_version = ?
                     AND ci.item_type = 'clothing'
                     AND ci.is_enabled = true
-                    AND EXISTS (
+                    AND NOT EXISTS (
                       SELECT 1
                       FROM item_class_rules icr
                       WHERE icr.item_id = ci.item_id
                         AND icr.catalog_version = ci.catalog_version
                         AND icr.class_tag = ?
-                        AND icr.rule_effect = 'allow'
+                        AND icr.rule_effect = 'deny'
                     )
-                    AND EXISTS (
-                      SELECT 1
-                      FROM item_team_rules itr
-                      WHERE itr.item_id = ci.item_id
-                        AND itr.catalog_version = ci.catalog_version
-                        AND (
-                          itr.team_scope = 'all'
-                          OR (itr.team_scope = 'specific' AND itr.team_tag = ?)
-                        )
+                    AND (
+                      NOT EXISTS (
+                        SELECT 1
+                        FROM item_class_rules icr
+                        WHERE icr.item_id = ci.item_id
+                          AND icr.catalog_version = ci.catalog_version
+                          AND icr.rule_effect = 'allow'
+                      )
+                      OR EXISTS (
+                        SELECT 1
+                        FROM item_class_rules icr
+                        WHERE icr.item_id = ci.item_id
+                          AND icr.catalog_version = ci.catalog_version
+                          AND icr.class_tag = ?
+                          AND icr.rule_effect = 'allow'
+                      )
                     )
                 )
                 """,
@@ -1225,7 +1248,7 @@ public class CatalogLifecycleService {
             itemId,
             catalogVersion,
             classTag,
-            teamTag
+            classTag
         );
         return Boolean.TRUE.equals(usable);
     }

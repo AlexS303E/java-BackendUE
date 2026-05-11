@@ -129,7 +129,8 @@ public class AdminItemOperationService {
             updated.disabledReason(),
             updated.unlockHintCode(),
             updated.unlockHintPayload(),
-            request.reason()
+            request.reason(),
+            operation.eventType()
         );
         return adminPlayerAccessService.updateItemAccess(
             admin,
@@ -205,7 +206,7 @@ public class AdminItemOperationService {
     }
 
     private enum ItemOperation {
-        HIDE("hide", "hidden") {
+        HIDE("hide", "hidden", "hide_item") {
             @Override
             AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
                 return new AccessFlags(
@@ -219,7 +220,7 @@ public class AdminItemOperationService {
                 );
             }
         },
-        REVEAL("reveal", null) {
+        REVEAL("reveal", null, "reveal_item") {
             @Override
             AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
                 return normalize(new AccessFlags(
@@ -233,7 +234,7 @@ public class AdminItemOperationService {
                 ));
             }
         },
-        SHOP_LOCK("shop-lock", "buy_in_shop") {
+        SHOP_LOCK("shop-lock", "buy_in_shop", "shop_lock") {
             @Override
             AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
                 return new AccessFlags(
@@ -247,7 +248,7 @@ public class AdminItemOperationService {
                 );
             }
         },
-        SHOP_UNLOCK("shop-unlock", null) {
+        SHOP_UNLOCK("shop-unlock", null, "shop_unlock") {
             @Override
             AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
                 return normalize(new AccessFlags(
@@ -261,7 +262,7 @@ public class AdminItemOperationService {
                 ));
             }
         },
-        QUEST_LOCK("quest-lock", "complete_quest") {
+        QUEST_LOCK("quest-lock", "complete_quest", "quest_lock") {
             @Override
             AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
                 return new AccessFlags(
@@ -275,7 +276,7 @@ public class AdminItemOperationService {
                 );
             }
         },
-        QUEST_UNLOCK("quest-unlock", null) {
+        QUEST_UNLOCK("quest-unlock", null, "quest_unlock") {
             @Override
             AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
                 return normalize(new AccessFlags(
@@ -289,7 +290,7 @@ public class AdminItemOperationService {
                 ));
             }
         },
-        DISABLE("disable", "admin_disabled") {
+        DISABLE("disable", "admin_disabled", "item_disable") {
             @Override
             AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
                 return new AccessFlags(
@@ -303,7 +304,7 @@ public class AdminItemOperationService {
                 );
             }
         },
-        ENABLE("enable", null) {
+        ENABLE("enable", null, "item_enable") {
             @Override
             AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
                 return normalize(new AccessFlags(
@@ -320,14 +321,20 @@ public class AdminItemOperationService {
 
         private final String routeName;
         private final String defaultHint;
+        private final String eventType;
 
-        ItemOperation(String routeName, String defaultHint) {
+        ItemOperation(String routeName, String defaultHint, String eventType) {
             this.routeName = routeName;
             this.defaultHint = defaultHint;
+            this.eventType = eventType;
         }
 
         String routeName() {
             return routeName;
+        }
+
+        String eventType() {
+            return eventType;
         }
 
         String defaultHint() {

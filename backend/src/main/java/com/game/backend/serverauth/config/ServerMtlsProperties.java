@@ -25,7 +25,7 @@ public class ServerMtlsProperties {
     /**
      * Dev-only fallback на X-Server-Certificate-Fingerprint, когда mTLS выключен.
      */
-    private boolean allowHeaderFingerprintFallback = true;
+    private boolean allowHeaderFingerprintFallback = false;
 
     private String keyStore;
     private String keyStorePassword;

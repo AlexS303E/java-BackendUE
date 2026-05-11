@@ -81,6 +81,7 @@ public class AccessService {
                   pia.item_id,
                   ci.item_type,
                   ci.display_name,
+                  ci.is_enabled,
                   pia.is_hidden,
                   pia.is_locked_in_shop,
                   pia.is_locked_by_quest,
@@ -97,6 +98,7 @@ public class AccessService {
                 ORDER BY ci.item_type, pia.item_id
                 """,
             (rs, rowNum) -> {
+                boolean isEnabled = rs.getBoolean("is_enabled");
                 boolean hidden = rs.getBoolean("is_hidden");
                 boolean lockedInShop = rs.getBoolean("is_locked_in_shop");
                 boolean lockedByQuest = rs.getBoolean("is_locked_by_quest");
@@ -112,7 +114,7 @@ public class AccessService {
                     rs.getString("disabled_reason"),
                     rs.getString("unlock_hint_code"),
                     parsePayload(rs.getString("unlock_hint_payload")),
-                    !hidden && !lockedInShop && !lockedByQuest && !disabled
+                    isEnabled && !hidden && !lockedInShop && !lockedByQuest && !disabled
                 );
             },
             playerId,

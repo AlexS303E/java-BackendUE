@@ -31,6 +31,8 @@ public record AdminItemAccessUpdateRequest(
     Map<String, Object> unlockHintPayload,
 
     @NotBlank
-    String reason
+    String reason,
+
+    String eventType
 ) {
 }

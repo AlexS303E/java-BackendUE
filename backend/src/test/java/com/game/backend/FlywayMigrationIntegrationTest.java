@@ -49,21 +49,21 @@ class FlywayMigrationIntegrationTest {
         assertThat(appliedVersions).contains(
                 "001", "002", "003", "004", "005", "006", "007", "008",
                 "009", "010", "011", "012", "013", "014", "015", "016",
-                "017"
+                "017", "018", "019", "020"
         );
 
         String latestMandatoryScript = jdbcTemplate.queryForObject(
                 """
                     SELECT script
                     FROM flyway_schema_history
-                    WHERE version = '017'
+                    WHERE version = '021'
                       AND success = true
                     ORDER BY installed_rank DESC
                     LIMIT 1
                     """,
                 String.class
         );
-        assertThat(latestMandatoryScript).isEqualTo("V017__performance_indexes.sql");
+        assertThat(latestMandatoryScript).isEqualTo("V021__fk_match_id_pending_change_id.sql");
     }
 
     @Test
@@ -111,7 +111,8 @@ class FlywayMigrationIntegrationTest {
                 "admin_audit_events",
                 "server_audit_events",
                 "server_runtime_events",
-                "player_notifications"
+                "player_notifications",
+                "runtime_operation_streams"
         ))).isTrue();
 
         assertThat(indexExists("idx_player_auth_sessions_player_status")).isTrue();

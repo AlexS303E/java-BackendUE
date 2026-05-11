@@ -220,17 +220,18 @@ class MatchProfileBuildIntegrationTest {
             List<Long> supportedCatalogVersions,
             Long preferredCatalogVersion
     ) {
-        return Map.of(
-                "match_id", matchId.toString(),
-                "player_id", playerId.toString(),
-                "realm_id", "global",
-                "class_tag", CLASS_TAG,
-                "team_tag", TEAM_RED,
-                "weapon_preset_slot", WEAPON_PRESET_SLOT,
-                "outfit_preset_slot", OUTFIT_PRESET_SLOT,
-                "supported_catalog_versions", supportedCatalogVersions,
-                "preferred_catalog_version", preferredCatalogVersion,
-                "server_build_id", devServerBuildId()
+        return Map.ofEntries(
+                Map.entry("match_id", matchId.toString()),
+                Map.entry("player_id", playerId.toString()),
+                Map.entry("realm_id", "global"),
+                Map.entry("class_tag", CLASS_TAG),
+                Map.entry("team_tag", TEAM_RED),
+                Map.entry("weapon_preset_slot", WEAPON_PRESET_SLOT),
+                Map.entry("outfit_preset_slot", OUTFIT_PRESET_SLOT),
+                Map.entry("supported_catalog_versions", supportedCatalogVersions),
+                Map.entry("preferred_catalog_version", preferredCatalogVersion),
+                Map.entry("server_build_id", devServerBuildId()),
+                Map.entry("game_mode_id", "tdm")
         );
     }
 

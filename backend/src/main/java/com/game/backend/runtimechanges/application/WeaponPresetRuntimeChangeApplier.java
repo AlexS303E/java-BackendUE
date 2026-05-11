@@ -233,13 +233,30 @@ public class WeaponPresetRuntimeChangeApplier {
                     AND pia.is_locked_in_shop = false
                     AND pia.is_locked_by_quest = false
                     AND pia.is_disabled = false
-                    AND EXISTS (
+                    AND NOT EXISTS (
                       SELECT 1
                       FROM item_class_rules icr
                       WHERE icr.item_id = ci.item_id
                         AND icr.catalog_version = ci.catalog_version
                         AND icr.class_tag = ?
-                        AND icr.rule_effect = 'allow'
+                        AND icr.rule_effect = 'deny'
+                    )
+                    AND (
+                      NOT EXISTS (
+                        SELECT 1
+                        FROM item_class_rules icr
+                        WHERE icr.item_id = ci.item_id
+                          AND icr.catalog_version = ci.catalog_version
+                          AND icr.rule_effect = 'allow'
+                      )
+                      OR EXISTS (
+                        SELECT 1
+                        FROM item_class_rules icr
+                        WHERE icr.item_id = ci.item_id
+                          AND icr.catalog_version = ci.catalog_version
+                          AND icr.class_tag = ?
+                          AND icr.rule_effect = 'allow'
+                      )
                     )
                     AND EXISTS (
                       SELECT 1
@@ -258,6 +275,7 @@ public class WeaponPresetRuntimeChangeApplier {
             itemId,
             catalogVersion,
             itemType,
+            classTag,
             classTag,
             teamTag
         );

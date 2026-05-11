@@ -273,12 +273,13 @@ public class AdminPlayerAccessService {
                   payload,
                   created_at
                 )
-                VALUES (?, ?, ?, ?, 'admin_override', 'admin', ?, 'admin', ?, ?, ?::jsonb, ?)
+                VALUES (?, ?, ?, ?, ?, 'admin', ?, 'admin', ?, ?, ?::jsonb, ?)
                 """,
             ledgerEventId,
             playerId,
             itemId,
             request.catalogVersion(),
+            resolvedEventType(request.eventType()),
             request.reason(),
             admin.actorId(),
             idempotencyKey,
@@ -654,6 +655,10 @@ public class AdminPlayerAccessService {
 
     private boolean canUse(AdminItemAccessUpdateRequest request) {
         return !request.hidden() && !request.lockedInShop() && !request.lockedByQuest() && !request.disabled();
+    }
+
+    private String resolvedEventType(String eventType) {
+        return eventType != null ? eventType : "admin_override";
     }
 
     private String toJsonOrNull(Map<String, Object> payload) {

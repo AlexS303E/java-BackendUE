@@ -213,6 +213,7 @@ function matchProfileBuildBody(matchId, playerId, version) {
     supported_catalog_versions: [version],
     preferred_catalog_version: version,
     server_build_id: serverBuildId,
+    game_mode_id: "tdm",
   };
 }
 

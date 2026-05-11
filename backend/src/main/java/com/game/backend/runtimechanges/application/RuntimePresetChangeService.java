@@ -8,11 +8,9 @@ import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeResponse;
-import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
 import com.game.backend.serverauth.application.ServerAuditService;
 import com.game.backend.serverauth.application.ServerIdentity;
 import com.game.backend.serverauth.application.ServerMatchService;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -78,44 +76,47 @@ public class RuntimePresetChangeService {
             validatePayload(request.runtimeChangePayload());
 
             String requestHash = requestHash(request);
-            // Runtime operation разрешена только DS, которому ранее назначили match_id.
             serverMatchService.ensureAssignedForRuntimeChange(server, request);
             matchAssigned = true;
+            OffsetDateTime now = OffsetDateTime.now();
 
+            // 1. Check for existing operation (idempotency) before locking/ordering
             ExistingOperation existing = existingOperation(request.operationId());
             if (existing != null) {
                 return auditedResponse(server, request, replayExistingOperation(request, requestHash, existing));
             }
-            ensureOperationSequenceIsUnused(request);
 
-            OffsetDateTime now = OffsetDateTime.now();
+            // 2. Lock stream and validate ordering
+            lockOperationStream(request);
+            ensureOperationOrdering(request);
+
+            // 3. INSERT operation with 'processing' status
+            int inserted = tryInsertOperation(request, requestHash, now);
+            if (inserted == 0) {
+                // Race: concurrent thread inserted between SELECT and INSERT
+                existing = existingOperation(request.operationId());
+                return auditedResponse(server, request, replayExistingOperation(request, requestHash, existing));
+            }
+
+            // 3. Lock preset and apply
             PresetHeader preset = lockWeaponPreset(request);
             if (preset.revision() != request.baseWeaponPresetRevision()) {
-                // Durable preset уже изменился: операцию нельзя применить автоматически, переносим в post-match queue.
                 UUID pendingChangeId = createPendingChange(request, preset.revision(), now);
-                insertOperation(request, "conflict", null, pendingChangeId, requestHash, now);
+                updateOperationStatus(request.operationId(), "conflict", null, pendingChangeId, now);
+                updateOperationStream(request);
                 recordPendingChangeCreated(request, preset.revision(), pendingChangeId, now);
                 return auditedResponse(
-                    server,
-                    request,
+                    server, request,
                     new RuntimePresetChangeResponse(
-                        request.operationId(),
-                        "conflict",
-                        null,
-                        pendingChangeId,
-                        false,
+                        request.operationId(), "conflict", null, pendingChangeId, false,
                         "PRESET_REVISION_CONFLICT"
                     )
                 );
             }
 
             runtimeChangeApplier.apply(
-                request.playerId(),
-                request.classTag(),
-                request.weaponPresetSlot(),
-                preset.catalogVersion(),
-                request.runtimeChangePayload(),
-                now
+                request.playerId(), request.classTag(), request.weaponPresetSlot(),
+                preset.catalogVersion(), request.runtimeChangePayload(), now
             );
 
             long resultRevision = preset.revision() + 1;
@@ -130,26 +131,17 @@ public class RuntimePresetChangeService {
                       AND preset_slot = ?
                       AND catalog_version = ?
                     """,
-                resultRevision,
-                now,
-                request.playerId(),
-                request.classTag(),
-                request.weaponPresetSlot(),
-                preset.catalogVersion()
+                resultRevision, now,
+                request.playerId(), request.classTag(), request.weaponPresetSlot(), preset.catalogVersion()
             );
 
-            insertOperation(request, "applied", resultRevision, null, requestHash, now);
+            updateOperationStatus(request.operationId(), "applied", resultRevision, null, now);
+            updateOperationStream(request);
             recordRuntimePresetApplied(request, preset.catalogVersion(), resultRevision, now);
             return auditedResponse(
-                server,
-                request,
+                server, request,
                 new RuntimePresetChangeResponse(
-                    request.operationId(),
-                    "applied",
-                    resultRevision,
-                    null,
-                    false,
-                    null
+                    request.operationId(), "applied", resultRevision, null, false, null
                 )
             );
         } catch (ApiException exception) {
@@ -370,31 +362,67 @@ public class RuntimePresetChangeService {
     }
 
     /**
-     * Защищает DS от повторного sequence number внутри одного match/player.
+     * Блокирует stream-строку для (match_id, player_id), чтобы сериализовать операции.
      */
-    private void ensureOperationSequenceIsUnused(RuntimePresetChangeRequest request) {
-        Boolean exists = jdbcTemplate.queryForObject(
+    private void lockOperationStream(RuntimePresetChangeRequest request) {
+        jdbcTemplate.update(
             """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM runtime_preset_change_operations
-                  WHERE match_id = ?
-                    AND player_id = ?
-                    AND operation_seq = ?
-                )
+                INSERT INTO runtime_operation_streams (match_id, player_id, last_applied_seq)
+                VALUES (?, ?, 0)
+                ON CONFLICT (match_id, player_id) DO NOTHING
                 """,
-            Boolean.class,
             request.matchId(),
-            request.playerId(),
-            request.operationSeq()
+            request.playerId()
         );
-        if (Boolean.TRUE.equals(exists)) {
+    }
+
+    /**
+     * Проверяет, что operation_seq строго равен last_applied_seq + 1.
+     */
+    private void ensureOperationOrdering(RuntimePresetChangeRequest request) {
+        Long lastAppliedSeq = jdbcTemplate.queryForObject(
+            """
+                SELECT last_applied_seq
+                FROM runtime_operation_streams
+                WHERE match_id = ?
+                  AND player_id = ?
+                FOR UPDATE
+                """,
+            Long.class,
+            request.matchId(),
+            request.playerId()
+        );
+        if (lastAppliedSeq == null) {
             throw new ApiException(
-                HttpStatus.CONFLICT,
-                "RUNTIME_OPERATION_SEQ_ALREADY_USED",
-                "Runtime operation sequence was already used for this match and player"
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "RUNTIME_OPERATION_STREAM_NOT_FOUND",
+                "Runtime operation stream row disappeared after insert"
             );
         }
+        if (request.operationSeq() != lastAppliedSeq + 1) {
+            throw new ApiException(
+                HttpStatus.CONFLICT,
+                "RUNTIME_OPERATION_SEQ_OUT_OF_ORDER",
+                "Expected seq " + (lastAppliedSeq + 1) + " but got " + request.operationSeq()
+            );
+        }
+    }
+
+    /**
+     * Продвигает last_applied_seq после успешного применения или conflict.
+     */
+    private void updateOperationStream(RuntimePresetChangeRequest request) {
+        jdbcTemplate.update(
+            """
+                UPDATE runtime_operation_streams
+                SET last_applied_seq = ?
+                WHERE match_id = ?
+                  AND player_id = ?
+                """,
+            request.operationSeq(),
+            request.matchId(),
+            request.playerId()
+        );
     }
 
     /**
@@ -481,421 +509,59 @@ public class RuntimePresetChangeService {
     }
 
     /**
-     * Выбирает обработчик атомарного runtime change по op.
+     * Пытается вставить operation с 'processing' статусом.
+     * Если operation_id уже существует — возвращает ExistingOperation для replay.
+     * Если вставка успешна — возвращает null (вызывающий продолжит apply).
      */
-    private void applyChange(
+    private int tryInsertOperation(
         RuntimePresetChangeRequest request,
-        long catalogVersion,
-        RuntimePresetChangeStep change,
+        String requestHash,
         OffsetDateTime now
     ) {
-        switch (change.op()) {
-            case "set_weapon" -> setWeapon(request, catalogVersion, change, now);
-            case "clear_weapon" -> clearWeapon(request, catalogVersion, change);
-            case "set_module" -> setModule(request, catalogVersion, change, now);
-            case "clear_module" -> clearModule(request, catalogVersion, change);
-            default -> throw new ApiException(
-                HttpStatus.BAD_REQUEST,
-                "VALIDATION_ERROR",
-                "Unsupported runtime preset change op: " + change.op()
-            );
-        }
-    }
-
-    /**
-     * Ставит оружие в slot и обновляет/создает weapon config.
-     */
-    private void setWeapon(
-        RuntimePresetChangeRequest request,
-        long catalogVersion,
-        RuntimePresetChangeStep change,
-        OffsetDateTime now
-    ) {
-        requireField(change.weaponId(), "weapon_id", change.op());
-        validateWeaponSlotAllowed(request.classTag(), change.weaponSlotId());
-        validateCanUse(request.playerId(), change.weaponId(), catalogVersion, request.classTag(), "all", "weapon");
-        upsertSelectedSlot(request, catalogVersion, change.weaponSlotId(), change.weaponId());
-        upsertWeaponConfig(request, catalogVersion, change.weaponSlotId(), change.weaponId(), now);
-    }
-
-    private void clearWeapon(RuntimePresetChangeRequest request, long catalogVersion, RuntimePresetChangeStep change) {
-        validateWeaponSlotAllowed(request.classTag(), change.weaponSlotId());
-        upsertSelectedSlot(request, catalogVersion, change.weaponSlotId(), null);
-    }
-
-    /**
-     * Ставит или заменяет один модуль на выбранном weapon mount.
-     */
-    private void setModule(
-        RuntimePresetChangeRequest request,
-        long catalogVersion,
-        RuntimePresetChangeStep change,
-        OffsetDateTime now
-    ) {
-        requireField(change.weaponId(), "weapon_id", change.op());
-        requireField(change.mountId(), "mount_id", change.op());
-        requireField(change.moduleId(), "module_id", change.op());
-        validateWeaponSlotAllowed(request.classTag(), change.weaponSlotId());
-        validateSelectedWeapon(request, catalogVersion, change.weaponSlotId(), change.weaponId());
-        validateCanUse(request.playerId(), change.weaponId(), catalogVersion, request.classTag(), "all", "weapon");
-        validateCanUse(request.playerId(), change.moduleId(), catalogVersion, request.classTag(), "all", "module");
-        validateMountModuleAllowed(catalogVersion, change.weaponId(), change.mountId(), change.moduleId());
-        upsertWeaponConfig(request, catalogVersion, change.weaponSlotId(), change.weaponId(), now);
-        replaceSingleModule(request, catalogVersion, change);
-    }
-
-    private void clearModule(RuntimePresetChangeRequest request, long catalogVersion, RuntimePresetChangeStep change) {
-        requireField(change.weaponId(), "weapon_id", change.op());
-        requireField(change.mountId(), "mount_id", change.op());
-        validateWeaponSlotAllowed(request.classTag(), change.weaponSlotId());
-        validateSelectedWeapon(request, catalogVersion, change.weaponSlotId(), change.weaponId());
-        jdbcTemplate.update(
+        return jdbcTemplate.update(
             """
-                DELETE FROM player_weapon_preset_weapon_config_modules
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                  AND weapon_slot_id = ?
-                  AND weapon_id = ?
-                  AND mount_id = ?
+                INSERT INTO runtime_preset_change_operations(
+                  operation_id, match_id, player_id, operation_seq,
+                  class_tag, weapon_preset_slot, base_weapon_preset_revision,
+                  status, result_revision, pending_change_id,
+                  request_hash, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'processing', NULL, NULL, ?, ?)
+                ON CONFLICT (operation_id) DO NOTHING
                 """,
+            request.operationId(),
+            request.matchId(),
             request.playerId(),
+            request.operationSeq(),
             request.classTag(),
             request.weaponPresetSlot(),
-            catalogVersion,
-            change.weaponSlotId(),
-            change.weaponId(),
-            change.mountId()
-        );
-    }
-
-    private void requireField(String value, String fieldName, String op) {
-        if (value == null || value.isBlank()) {
-            throw new ApiException(
-                HttpStatus.BAD_REQUEST,
-                "VALIDATION_ERROR",
-                fieldName + " is required for op " + op
-            );
-        }
-    }
-
-    private void validateWeaponSlotAllowed(String classTag, String weaponSlotId) {
-        Boolean allowed = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM class_weapon_slot_rules
-                  WHERE class_tag = ?
-                    AND weapon_slot_id = ?
-                    AND is_allowed = true
-                )
-                """,
-            Boolean.class,
-            classTag,
-            weaponSlotId
-        );
-        if (!Boolean.TRUE.equals(allowed)) {
-            throw new ApiException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "LOADOUT_VALIDATION_FAILED",
-                "Weapon slot is not allowed for class: " + weaponSlotId
-            );
-        }
-    }
-
-    private void validateSelectedWeapon(
-        RuntimePresetChangeRequest request,
-        long catalogVersion,
-        String weaponSlotId,
-        String weaponId
-    ) {
-        Boolean matches = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM player_weapon_preset_slots
-                  WHERE player_id = ?
-                    AND class_tag = ?
-                    AND preset_slot = ?
-                    AND catalog_version = ?
-                    AND weapon_slot_id = ?
-                    AND selected_weapon_id = ?
-                )
-                """,
-            Boolean.class,
-            request.playerId(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            catalogVersion,
-            weaponSlotId,
-            weaponId
-        );
-        if (!Boolean.TRUE.equals(matches)) {
-            throw new ApiException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "LOADOUT_VALIDATION_FAILED",
-                "Runtime module change targets a weapon that is not selected in slot: " + weaponSlotId
-            );
-        }
-    }
-
-    private void validateCanUse(
-        UUID playerId,
-        String itemId,
-        long catalogVersion,
-        String classTag,
-        String teamTag,
-        String itemType
-    ) {
-        Boolean canUse = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM catalog_items ci
-                  JOIN player_item_access pia
-                    ON pia.item_id = ci.item_id
-                   AND pia.catalog_version = ci.catalog_version
-                   AND pia.player_id = ?
-                  WHERE ci.item_id = ?
-                    AND ci.catalog_version = ?
-                    AND ci.item_type = ?
-                    AND ci.is_enabled = true
-                    AND pia.is_hidden = false
-                    AND pia.is_locked_in_shop = false
-                    AND pia.is_locked_by_quest = false
-                    AND pia.is_disabled = false
-                    AND EXISTS (
-                      SELECT 1
-                      FROM item_class_rules icr
-                      WHERE icr.item_id = ci.item_id
-                        AND icr.catalog_version = ci.catalog_version
-                        AND icr.class_tag = ?
-                        AND icr.rule_effect = 'allow'
-                    )
-                    AND EXISTS (
-                      SELECT 1
-                      FROM item_team_rules itr
-                      WHERE itr.item_id = ci.item_id
-                        AND itr.catalog_version = ci.catalog_version
-                        AND (
-                          itr.team_scope = 'all'
-                          OR (itr.team_scope = 'specific' AND itr.team_tag = ?)
-                        )
-                    )
-                )
-                """,
-            Boolean.class,
-            playerId,
-            itemId,
-            catalogVersion,
-            itemType,
-            classTag,
-            teamTag
-        );
-        if (!Boolean.TRUE.equals(canUse)) {
-            throw new ApiException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "LOADOUT_VALIDATION_FAILED",
-                "Item is not usable in runtime preset change: " + itemId
-            );
-        }
-    }
-
-    private void validateMountModuleAllowed(long catalogVersion, String weaponId, String mountId, String moduleId) {
-        Boolean allowed = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM weapon_module_mounts wmm
-                  JOIN weapon_mount_allowed_modules wmam
-                    ON wmam.mount_id = wmm.mount_id
-                   AND wmam.catalog_version = wmm.catalog_version
-                  WHERE wmm.catalog_version = ?
-                    AND wmm.weapon_id = ?
-                    AND wmm.mount_id = ?
-                    AND wmam.module_id = ?
-                )
-                """,
-            Boolean.class,
-            catalogVersion,
-            weaponId,
-            mountId,
-            moduleId
-        );
-        if (!Boolean.TRUE.equals(allowed)) {
-            throw new ApiException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "LOADOUT_VALIDATION_FAILED",
-                "Module is not allowed for weapon mount: " + moduleId
-            );
-        }
-    }
-
-    private void upsertSelectedSlot(
-        RuntimePresetChangeRequest request,
-        long catalogVersion,
-        String weaponSlotId,
-        String weaponId
-    ) {
-        jdbcTemplate.update(
-            """
-                INSERT INTO player_weapon_preset_slots(
-                  player_id,
-                  class_tag,
-                  preset_slot,
-                  catalog_version,
-                  weapon_slot_id,
-                  selected_weapon_id
-                )
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT (player_id, class_tag, preset_slot, catalog_version, weapon_slot_id)
-                DO UPDATE SET selected_weapon_id = EXCLUDED.selected_weapon_id
-                """,
-            request.playerId(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            catalogVersion,
-            weaponSlotId,
-            weaponId
-        );
-    }
-
-    private void upsertWeaponConfig(
-        RuntimePresetChangeRequest request,
-        long catalogVersion,
-        String weaponSlotId,
-        String weaponId,
-        OffsetDateTime now
-    ) {
-        jdbcTemplate.update(
-            """
-                INSERT INTO player_weapon_preset_weapon_configs(
-                  player_id,
-                  class_tag,
-                  preset_slot,
-                  catalog_version,
-                  weapon_slot_id,
-                  weapon_id,
-                  config_revision,
-                  last_used_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-                ON CONFLICT (player_id, class_tag, preset_slot, catalog_version, weapon_slot_id, weapon_id)
-                DO UPDATE SET
-                  config_revision = player_weapon_preset_weapon_configs.config_revision + 1,
-                  last_used_at = EXCLUDED.last_used_at
-                """,
-            request.playerId(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            catalogVersion,
-            weaponSlotId,
-            weaponId,
+            request.baseWeaponPresetRevision(),
+            requestHash,
             now
         );
     }
 
-    private void replaceSingleModule(
-        RuntimePresetChangeRequest request,
-        long catalogVersion,
-        RuntimePresetChangeStep change
-    ) {
-        jdbcTemplate.update(
-            """
-                DELETE FROM player_weapon_preset_weapon_config_modules
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                  AND weapon_slot_id = ?
-                  AND weapon_id = ?
-                  AND mount_id = ?
-                """,
-            request.playerId(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            catalogVersion,
-            change.weaponSlotId(),
-            change.weaponId(),
-            change.mountId()
-        );
-
-        jdbcTemplate.update(
-            """
-                INSERT INTO player_weapon_preset_weapon_config_modules(
-                  player_id,
-                  class_tag,
-                  preset_slot,
-                  catalog_version,
-                  weapon_slot_id,
-                  weapon_id,
-                  mount_id,
-                  module_id
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-            request.playerId(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            catalogVersion,
-            change.weaponSlotId(),
-            change.weaponId(),
-            change.mountId(),
-            change.moduleId()
-        );
-    }
-
     /**
-     * Записывает итог operation log: именно эта таблица обеспечивает replay и idempotency.
+     * Обновляет статус уже вставленной операции (processing -> applied/conflict/rejected).
      */
-    private void insertOperation(
-        RuntimePresetChangeRequest request,
+    private void updateOperationStatus(
+        UUID operationId,
         String status,
         Long resultRevision,
         UUID pendingChangeId,
-        String requestHash,
         OffsetDateTime now
     ) {
-        try {
-            jdbcTemplate.update(
-                """
-                    INSERT INTO runtime_preset_change_operations(
-                      operation_id,
-                      match_id,
-                      player_id,
-                      operation_seq,
-                      class_tag,
-                      weapon_preset_slot,
-                      base_weapon_preset_revision,
-                      status,
-                      result_revision,
-                      pending_change_id,
-                      request_hash,
-                      created_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                request.operationId(),
-                request.matchId(),
-                request.playerId(),
-                request.operationSeq(),
-                request.classTag(),
-                request.weaponPresetSlot(),
-                request.baseWeaponPresetRevision(),
-                status,
-                resultRevision,
-                pendingChangeId,
-                requestHash,
-                now
-            );
-        } catch (DuplicateKeyException exception) {
-            throw new ApiException(
-                HttpStatus.CONFLICT,
-                "RUNTIME_OPERATION_ALREADY_RECORDED",
-                "Runtime preset change operation was already recorded"
-            );
-        }
+        jdbcTemplate.update(
+            """
+                UPDATE runtime_preset_change_operations
+                SET status = ?,
+                    result_revision = ?,
+                    pending_change_id = ?,
+                    created_at = ?
+                WHERE operation_id = ?
+                """,
+            status, resultRevision, pendingChangeId, now, operationId
+        );
     }
 
     private String requestHash(RuntimePresetChangeRequest request) {
