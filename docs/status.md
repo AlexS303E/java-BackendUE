@@ -14,6 +14,20 @@ Verified 2026-05-15 after PR-03 LoadoutValidationService extraction.
 | `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after moving preset/runtime loadout validation into LoadoutValidationService |
 | targeted Gradle tests | pass | LoadoutValidationServiceIntegrationTest, LoadoutValidationIntegrationTest, RuntimePresetChangeIdempotencyTest, ItemAccessPolicyIntegrationTest |
 
+Verified 2026-05-15 after PR-04 MatchProfileService split-1.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after extracting CatalogVersionSelector and MatchProfileCacheService |
+| targeted Gradle tests | pass | CatalogVersionSelectorTest, MatchProfileCacheServiceIntegrationTest, MatchProfileBuildIntegrationTest, MatchProfileQueryCountIntegrationTest |
+
+Verified 2026-05-15 after PR-04 MatchProfileService split-2.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after extracting MatchProfileSnapshotBuilder |
+| targeted Gradle tests | pass | MatchProfileSnapshotBuilderIntegrationTest, CatalogVersionSelectorTest, MatchProfileCacheServiceIntegrationTest, MatchProfileBuildIntegrationTest, MatchProfileQueryCountIntegrationTest |
+
 Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, access is_enabled, Solution A doc.
 
 | Script | Result | Details |
