@@ -599,7 +599,7 @@ public class RuntimePresetChangeService {
                 SET status = ?,
                     result_revision = ?,
                     pending_change_id = ?,
-                    created_at = ?
+                    updated_at = ?
                 WHERE operation_id = ?
                 """,
             status, resultRevision, pendingChangeId, now, operationId
