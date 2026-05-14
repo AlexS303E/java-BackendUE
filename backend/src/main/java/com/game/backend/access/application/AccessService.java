@@ -27,17 +27,20 @@ public class AccessService {
     private final CatalogService catalogService;
     private final ObjectMapper objectMapper;
     private final RedisCacheService cacheService;
+    private final ItemAccessPolicy itemAccessPolicy;
 
     public AccessService(
         JdbcTemplate jdbcTemplate,
         CatalogService catalogService,
         ObjectMapper objectMapper,
-        RedisCacheService cacheService
+        RedisCacheService cacheService,
+        ItemAccessPolicy itemAccessPolicy
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.catalogService = catalogService;
         this.objectMapper = objectMapper;
         this.cacheService = cacheService;
+        this.itemAccessPolicy = itemAccessPolicy;
     }
 
     /**
@@ -114,7 +117,7 @@ public class AccessService {
                     rs.getString("disabled_reason"),
                     rs.getString("unlock_hint_code"),
                     parsePayload(rs.getString("unlock_hint_payload")),
-                    isEnabled && !hidden && !lockedInShop && !lockedByQuest && !disabled
+                    itemAccessPolicy.canUseForUi(isEnabled, hidden, lockedInShop, lockedByQuest, disabled)
                 );
             },
             playerId,

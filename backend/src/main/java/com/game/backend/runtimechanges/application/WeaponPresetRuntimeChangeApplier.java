@@ -1,5 +1,6 @@
 package com.game.backend.runtimechanges.application;
 
+import com.game.backend.access.application.ItemAccessPolicy;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
@@ -16,9 +17,14 @@ import java.util.UUID;
 @Service
 public class WeaponPresetRuntimeChangeApplier {
     private final JdbcTemplate jdbcTemplate;
+    private final ItemAccessPolicy itemAccessPolicy;
 
-    public WeaponPresetRuntimeChangeApplier(JdbcTemplate jdbcTemplate) {
+    public WeaponPresetRuntimeChangeApplier(
+        JdbcTemplate jdbcTemplate,
+        ItemAccessPolicy itemAccessPolicy
+    ) {
         this.jdbcTemplate = jdbcTemplate;
+        this.itemAccessPolicy = itemAccessPolicy;
     }
 
     /**
@@ -215,59 +221,7 @@ public class WeaponPresetRuntimeChangeApplier {
         String classTag,
         String itemType
     ) {
-        Boolean canUse = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM catalog_items ci
-                  JOIN player_item_access pia
-                    ON pia.item_id = ci.item_id
-                   AND pia.catalog_version = ci.catalog_version
-                   AND pia.player_id = ?
-                  WHERE ci.item_id = ?
-                    AND ci.catalog_version = ?
-                    AND ci.item_type = ?
-                    AND ci.is_enabled = true
-                    AND pia.is_hidden = false
-                    AND pia.is_locked_in_shop = false
-                    AND pia.is_locked_by_quest = false
-                    AND pia.is_disabled = false
-                    AND NOT EXISTS (
-                      SELECT 1
-                      FROM item_class_rules icr
-                      WHERE icr.item_id = ci.item_id
-                        AND icr.catalog_version = ci.catalog_version
-                        AND icr.class_tag = ?
-                        AND icr.rule_effect = 'deny'
-                    )
-                    AND (
-                      NOT EXISTS (
-                        SELECT 1
-                        FROM item_class_rules icr
-                        WHERE icr.item_id = ci.item_id
-                          AND icr.catalog_version = ci.catalog_version
-                          AND icr.rule_effect = 'allow'
-                      )
-                      OR EXISTS (
-                        SELECT 1
-                        FROM item_class_rules icr
-                        WHERE icr.item_id = ci.item_id
-                          AND icr.catalog_version = ci.catalog_version
-                          AND icr.class_tag = ?
-                          AND icr.rule_effect = 'allow'
-                      )
-                    )
-                )
-                """,
-            Boolean.class,
-            playerId,
-            itemId,
-            catalogVersion,
-            itemType,
-            classTag,
-            classTag
-        );
-        if (!Boolean.TRUE.equals(canUse)) {
+        if (!itemAccessPolicy.canUseForRuntimePresetChange(playerId, itemId, catalogVersion, classTag, itemType)) {
             throw new ApiException(
                 HttpStatus.UNPROCESSABLE_ENTITY,
                 "LOADOUT_VALIDATION_FAILED",

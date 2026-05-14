@@ -1,5 +1,6 @@
 package com.game.backend.matchprofile.application;
 
+import com.game.backend.access.application.ItemAccessPolicy;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.catalog.application.CatalogService;
@@ -43,6 +44,7 @@ public class MatchProfileService {
     private final ObjectMapper objectMapper;
     private final ServerMatchService serverMatchService;
     private final ServerAuditService serverAuditService;
+    private final ItemAccessPolicy itemAccessPolicy;
 
     public MatchProfileService(
         JdbcTemplate jdbcTemplate,
@@ -50,7 +52,8 @@ public class MatchProfileService {
         CatalogValidationData catalogValidationData,
         ObjectMapper objectMapper,
         ServerMatchService serverMatchService,
-        ServerAuditService serverAuditService
+        ServerAuditService serverAuditService,
+        ItemAccessPolicy itemAccessPolicy
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.catalogService = catalogService;
@@ -58,6 +61,7 @@ public class MatchProfileService {
         this.objectMapper = objectMapper;
         this.serverMatchService = serverMatchService;
         this.serverAuditService = serverAuditService;
+        this.itemAccessPolicy = itemAccessPolicy;
     }
 
     @Transactional
@@ -416,70 +420,18 @@ public class MatchProfileService {
         }
 
         validateWeaponSlotsAllowedBatch(request.classTag(), weaponSlotIds);
-        Set<String> baseUsableItems = queryBaseUsableItems(request, catalogVersion, itemIds);
+        Set<String> baseUsableItems = itemAccessPolicy.usableItemsForMatchProfile(
+            request.playerId(),
+            catalogVersion,
+            request.classTag(),
+            itemIds
+        );
         Set<String> teamUsableItems = queryTeamCompliantItems(catalogVersion, itemIds, request.teamTag());
         Set<String> outfitTeamUsableItems = queryOutfitTeamCompliantItems(catalogVersion, clothingItemIds, request.teamTag());
         filterRestrictedItems(weapons, outfit, baseUsableItems, teamUsableItems, outfitTeamUsableItems, enforceTeamItemRules, warnings);
         List<ModuleMountPair> filteredPairs = collectModuleMountPairs(weapons);
         validateMountModulesAllowedBatch(catalogVersion, filteredPairs, baseUsableItems);
         validateClothingSlotsBatch(clothingSlotIds);
-    }
-
-    private Set<String> queryBaseUsableItems(BuildMatchProfileRequest request, long catalogVersion, Set<String> itemIds) {
-        if (itemIds.isEmpty()) return Set.of();
-        String placeholders = String.join(",", itemIds.stream().map(id -> "?").toArray(String[]::new));
-        Object[] params = new Object[4 + itemIds.size()];
-        params[0] = request.playerId();
-        params[1] = catalogVersion;
-        int i = 2;
-        for (String id : itemIds) {
-            params[i++] = id;
-        }
-        params[i++] = request.classTag();
-        params[i] = request.classTag();
-
-        return Set.copyOf(jdbcTemplate.queryForList(
-            """
-                SELECT ci.item_id
-                FROM catalog_items ci
-                JOIN player_item_access pia
-                  ON pia.item_id = ci.item_id
-                 AND pia.catalog_version = ci.catalog_version
-                 AND pia.player_id = ?
-                WHERE ci.catalog_version = ?
-                  AND ci.is_enabled = true
-                  AND pia.is_hidden = false
-                  AND pia.is_locked_in_shop = false
-                  AND pia.is_locked_by_quest = false
-                  AND pia.is_disabled = false
-                  AND ci.item_id IN (""" + placeholders + """
-                )
-                  AND NOT EXISTS (
-                    SELECT 1 FROM item_class_rules icr
-                    WHERE icr.item_id = ci.item_id
-                      AND icr.catalog_version = ci.catalog_version
-                      AND icr.class_tag = ?
-                      AND icr.rule_effect = 'deny'
-                  )
-                  AND (
-                    NOT EXISTS (
-                      SELECT 1 FROM item_class_rules icr
-                      WHERE icr.item_id = ci.item_id
-                        AND icr.catalog_version = ci.catalog_version
-                        AND icr.rule_effect = 'allow'
-                    )
-                    OR EXISTS (
-                      SELECT 1 FROM item_class_rules icr
-                      WHERE icr.item_id = ci.item_id
-                        AND icr.catalog_version = ci.catalog_version
-                        AND icr.class_tag = ?
-                        AND icr.rule_effect = 'allow'
-                    )
-                  )
-                """,
-            String.class,
-            params
-        ));
     }
 
     private Set<String> queryTeamCompliantItems(long catalogVersion, Set<String> itemIds, String teamTag) {

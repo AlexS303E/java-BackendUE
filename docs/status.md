@@ -1,5 +1,12 @@
 # Baseline Verification
 
+Verified 2026-05-15 after PR-02 ItemAccessPolicy extraction.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after extracting common item access policy |
+| targeted Gradle tests | pass | ItemAccessPolicyIntegrationTest, LoadoutValidationIntegrationTest, RuntimePresetChangeIdempotencyTest, MatchProfileBuildIntegrationTest, OutboxWorkerIntegrationTest |
+
 Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, access is_enabled, Solution A doc.
 
 | Script | Result | Details |
