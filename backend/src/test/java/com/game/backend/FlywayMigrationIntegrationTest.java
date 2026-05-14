@@ -90,6 +90,32 @@ class FlywayMigrationIntegrationTest {
                 String.class
         );
         assertThat(v024Script).isEqualTo("V024__match_id_fk_server_matches.sql");
+
+        String v025Script = jdbcTemplate.queryForObject(
+                """
+                    SELECT script
+                    FROM flyway_schema_history
+                    WHERE version = '025'
+                      AND success = true
+                    ORDER BY installed_rank DESC
+                    LIMIT 1
+                    """,
+                String.class
+        );
+        assertThat(v025Script).isEqualTo("V025__outbox_dead_letter_status.sql");
+
+        String v026Script = jdbcTemplate.queryForObject(
+                """
+                    SELECT script
+                    FROM flyway_schema_history
+                    WHERE version = '026'
+                      AND success = true
+                    ORDER BY installed_rank DESC
+                    LIMIT 1
+                    """,
+                String.class
+        );
+        assertThat(v026Script).isEqualTo("V026__runtime_op_updated_at.sql");
     }
 
     @Test

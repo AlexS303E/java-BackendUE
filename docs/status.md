@@ -38,6 +38,8 @@ Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, acc
 | V024 | match_id nullable + FK REFERENCES server_matches(match_id) на runtime_preset_change_operations и post_match_pending_changes. CatalogLifecycleService.createManualCatalogConflict: match_id=null вместо operationId |
 | Fix 1 | RuntimePresetChangeService.submit(): `runtimeChangeApplier.apply()` failure caught inside transaction → operation status updated to `rejected`/`failed`, operation stream advanced, controlled response returned. Operation history preserved (no rollback). |
 | Fix 2 | OutboxWorker.markFailed(): `attempts >= maxAttempts` → status = `dead_letter` (instead of silent exclusion from poll). |
+| V025 | outbox_events CHECK constraint: added `'dead_letter'` to allowed status values. |
+| V026 | runtime_preset_change_operations: added `updated_at` column. `updateOperationStatus()` now sets `updated_at` instead of overwriting `created_at`. |
 | Load smoke | load-smoke.js: добавлен game_mode_id в matchProfileBuildBody |
 | mTLS smoke | run-mtls-smoke.ps1: добавлен game_mode_id в buildBody |
 
