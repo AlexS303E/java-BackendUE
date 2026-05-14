@@ -164,11 +164,19 @@ public class OutboxWorker {
         jdbcTemplate.update(
             """
                 UPDATE outbox_events
-                SET status = 'failed',
-                    last_error = 'processing timeout'
+                SET status = CASE
+                      WHEN attempts >= ? THEN 'dead_letter'
+                      ELSE 'failed'
+                    END,
+                    last_error = CASE
+                      WHEN attempts >= ? THEN 'processing timeout; moved to dead_letter'
+                      ELSE 'processing timeout'
+                    END
                 WHERE status = 'processing'
                   AND next_attempt_at <= ?
                 """,
+            maxAttempts,
+            maxAttempts,
             now
         );
     }
