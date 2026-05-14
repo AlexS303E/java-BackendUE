@@ -1,6 +1,5 @@
 package com.game.backend.presets.application;
 
-import com.game.backend.access.application.ItemAccessPolicy;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.presets.api.ModuleSelectionDto;
@@ -34,16 +33,16 @@ import java.util.UUID;
 public class PresetsService {
     private final JdbcTemplate jdbcTemplate;
     private final OutboxService outboxService;
-    private final ItemAccessPolicy itemAccessPolicy;
+    private final LoadoutValidationService loadoutValidationService;
 
     public PresetsService(
         JdbcTemplate jdbcTemplate,
         OutboxService outboxService,
-        ItemAccessPolicy itemAccessPolicy
+        LoadoutValidationService loadoutValidationService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.outboxService = outboxService;
-        this.itemAccessPolicy = itemAccessPolicy;
+        this.loadoutValidationService = loadoutValidationService;
     }
 
     /**
@@ -445,6 +444,7 @@ public class PresetsService {
      */
     private void validateSaveRequest(UUID playerId, String classTag, WeaponPresetSaveRequest request) {
         Set<String> weaponSlotIds = new HashSet<>();
+        List<LoadoutValidationService.WeaponSlotSelection> slots = new ArrayList<>();
         for (SaveWeaponSlotRequest slot : request.slots()) {
             if (!weaponSlotIds.add(slot.weaponSlotId())) {
                 throw new ApiException(
@@ -454,21 +454,8 @@ public class PresetsService {
                 );
             }
 
-            validateWeaponSlotAllowed(classTag, slot.weaponSlotId());
-
-            if (slot.weaponId() == null) {
-                if (!slot.modules().isEmpty()) {
-                    throw new ApiException(
-                        HttpStatus.UNPROCESSABLE_ENTITY,
-                        "LOADOUT_VALIDATION_FAILED",
-                        "Empty weapon slot cannot contain modules: " + slot.weaponSlotId()
-                    );
-                }
-                continue;
-            }
-
-            validateCanUse(playerId, slot.weaponId(), request.catalogVersion(), classTag, "weapon");
             Set<String> mountIds = new HashSet<>();
+            List<LoadoutValidationService.ModuleSelection> modules = new ArrayList<>();
             for (SaveModuleRequest module : slot.modules()) {
                 if (!mountIds.add(module.mountId())) {
                     throw new ApiException(
@@ -477,80 +464,11 @@ public class PresetsService {
                         "Duplicate mount_id in request: " + module.mountId()
                     );
                 }
-                validateCanUse(playerId, module.moduleId(), request.catalogVersion(), classTag, "module");
-                validateMountModuleAllowed(request.catalogVersion(), slot.weaponId(), module.mountId(), module.moduleId());
+                modules.add(new LoadoutValidationService.ModuleSelection(module.mountId(), module.moduleId()));
             }
+            slots.add(new LoadoutValidationService.WeaponSlotSelection(slot.weaponSlotId(), slot.weaponId(), modules));
         }
-    }
-
-    private void validateWeaponSlotAllowed(String classTag, String weaponSlotId) {
-        Boolean allowed = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM class_weapon_slot_rules
-                  WHERE class_tag = ?
-                    AND weapon_slot_id = ?
-                    AND is_allowed = true
-                )
-                """,
-            Boolean.class,
-            classTag,
-            weaponSlotId
-        );
-        if (!Boolean.TRUE.equals(allowed)) {
-            throw new ApiException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "LOADOUT_VALIDATION_FAILED",
-                "Weapon slot is not allowed for class: " + weaponSlotId
-            );
-        }
-    }
-
-    private void validateCanUse(
-        UUID playerId,
-        String itemId,
-        long catalogVersion,
-        String classTag,
-        String itemType
-    ) {
-        if (!itemAccessPolicy.canUseForPresetSave(playerId, itemId, catalogVersion, classTag, itemType)) {
-            throw new ApiException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "LOADOUT_VALIDATION_FAILED",
-                "Item is not usable in preset: " + itemId
-            );
-        }
-    }
-
-    private void validateMountModuleAllowed(long catalogVersion, String weaponId, String mountId, String moduleId) {
-        Boolean allowed = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM weapon_module_mounts wmm
-                  JOIN weapon_mount_allowed_modules wmam
-                    ON wmam.mount_id = wmm.mount_id
-                   AND wmam.catalog_version = wmm.catalog_version
-                  WHERE wmm.catalog_version = ?
-                    AND wmm.weapon_id = ?
-                    AND wmm.mount_id = ?
-                    AND wmam.module_id = ?
-                )
-                """,
-            Boolean.class,
-            catalogVersion,
-            weaponId,
-            mountId,
-            moduleId
-        );
-        if (!Boolean.TRUE.equals(allowed)) {
-            throw new ApiException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "LOADOUT_VALIDATION_FAILED",
-                "Module is not allowed for weapon mount: " + moduleId
-            );
-        }
+        loadoutValidationService.validateForPresetSave(playerId, classTag, request.catalogVersion(), slots);
     }
 
     private void upsertSelectedSlot(

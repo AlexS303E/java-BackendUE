@@ -1,7 +1,7 @@
 package com.game.backend.runtimechanges.application;
 
-import com.game.backend.access.application.ItemAccessPolicy;
 import com.game.backend.common.api.ApiException;
+import com.game.backend.presets.application.LoadoutValidationService;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
 import org.springframework.http.HttpStatus;
@@ -17,14 +17,14 @@ import java.util.UUID;
 @Service
 public class WeaponPresetRuntimeChangeApplier {
     private final JdbcTemplate jdbcTemplate;
-    private final ItemAccessPolicy itemAccessPolicy;
+    private final LoadoutValidationService loadoutValidationService;
 
     public WeaponPresetRuntimeChangeApplier(
         JdbcTemplate jdbcTemplate,
-        ItemAccessPolicy itemAccessPolicy
+        LoadoutValidationService loadoutValidationService
     ) {
         this.jdbcTemplate = jdbcTemplate;
-        this.itemAccessPolicy = itemAccessPolicy;
+        this.loadoutValidationService = loadoutValidationService;
     }
 
     /**
@@ -73,8 +73,13 @@ public class WeaponPresetRuntimeChangeApplier {
         OffsetDateTime now
     ) {
         requireField(change.weaponId(), "weapon_id", change.op());
-        validateWeaponSlotAllowed(classTag, change.weaponSlotId());
-        validateCanUse(playerId, change.weaponId(), catalogVersion, classTag, "weapon");
+        loadoutValidationService.validateForRuntimeSetWeapon(
+            playerId,
+            classTag,
+            catalogVersion,
+            change.weaponSlotId(),
+            change.weaponId()
+        );
         upsertSelectedSlot(playerId, classTag, weaponPresetSlot, catalogVersion, change.weaponSlotId(), change.weaponId());
         upsertWeaponConfig(playerId, classTag, weaponPresetSlot, catalogVersion, change.weaponSlotId(), change.weaponId(), now);
     }
@@ -86,7 +91,7 @@ public class WeaponPresetRuntimeChangeApplier {
         long catalogVersion,
         RuntimePresetChangeStep change
     ) {
-        validateWeaponSlotAllowed(classTag, change.weaponSlotId());
+        loadoutValidationService.validateForRuntimeClearWeapon(classTag, change.weaponSlotId());
         upsertSelectedSlot(playerId, classTag, weaponPresetSlot, catalogVersion, change.weaponSlotId(), null);
     }
 
@@ -101,11 +106,16 @@ public class WeaponPresetRuntimeChangeApplier {
         requireField(change.weaponId(), "weapon_id", change.op());
         requireField(change.mountId(), "mount_id", change.op());
         requireField(change.moduleId(), "module_id", change.op());
-        validateWeaponSlotAllowed(classTag, change.weaponSlotId());
-        validateSelectedWeapon(playerId, classTag, weaponPresetSlot, catalogVersion, change.weaponSlotId(), change.weaponId());
-        validateCanUse(playerId, change.weaponId(), catalogVersion, classTag, "weapon");
-        validateCanUse(playerId, change.moduleId(), catalogVersion, classTag, "module");
-        validateMountModuleAllowed(catalogVersion, change.weaponId(), change.mountId(), change.moduleId());
+        loadoutValidationService.validateForRuntimeSetModule(
+            playerId,
+            classTag,
+            weaponPresetSlot,
+            catalogVersion,
+            change.weaponSlotId(),
+            change.weaponId(),
+            change.mountId(),
+            change.moduleId()
+        );
         upsertWeaponConfig(playerId, classTag, weaponPresetSlot, catalogVersion, change.weaponSlotId(), change.weaponId(), now);
         replaceSingleModule(playerId, classTag, weaponPresetSlot, catalogVersion, change);
     }
@@ -119,8 +129,14 @@ public class WeaponPresetRuntimeChangeApplier {
     ) {
         requireField(change.weaponId(), "weapon_id", change.op());
         requireField(change.mountId(), "mount_id", change.op());
-        validateWeaponSlotAllowed(classTag, change.weaponSlotId());
-        validateSelectedWeapon(playerId, classTag, weaponPresetSlot, catalogVersion, change.weaponSlotId(), change.weaponId());
+        loadoutValidationService.validateForRuntimeClearModule(
+            playerId,
+            classTag,
+            weaponPresetSlot,
+            catalogVersion,
+            change.weaponSlotId(),
+            change.weaponId()
+        );
         jdbcTemplate.update(
             """
                 DELETE FROM player_weapon_preset_weapon_config_modules
@@ -148,114 +164,6 @@ public class WeaponPresetRuntimeChangeApplier {
                 HttpStatus.BAD_REQUEST,
                 "VALIDATION_ERROR",
                 fieldName + " is required for op " + op
-            );
-        }
-    }
-
-    private void validateWeaponSlotAllowed(String classTag, String weaponSlotId) {
-        Boolean allowed = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM class_weapon_slot_rules
-                  WHERE class_tag = ?
-                    AND weapon_slot_id = ?
-                    AND is_allowed = true
-                )
-                """,
-            Boolean.class,
-            classTag,
-            weaponSlotId
-        );
-        if (!Boolean.TRUE.equals(allowed)) {
-            throw new ApiException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "LOADOUT_VALIDATION_FAILED",
-                "Weapon slot is not allowed for class: " + weaponSlotId
-            );
-        }
-    }
-
-    private void validateSelectedWeapon(
-        UUID playerId,
-        String classTag,
-        int weaponPresetSlot,
-        long catalogVersion,
-        String weaponSlotId,
-        String weaponId
-    ) {
-        Boolean matches = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM player_weapon_preset_slots
-                  WHERE player_id = ?
-                    AND class_tag = ?
-                    AND preset_slot = ?
-                    AND catalog_version = ?
-                    AND weapon_slot_id = ?
-                    AND selected_weapon_id = ?
-                )
-                """,
-            Boolean.class,
-            playerId,
-            classTag,
-            weaponPresetSlot,
-            catalogVersion,
-            weaponSlotId,
-            weaponId
-        );
-        if (!Boolean.TRUE.equals(matches)) {
-            throw new ApiException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "LOADOUT_VALIDATION_FAILED",
-                "Runtime module change targets a weapon that is not selected in slot: " + weaponSlotId
-            );
-        }
-    }
-
-    private void validateCanUse(
-        UUID playerId,
-        String itemId,
-        long catalogVersion,
-        String classTag,
-        String itemType
-    ) {
-        if (!itemAccessPolicy.canUseForRuntimePresetChange(playerId, itemId, catalogVersion, classTag, itemType)) {
-            throw new ApiException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "LOADOUT_VALIDATION_FAILED",
-                "Item is not usable in runtime preset change: " + itemId
-            );
-        }
-    }
-
-    private void validateMountModuleAllowed(long catalogVersion, String weaponId, String mountId, String moduleId) {
-        Boolean allowed = jdbcTemplate.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM weapon_module_mounts wmm
-                  JOIN weapon_mount_allowed_modules wmam
-                    ON wmam.mount_id = wmm.mount_id
-                   AND wmam.catalog_version = wmm.catalog_version
-                  WHERE wmm.catalog_version = ?
-                    AND wmm.weapon_id = ?
-                    AND wmm.mount_id = ?
-                    AND wmam.module_id = ?
-                )
-                """,
-            Boolean.class,
-            catalogVersion,
-            weaponId,
-            mountId,
-            moduleId
-        );
-        if (!Boolean.TRUE.equals(allowed)) {
-            throw new ApiException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "LOADOUT_VALIDATION_FAILED",
-                "Module is not allowed for weapon mount: " + moduleId
             );
         }
     }
