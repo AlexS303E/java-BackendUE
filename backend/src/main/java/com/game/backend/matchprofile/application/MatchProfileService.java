@@ -8,11 +8,9 @@ import com.game.backend.serverauth.application.ServerAuditService;
 import com.game.backend.serverauth.application.ServerIdentity;
 import com.game.backend.serverauth.application.ServerMatchService;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -23,27 +21,27 @@ public class MatchProfileService {
     private static final String AUDIT_ACTION = "match_profile.build";
     private static final String AUDIT_SCOPE = "match_profile:read";
 
-    private final JdbcTemplate jdbcTemplate;
     private final ServerMatchService serverMatchService;
     private final ServerAuditService serverAuditService;
     private final CatalogVersionSelector catalogVersionSelector;
     private final MatchProfileCacheService matchProfileCacheService;
     private final MatchProfileSnapshotBuilder snapshotBuilder;
+    private final MatchProfileDependencyService dependencyService;
 
     public MatchProfileService(
-        JdbcTemplate jdbcTemplate,
         ServerMatchService serverMatchService,
         ServerAuditService serverAuditService,
         CatalogVersionSelector catalogVersionSelector,
         MatchProfileCacheService matchProfileCacheService,
-        MatchProfileSnapshotBuilder snapshotBuilder
+        MatchProfileSnapshotBuilder snapshotBuilder,
+        MatchProfileDependencyService dependencyService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
         this.serverMatchService = serverMatchService;
         this.serverAuditService = serverAuditService;
         this.catalogVersionSelector = catalogVersionSelector;
         this.matchProfileCacheService = matchProfileCacheService;
         this.snapshotBuilder = snapshotBuilder;
+        this.dependencyService = dependencyService;
     }
 
     @Transactional
@@ -55,12 +53,11 @@ public class MatchProfileService {
 
             long catalogVersion = catalogVersionSelector.select(request);
 
-            WeaponPresetAndAccess weaponPreset = weaponPresetWithAccess(request, catalogVersion);
-            PresetHeader outfitPreset = outfitPreset(request, catalogVersion);
+            MatchProfileDependencyService.DependencyTuple dependencies = dependencyService.load(request, catalogVersion);
 
             MatchProfileResponse existing = matchProfileCacheService.findByDependencyTuple(
                 request, catalogVersion,
-                weaponPreset.revision(), outfitPreset.revision(), weaponPreset.accessRevision()
+                dependencies.weaponPresetRevision(), dependencies.outfitPresetRevision(), dependencies.accessRevision()
             );
             if (existing != null) {
                 return existing;
@@ -82,9 +79,9 @@ public class MatchProfileService {
                 snapshot.outfit(),
                 snapshot.warnings(),
                 new DependencyRevisionsDto(
-                    weaponPreset.revision(),
-                    outfitPreset.revision(),
-                    weaponPreset.accessRevision(),
+                    dependencies.weaponPresetRevision(),
+                    dependencies.outfitPresetRevision(),
+                    dependencies.accessRevision(),
                     profileRevision
                 )
             );
@@ -150,63 +147,5 @@ public class MatchProfileService {
 
     private String auditResult(ApiException exception) {
         return exception.status() == HttpStatus.FORBIDDEN ? "denied" : "failed";
-    }
-
-    private WeaponPresetAndAccess weaponPresetWithAccess(BuildMatchProfileRequest request, long catalogVersion) {
-        List<Object[]> rows = jdbcTemplate.query(
-            """
-                SELECT wp.revision, wp.sanitized, pas.access_revision
-                FROM player_weapon_presets wp
-                JOIN player_access_projection_state pas ON pas.player_id = wp.player_id
-                WHERE wp.player_id = ?
-                  AND wp.class_tag = ?
-                  AND wp.preset_slot = ?
-                  AND wp.catalog_version = ?
-                """,
-            (rs, rowNum) -> new Object[]{
-                rs.getLong("revision"),
-                rs.getBoolean("sanitized"),
-                rs.getLong("access_revision")
-            },
-            request.playerId(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            catalogVersion
-        );
-        if (rows.isEmpty()) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "WEAPON_PRESET_NOT_FOUND", "Weapon preset was not found for selected catalog version");
-        }
-        Object[] row = rows.getFirst();
-        return new WeaponPresetAndAccess((Long) row[0], (Boolean) row[1], (Long) row[2]);
-    }
-
-    private PresetHeader outfitPreset(BuildMatchProfileRequest request, long catalogVersion) {
-        List<PresetHeader> presets = jdbcTemplate.query(
-            """
-                SELECT revision, sanitized
-                FROM player_outfit_presets
-                WHERE player_id = ?
-                  AND team_tag = ?
-                  AND class_tag = ?
-                  AND outfit_preset_slot = ?
-                  AND catalog_version = ?
-                """,
-            (rs, rowNum) -> new PresetHeader(rs.getLong("revision"), rs.getBoolean("sanitized")),
-            request.playerId(),
-            request.teamTag(),
-            request.classTag(),
-            request.outfitPresetSlot(),
-            catalogVersion
-        );
-        if (presets.isEmpty()) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "OUTFIT_PRESET_NOT_FOUND", "Outfit preset was not found for selected team and catalog version");
-        }
-        return presets.getFirst();
-    }
-
-    private record PresetHeader(long revision, boolean sanitized) {
-    }
-
-    private record WeaponPresetAndAccess(long revision, boolean sanitized, long accessRevision) {
     }
 }
