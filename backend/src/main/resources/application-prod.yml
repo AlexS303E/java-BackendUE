@@ -1,0 +1,31 @@
+server:
+  shutdown: graceful
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: ${SHUTDOWN_PHASE_TIMEOUT:30s}
+
+app:
+  admin:
+    token: ${ADMIN_TOKEN}
+  auth:
+    jwt-secret: ${JWT_SECRET}
+  server-auth:
+    mtls:
+      enabled: ${SERVER_MTLS_ENABLED:true}
+      require-private-port: ${SERVER_MTLS_REQUIRE_PRIVATE_PORT:true}
+      allow-header-fingerprint-fallback: ${SERVER_MTLS_ALLOW_HEADER_FINGERPRINT_FALLBACK:false}
+      key-store: ${SERVER_MTLS_KEY_STORE}
+      key-store-password: ${SERVER_MTLS_KEY_STORE_PASSWORD}
+      trust-store: ${SERVER_MTLS_TRUST_STORE}
+      trust-store-password: ${SERVER_MTLS_TRUST_STORE_PASSWORD}

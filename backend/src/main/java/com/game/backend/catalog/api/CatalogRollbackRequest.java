@@ -1,5 +1,6 @@
 package com.game.backend.catalog.api;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 
 /**
@@ -9,6 +10,7 @@ public record CatalogRollbackRequest(
     @NotBlank
     String realmId,
 
+    @Min(1)
     Long targetCatalogVersion,
 
     @NotBlank

@@ -1,5 +1,6 @@
 package com.game.backend.admin.api;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -11,6 +12,7 @@ public record AdminWeaponAccessControlRequest(
     String weaponId,
 
     @NotNull
+    @Min(1)
     Long catalogVersion,
 
     @NotBlank

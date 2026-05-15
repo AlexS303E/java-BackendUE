@@ -7,19 +7,19 @@
 ## Security
 
 ### JWT
-- [ ] **JWT secret not dev** — `app.jwt.secret` in application.yml uses dev-only value. Must be externalized to env/ vault in production.
-- [ ] **Token expiry configured** — current: 24h. Consider shorter (15-60 min) + refresh token.
+- [x] **JWT secret not dev** — `application-prod.yml` requires `JWT_SECRET`; startup fail-fast rejects blank/dev values and secrets shorter than 32 chars.
+- [x] **Token expiry configured** — access token defaults to 15 minutes, refresh token defaults to 14 days.
 - [ ] **Algorithm** — HMAC-SHA256 (HS256). Consider RS256 for multi-service verification.
 
 ### Admin API
-- [ ] **Admin token not dev** — `app.admin.api-key` in application.yml is dev-only. Must be externalized.
+- [x] **Admin token not dev** — `application-prod.yml` requires `ADMIN_TOKEN`; startup fail-fast rejects blank/dev values.
 - [ ] **Admin audit trail** — all admin operations logged to `admin_audit_events`. Verified.
 - [ ] **IP allowlist** — not implemented. Consider restricting admin API to internal/VPN IPs.
 
 ### mTLS (Dedicated Server → Backend)
-- [ ] **mTLS enabled** — currently `app.server-auth.mtls.enabled=false` in dev.
-- [ ] **Header fingerprint fallback disabled** — currently `app.server-auth.mtls.allow-header-fingerprint-fallback=true` in dev. Must be `false` in prod.
-- [ ] **Private port required** — currently `app.server-auth.mtls.require-private-port=false` in dev. Must be `true` in prod.
+- [x] **mTLS enabled in prod profile** — `application-prod.yml` defaults `app.server-auth.mtls.enabled=true`; startup fail-fast enforces it for `prod`/`production`.
+- [x] **Header fingerprint fallback disabled in prod profile** — `application-prod.yml` defaults fallback to `false`; startup fail-fast rejects `true`.
+- [x] **Private port required in prod profile** — `application-prod.yml` defaults `require-private-port=true`; startup fail-fast enforces it.
 - [ ] **Certificate rotation plan** — no automation yet. Manual process defined in `tools/mtls/`.
 - [ ] **Revocation list** — server_identities.revoked_at is implemented. CLR/CRL distribution not tested.
 - [ ] **mTLS timeout** — handshake timeout not explicitly configured.
@@ -82,8 +82,8 @@
 ## Observability
 
 ### Metrics (Actuator)
-- [ ] **Hikari metrics** — exposed at `/actuator/metrics/hikaricp.connections.*`. `active`/`idle`/`pending`/`timeout`.
-- [ ] **Tomcat metrics** — exposed at `/actuator/metrics/tomcat.*`. Thread pool, error count.
+- [ ] **Hikari metrics** — exposed in dev through `/actuator/metrics/hikaricp.connections.*`; production profile exposes only `health,info` over HTTP. Export metrics via an internal-only channel before external testing.
+- [ ] **Tomcat metrics** — exposed in dev through `/actuator/metrics/tomcat.*`; production HTTP actuator exposure is limited to `health,info`.
 - [ ] **HTTP metrics by URI/status** — not enabled. Add `server.tomcat.mbeanregistry.enabled=true` or Micrometer `WebMvcTagsProvider`.
 - [ ] **JVM/GC metrics** — exposed at `/actuator/metrics/jvm.*`, `gc.*`.
 - [ ] **Redis metrics** — Lettuce/Spring Data Redis exposes connection pool metrics.
@@ -96,7 +96,7 @@
 
 ### Health checks
 - [ ] **/actuator/health** — returns UP. Includes DB health (DataSourceHealthIndicator). ✅
-- [ ] **Readiness/liveness probes** — not configured. For K8s: add `/actuator/health/readiness`, `/actuator/health/liveness`.
+- [x] **Readiness/liveness probes** — `application-prod.yml` enables actuator health probes.
 
 ---
 
@@ -127,10 +127,10 @@
 ## Deployment
 
 ### Build
-- [ ] **bootJar** — `gradlew bootJar` produces fat JAR. Tested.
+- [ ] **bootJar** — `gradlew bootJar` produces fat JAR. Re-run after PR-08.
 - [ ] **Java version** — 21 (LTS). ✅
-- [ ] **Graceful shutdown** — not explicitly configured (`server.shutdown=graceful` recommended).
-- [ ] **Health check port** — separate management port not configured.
+- [x] **Graceful shutdown** — `application-prod.yml` sets `server.shutdown=graceful` and configurable `spring.lifecycle.timeout-per-shutdown-phase`.
+- [ ] **Health check port** — separate management port not configured. Prod actuator HTTP exposure is limited to `health,info`.
 
 ### Infrastructure
 - [ ] **CPU/Memory sizing** — not determined. Need load test on target hardware.
@@ -138,11 +138,7 @@
 - [ ] **Network** — mTLS adds ~5-10ms per handshake. Reuse connections (keep-alive).
 
 ### Environment
-- [ ] **application-prod.yml** — not created. Must externalize:
-  - `app.jwt.secret`
-  - `app.admin.api-key`
-  - `spring.datasource.url/username/password`
-  - `spring.data.redis.host/port`
+- [x] **application-prod.yml** — created. It externalizes JWT/admin secrets and forces mTLS private-port settings. Datasource/Redis still use environment-backed placeholders from base config.
 - [ ] **Profile activation** — `SPRING_PROFILES_ACTIVE=prod` or `--spring.profiles.active=prod`.
 
 ---
@@ -160,16 +156,13 @@
 - All SQL parameterized
 
 ### ❌ Needs work before prod
-1. JWT/admin secrets externalization
-2. mTLS production configuration
-3. `pg_stat_statements` + slow query log
-4. Rate limiting
-5. Audit log retention policy
-6. bootJar + prod profile
-7. mTLS smoke test
-8. Backup strategy
-9. K8s readiness/liveness probes
-10. CORS configuration
+1. Rate limiting
+2. `pg_stat_statements` + slow query log
+3. Audit log retention policy
+4. bootJar with prod profile smoke
+5. mTLS smoke test
+6. Backup strategy
+7. CORS configuration
 
 ---
 

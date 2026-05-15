@@ -57,6 +57,22 @@ Verified 2026-05-15 after PR-07 DTO/OpenAPI cleanup split-1.
 | `tools\openapi\verify-openapi-stage3.ps1` | pass | OpenAPI stage 3 verification passed after adding matching min/max/unique array constraints |
 | targeted Gradle tests | pass | DtoContractValidationTest |
 
+Verified 2026-05-15 after PR-07 DTO/OpenAPI cleanup completion.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after aligning runtime event, post-match, admin access/control, catalog lifecycle, and OpenAPI request contracts |
+| `tools\openapi\verify-openapi-stage3.ps1` | pass | OpenAPI stage 3 verification passed after documenting admin access/control request bodies, enum constraints, and numeric/schema bounds |
+| targeted Gradle tests | pass | DtoContractValidationTest |
+
+Verified 2026-05-15 after PR-08 Production hardening baseline.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after adding production profile, prod secret fail-fast validation, and actuator/graceful-shutdown baseline |
+| `.\gradlew.bat bootJar` (Gradle) | pass | Fat JAR produced successfully with production profile resources included |
+| targeted Gradle tests | pass | ProductionHardeningValidatorTest, ServerMtlsHardeningValidatorTest, ServerMtlsFallbackDisabledIntegrationTest |
+
 Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, access is_enabled, Solution A doc.
 
 | Script | Result | Details |

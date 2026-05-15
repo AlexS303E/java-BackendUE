@@ -1,12 +1,19 @@
 package com.game.backend;
 
+import com.game.backend.admin.api.AdminItemAccessUpdateRequest;
+import com.game.backend.admin.api.AdminItemOperationRequest;
+import com.game.backend.admin.api.AdminWeaponAccessControlRequest;
+import com.game.backend.catalog.api.CatalogPublishRequest;
+import com.game.backend.catalog.api.CatalogRollbackRequest;
 import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
+import com.game.backend.postmatch.api.PostMatchPendingChangeResolutionRequest;
 import com.game.backend.presets.api.SaveModuleRequest;
 import com.game.backend.presets.api.SaveWeaponSlotRequest;
 import com.game.backend.presets.api.WeaponPresetSaveRequest;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
+import com.game.backend.runtimeevents.api.RuntimeEventRequest;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
@@ -14,7 +21,9 @@ import jakarta.validation.ConstraintViolation;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -71,6 +80,46 @@ class DtoContractValidationTest {
                         "runtimeChangePayload.schemaVersion",
                         "runtimeChangePayload.changes[0].op"
                 );
+    }
+
+    @Test
+    void shouldRejectInvalidRuntimeEventContract() {
+        RuntimeEventRequest request = new RuntimeEventRequest(
+                UUID.randomUUID(),
+                0L,
+                UUID.randomUUID(),
+                "unsupported",
+                UUID.randomUUID(),
+                2,
+                OffsetDateTime.now(),
+                Map.of()
+        );
+
+        assertThat(propertyPathsFor(request))
+                .contains("eventSeq", "eventType", "payloadSchemaVersion", "payload");
+    }
+
+    @Test
+    void shouldRejectInvalidPostMatchAndCatalogContracts() {
+        assertThat(propertyPathsFor(new PostMatchPendingChangeResolutionRequest("unknown")))
+                .contains("resolution");
+        assertThat(propertyPathsFor(new CatalogPublishRequest("global", 0L, 101, true, "reason")))
+                .contains("catalogVersion", "rolloutPercent");
+        assertThat(propertyPathsFor(new CatalogRollbackRequest("global", 0L, "reason")))
+                .contains("targetCatalogVersion");
+    }
+
+    @Test
+    void shouldRejectInvalidAdminCatalogVersionContracts() {
+        assertThat(propertyPathsFor(new AdminItemOperationRequest(
+                UUID.randomUUID(), "weapon.ak12", 0L, "reason", null, null, null
+        ))).contains("catalogVersion");
+        assertThat(propertyPathsFor(new AdminItemAccessUpdateRequest(
+                0L, false, false, false, false, null, null, null, "reason", null
+        ))).contains("catalogVersion");
+        assertThat(propertyPathsFor(new AdminWeaponAccessControlRequest(
+                "weapon.ak12", 0L, "shop_lock", "reason", null
+        ))).contains("catalogVersion");
     }
 
     @Test

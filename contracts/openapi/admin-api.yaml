@@ -580,6 +580,12 @@ paths:
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
         - $ref: '#/components/parameters/player_id_path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminWeaponAccessControlRequest'
       responses:
         '200':
           description: Player weapon access projection rebuild requested.
@@ -917,6 +923,7 @@ components:
         catalog_version:
           type: integer
           format: int64
+          minimum: 1
         access_revision:
           type: integer
           format: int64
@@ -976,6 +983,7 @@ components:
         catalog_version:
           type: integer
           format: int64
+          minimum: 1
         event_type:
           type: string
         source_type:
@@ -1000,22 +1008,20 @@ components:
 
     AdminPlayerItemAccessRequest:
       type: object
-      required: [catalog_version, action]
+      required: [catalog_version, hidden, locked_in_shop, locked_by_quest, disabled, reason]
       properties:
         catalog_version:
           type: integer
           format: int64
-        action:
-          type: string
-          enum:
-            - shop_lock
-            - shop_unlock
-            - quest_lock
-            - quest_unlock
-            - item_disable
-            - item_enable
-            - hide_item
-            - reveal_item
+          minimum: 1
+        hidden:
+          type: boolean
+        locked_in_shop:
+          type: boolean
+        locked_by_quest:
+          type: boolean
+        disabled:
+          type: boolean
         disabled_reason:
           type: string
           nullable: true
@@ -1026,7 +1032,9 @@ components:
           type: object
           nullable: true
           additionalProperties: true
-        source_ref:
+        reason:
+          type: string
+        event_type:
           type: string
           nullable: true
 
@@ -1089,6 +1097,7 @@ components:
         catalog_version:
           type: integer
           format: int64
+          minimum: 1
         reason:
           type: string
         disabled_reason:
@@ -1173,6 +1182,33 @@ components:
         updated:
           type: boolean
 
+    AdminWeaponAccessControlRequest:
+      type: object
+      required: [weapon_id, catalog_version, action, reason]
+      properties:
+        weapon_id:
+          type: string
+        catalog_version:
+          type: integer
+          format: int64
+          minimum: 1
+        action:
+          type: string
+          enum:
+            - shop_lock
+            - shop_unlock
+            - quest_lock
+            - quest_unlock
+            - item_disable
+            - item_enable
+            - hide_item
+            - reveal_item
+        reason:
+          type: string
+        comment:
+          type: string
+          nullable: true
+
     CatalogPublishRequest:
       type: object
       required: [realm_id, catalog_version, reason]
@@ -1182,6 +1218,7 @@ components:
         catalog_version:
           type: integer
           format: int64
+          minimum: 1
         rollout_percent:
           type: integer
           minimum: 0
@@ -1202,6 +1239,7 @@ components:
         target_catalog_version:
           type: integer
           format: int64
+          minimum: 1
           nullable: true
         reason:
           type: string

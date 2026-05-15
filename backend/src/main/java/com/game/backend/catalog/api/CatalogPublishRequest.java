@@ -13,6 +13,7 @@ public record CatalogPublishRequest(
     String realmId,
 
     @NotNull
+    @Min(1)
     Long catalogVersion,
 
     @Min(0)
