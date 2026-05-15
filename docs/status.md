@@ -35,6 +35,13 @@ Verified 2026-05-15 after PR-04 MatchProfileService split-3.
 | `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after extracting MatchProfileDependencyService; MatchProfileService now has no direct JDBC |
 | targeted Gradle tests | pass | MatchProfileDependencyServiceIntegrationTest, MatchProfileSnapshotBuilderIntegrationTest, MatchProfileCacheServiceIntegrationTest, MatchProfileBuildIntegrationTest, MatchProfileQueryCountIntegrationTest |
 
+Verified 2026-05-15 after PR-05 Outbox handlers.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after replacing routing if/switch with explicit OutboxEventHandler implementations |
+| targeted Gradle tests | pass | OutboxWorkerIntegrationTest, OutboxEventHandlersTest |
+
 Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, access is_enabled, Solution A doc.
 
 | Script | Result | Details |

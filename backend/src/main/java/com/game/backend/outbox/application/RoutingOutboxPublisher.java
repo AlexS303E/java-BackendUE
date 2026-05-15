@@ -1,104 +1,23 @@
 package com.game.backend.outbox.application;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.game.backend.cache.RedisCacheService;
-import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.time.OffsetDateTime;
-import java.util.Map;
-import java.util.UUID;
-
 @Service
 public class RoutingOutboxPublisher implements OutboxPublisher {
     private static final Logger log = LoggerFactory.getLogger(RoutingOutboxPublisher.class);
-    private static final TypeReference<Map<String, Object>> JSON_MAP = new TypeReference<>() {};
 
-    private final ObjectMapper objectMapper;
-    private final RedisCacheService cacheService;
-    private final MatchProfileInvalidationService invalidationService;
+    private final OutboxEventRouter router;
 
-    public RoutingOutboxPublisher(
-        ObjectMapper objectMapper,
-        RedisCacheService cacheService,
-        MatchProfileInvalidationService invalidationService
-    ) {
-        this.objectMapper = objectMapper;
-        this.cacheService = cacheService;
-        this.invalidationService = invalidationService;
+    public RoutingOutboxPublisher(OutboxEventRouter router) {
+        this.router = router;
     }
 
     @Override
     public void publish(OutboxEvent event) {
         log.info("Outbox event delivered event_id={} event_type={} aggregate_type={} aggregate_id={}",
             event.eventId(), event.eventType(), event.aggregateType(), event.aggregateId());
-
-        String eventType = event.eventType();
-        if (eventType == null) {
-            return;
-        }
-
-        boolean critical = eventType.startsWith("weapon_preset.")
-            || eventType.startsWith("outfit_preset.")
-            || eventType.startsWith("player_access.");
-
-        Map<String, Object> payload = parsePayload(event.payload());
-        if (payload == null) {
-            if (critical) {
-                throw new RuntimeException("Failed to parse payload for critical event " + event.eventId());
-            }
-            return;
-        }
-
-        if (critical) {
-            UUID playerId = extractPlayerId(payload);
-            if (playerId == null) {
-                throw new RuntimeException("Missing or invalid player_id in critical event " + event.eventId());
-            }
-            if (eventType.startsWith("weapon_preset.") || eventType.startsWith("outfit_preset.")) {
-                invalidationService.invalidateForPlayer(
-                    playerId, "preset_updated", event.eventId(), OffsetDateTime.now());
-            } else {
-                cacheService.evictPlayerAccess(playerId);
-                invalidationService.invalidateForPlayer(
-                    playerId, "access_changed", event.eventId(), OffsetDateTime.now());
-            }
-        } else if ("match_profile.staled".equals(eventType)) {
-            try {
-                handleProfileStaledEvent(payload);
-            } catch (RuntimeException exception) {
-                log.warn("Outbox routing failed for non-critical event_id={} event_type={}: {}",
-                    event.eventId(), event.eventType(), exception.getMessage());
-            }
-        }
-    }
-
-    private void handleProfileStaledEvent(Map<String, Object> payload) {
-        // match_profile.staled is an output notification; no downstream action needed in MVP
-    }
-
-    private UUID extractPlayerId(Map<String, Object> payload) {
-        if (payload == null) return null;
-        Object raw = payload.get("player_id");
-        if (raw instanceof String s) {
-            try { return UUID.fromString(s); } catch (IllegalArgumentException ignored) {}
-        }
-        if (raw instanceof UUID u) return u;
-        return null;
-    }
-
-    private Map<String, Object> parsePayload(String payload) {
-        if (payload == null || payload.isBlank()) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(payload, JSON_MAP);
-        } catch (Exception exception) {
-            log.warn("Failed to parse outbox event payload: {}", exception.getMessage());
-            return null;
-        }
+        router.route(event);
     }
 }
