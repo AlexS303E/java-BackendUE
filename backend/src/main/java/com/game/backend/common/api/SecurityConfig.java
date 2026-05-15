@@ -2,6 +2,7 @@ package com.game.backend.common.api;
 
 import com.game.backend.admin.application.AdminAuthenticationFilter;
 import com.game.backend.auth.application.JwtAuthenticationFilter;
+import com.game.backend.common.ratelimit.RateLimitingFilter;
 import com.game.backend.serverauth.application.ServerAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,7 +28,8 @@ public class SecurityConfig {
         HttpSecurity http,
         JwtAuthenticationFilter jwtAuthenticationFilter,
         ServerAuthenticationFilter serverAuthenticationFilter,
-        AdminAuthenticationFilter adminAuthenticationFilter
+        AdminAuthenticationFilter adminAuthenticationFilter,
+        RateLimitingFilter rateLimitingFilter
     ) throws Exception {
         return http
             .csrf(csrf -> csrf.disable())
@@ -42,6 +44,7 @@ public class SecurityConfig {
                 ).permitAll()
                 .anyRequest().authenticated()
             )
+            .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(adminAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(serverAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

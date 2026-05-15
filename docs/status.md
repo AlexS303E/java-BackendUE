@@ -73,6 +73,15 @@ Verified 2026-05-15 after PR-08 Production hardening baseline.
 | `.\gradlew.bat bootJar` (Gradle) | pass | Fat JAR produced successfully with production profile resources included |
 | targeted Gradle tests | pass | ProductionHardeningValidatorTest, ServerMtlsHardeningValidatorTest, ServerMtlsFallbackDisabledIntegrationTest |
 
+Verified 2026-05-15 after PR-08 Production hardening rate limiting.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after adding production-enabled fixed-window rate limiting for auth/server/admin routes |
+| `.\gradlew.bat bootJar` (Gradle) | pass | Fat JAR produced successfully with rate limiting code and production profile resources included |
+| targeted Gradle tests | pass | RateLimitingFilterTest, ProductionHardeningValidatorTest |
+| `tools\openapi\verify-openapi-stage3.ps1` | pass | OpenAPI stage 3 verification unchanged after adding rate limiting filter |
+
 Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, access is_enabled, Solution A doc.
 
 | Script | Result | Details |

@@ -47,6 +47,12 @@ app:
     enabled: ${APP_CACHE_ENABLED:true}
     catalog-snapshot-ttl: ${APP_CACHE_CATALOG_SNAPSHOT_TTL:PT10M}
     access-ttl: ${APP_CACHE_ACCESS_TTL:PT5M}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:false}
+    window: ${RATE_LIMIT_WINDOW:PT1M}
+    auth-limit: ${RATE_LIMIT_AUTH_LIMIT:60}
+    server-limit: ${RATE_LIMIT_SERVER_LIMIT:600}
+    admin-limit: ${RATE_LIMIT_ADMIN_LIMIT:120}
   server-auth:
     mtls:
       enabled: ${SERVER_MTLS_ENABLED:false}

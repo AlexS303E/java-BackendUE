@@ -26,7 +26,7 @@
 
 ### General
 - [ ] **CORS** — not configured. Prod must restrict origins.
-- [ ] **Rate limiting** — not implemented. No protection against brute-force login.
+- [x] **Rate limiting** — production profile enables fixed-window rate limits for `/auth/*`, `/server/*`, and `/admin/*`; local/dev profile keeps it disabled by default.
 - [ ] **SQL injection** — all queries use parameterized statements. ✅
 - [ ] **Secrets in repo** — `.env` in gitignore, `.env.example` committed without secrets. ✅
 
@@ -127,7 +127,7 @@
 ## Deployment
 
 ### Build
-- [ ] **bootJar** — `gradlew bootJar` produces fat JAR. Re-run after PR-08.
+- [x] **bootJar** — `gradlew bootJar` produces fat JAR. Re-run after PR-08 baseline and rate limiting passed.
 - [ ] **Java version** — 21 (LTS). ✅
 - [x] **Graceful shutdown** — `application-prod.yml` sets `server.shutdown=graceful` and configurable `spring.lifecycle.timeout-per-shutdown-phase`.
 - [ ] **Health check port** — separate management port not configured. Prod actuator HTTP exposure is limited to `health,info`.
@@ -156,13 +156,12 @@
 - All SQL parameterized
 
 ### ❌ Needs work before prod
-1. Rate limiting
-2. `pg_stat_statements` + slow query log
-3. Audit log retention policy
-4. bootJar with prod profile smoke
-5. mTLS smoke test
-6. Backup strategy
-7. CORS configuration
+1. `pg_stat_statements` + slow query log
+2. Audit log retention policy
+3. bootJar with prod profile smoke
+4. mTLS smoke test
+5. Backup strategy
+6. CORS configuration
 
 ---
 

@@ -16,6 +16,12 @@ spring:
     timeout-per-shutdown-phase: ${SHUTDOWN_PHASE_TIMEOUT:30s}
 
 app:
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    window: ${RATE_LIMIT_WINDOW:PT1M}
+    auth-limit: ${RATE_LIMIT_AUTH_LIMIT:60}
+    server-limit: ${RATE_LIMIT_SERVER_LIMIT:600}
+    admin-limit: ${RATE_LIMIT_ADMIN_LIMIT:120}
   admin:
     token: ${ADMIN_TOKEN}
   auth:
