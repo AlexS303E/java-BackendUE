@@ -31,6 +31,7 @@ public record RuntimePresetChangeRequest(
     int weaponPresetSlot,
 
     @NotNull
+    @Min(1)
     Long baseWeaponPresetRevision,
 
     @NotNull

@@ -1,12 +1,15 @@
 package com.game.backend.matchprofile.api;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -38,6 +41,7 @@ public record BuildMatchProfileRequest(
     @Size(max = 10)
     List<@NotNull Long> supportedCatalogVersions,
 
+    @Min(1)
     Long preferredCatalogVersion,
 
     @NotBlank
@@ -46,4 +50,17 @@ public record BuildMatchProfileRequest(
     @NotBlank
     String gameModeId
 ) {
+    @AssertTrue(message = "supported_catalog_versions must not contain duplicates")
+    public boolean isSupportedCatalogVersionsUnique() {
+        if (supportedCatalogVersions == null) {
+            return true;
+        }
+        Set<Long> versions = new HashSet<>();
+        for (Long version : supportedCatalogVersions) {
+            if (version != null && !versions.add(version)) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

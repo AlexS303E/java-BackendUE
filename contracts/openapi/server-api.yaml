@@ -300,6 +300,7 @@ components:
         - outfit_preset_slot
         - supported_catalog_versions
         - server_build_id
+        - game_mode_id
       properties:
         match_id:
           type: string
@@ -315,17 +316,26 @@ components:
           type: string
         weapon_preset_slot:
           type: integer
+          minimum: 1
         outfit_preset_slot:
           type: integer
+          minimum: 1
         supported_catalog_versions:
           type: array
+          minItems: 1
+          maxItems: 10
+          uniqueItems: true
           items:
             type: integer
             format: int64
+            minimum: 1
         preferred_catalog_version:
           type: [integer, 'null']
           format: int64
+          minimum: 1
         server_build_id:
+          type: string
+        game_mode_id:
           type: string
 
     MatchProfile:
@@ -444,6 +454,7 @@ components:
         operation_seq:
           type: integer
           format: int64
+          minimum: 1
         match_id:
           type: string
           format: uuid
@@ -454,9 +465,11 @@ components:
           type: string
         weapon_preset_slot:
           type: integer
+          minimum: 1
         base_weapon_preset_revision:
           type: integer
           format: int64
+          minimum: 1
         runtime_change_payload:
           $ref: '#/components/schemas/RuntimePresetChangePayload'
 
@@ -469,6 +482,8 @@ components:
           const: 1
         changes:
           type: array
+          minItems: 1
+          maxItems: 100
           items:
             $ref: '#/components/schemas/RuntimePresetChangeStep'
 

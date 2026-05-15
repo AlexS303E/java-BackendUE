@@ -733,6 +733,8 @@ components:
           nullable: true
         modules:
           type: array
+          description: mount_id values must be unique within one weapon slot.
+          maxItems: 20
           items:
             $ref: '#/components/schemas/ModuleSelection'
 
@@ -784,8 +786,12 @@ components:
         catalog_version:
           type: integer
           format: int64
+          minimum: 1
         slots:
           type: array
+          description: weapon_slot_id values must be unique within the request.
+          minItems: 1
+          maxItems: 20
           items:
             $ref: '#/components/schemas/WeaponSlotPreset'
 

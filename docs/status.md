@@ -49,6 +49,14 @@ Verified 2026-05-15 after PR-06 Runtime changes service split.
 | `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after extracting RuntimeOperationRecorder, RuntimeOperationStreamService, and RuntimeChangeConflictService |
 | targeted Gradle tests | pass | RuntimeOperationRecorderIntegrationTest, RuntimeOperationStreamServiceIntegrationTest, RuntimeChangeConflictServiceIntegrationTest, WeaponPresetRuntimeChangeApplierIntegrationTest, RuntimePresetChangeIdempotencyTest |
 
+Verified 2026-05-15 after PR-07 DTO/OpenAPI cleanup split-1.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after tightening DTO contract validation for duplicate catalog versions, duplicate weapon slots, duplicate module mounts, and numeric bounds |
+| `tools\openapi\verify-openapi-stage3.ps1` | pass | OpenAPI stage 3 verification passed after adding matching min/max/unique array constraints |
+| targeted Gradle tests | pass | DtoContractValidationTest |
+
 Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, access is_enabled, Solution A doc.
 
 | Script | Result | Details |
