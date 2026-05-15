@@ -51,8 +51,8 @@
 - [ ] **Max pool for 25 VUs** — 30 sufficient. Next threshold: 50 VUs → evaluate increase to 50-60.
 
 ### Monitoring
-- [ ] **pg_stat_statements** — not enabled. Required for slow query identification.
-- [ ] **Slow query log** — not configured in postgresql.conf. Add `log_min_duration_statement = 200ms`.
+- [x] **pg_stat_statements** — enabled through Docker Postgres `shared_preload_libraries` and Flyway V027.
+- [x] **Slow query log** — Docker Postgres sets `log_min_duration_statement = 200ms`.
 - [ ] **Connection pooling** — HikariCP is embedded. PgBouncer not used (single-app architecture).
 - [ ] **Index coverage** — all WHERE clauses covered by indexes. Verify with `EXPLAIN ANALYZE` for heavy queries (validateCanUseBatch, findExistingProfile).
 
@@ -90,7 +90,7 @@
 - [ ] **Cache hit ratios** — not tracked. Consider Micrometer `CacheMetricsCollector`.
 
 ### Logging
-- [ ] **Audit logs retention** — `server_audit_events` and `admin_audit_events` are unbounded. Need retention policy (TTL-based cleanup or archive).
+- [x] **Audit logs retention** — prod profile enables scheduled TTL cleanup for `server_audit_events` and `admin_audit_events`; V028 adds `created_at` indexes for bounded deletes.
 - [ ] **Structured logging** — not configured. Consider Logback JSON encoder for log aggregation.
 - [ ] **Log levels** — root=INFO. DEBUG for `com.game.backend` only in dev.
 
@@ -134,7 +134,7 @@
 
 ### Infrastructure
 - [ ] **CPU/Memory sizing** — not determined. Need load test on target hardware.
-- [ ] **Disk** — audit tables unbounded. Monitor growth.
+- [x] **Disk** — audit tables have TTL cleanup in prod profile; monitor retained window growth and tune `AUDIT_*_RETENTION`.
 - [ ] **Network** — mTLS adds ~5-10ms per handshake. Reuse connections (keep-alive).
 
 ### Environment
@@ -156,12 +156,10 @@
 - All SQL parameterized
 
 ### ❌ Needs work before prod
-1. `pg_stat_statements` + slow query log
-2. Audit log retention policy
-3. bootJar with prod profile smoke
-4. mTLS smoke test
-5. Backup strategy
-6. CORS configuration
+1. bootJar with prod profile smoke
+2. mTLS smoke test
+3. Backup strategy
+4. CORS configuration
 
 ---
 

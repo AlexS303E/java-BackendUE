@@ -82,6 +82,23 @@ Verified 2026-05-15 after PR-08 Production hardening rate limiting.
 | targeted Gradle tests | pass | RateLimitingFilterTest, ProductionHardeningValidatorTest |
 | `tools\openapi\verify-openapi-stage3.ps1` | pass | OpenAPI stage 3 verification unchanged after adding rate limiting filter |
 
+Verified 2026-05-15 after PR-08 Postgres observability hardening.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after adding Flyway V027 and Postgres observability settings |
+| `.\gradlew.bat bootJar` (Gradle) | pass | Fat JAR produced successfully with V027 migration included |
+| targeted Gradle tests | pass | FlywayMigrationIntegrationTest verifies V027, `pg_stat_statements`, `track_io_timing`, and `log_min_duration_statement=200` |
+| `docker compose up -d postgres` | pass | Postgres service recreated with `shared_preload_libraries=pg_stat_statements` |
+
+Verified 2026-05-16 after PR-08 Audit retention hardening.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat cleanTest test` (Gradle) | pass | Full test suite passed after adding audit retention service, production properties, and V028 created_at indexes |
+| `.\gradlew.bat bootJar` (Gradle) | pass | Fat JAR produced successfully with audit retention service and V028 migration included |
+| targeted Gradle tests | pass | AuditRetentionServiceIntegrationTest and FlywayMigrationIntegrationTest pass after adding scheduled audit TTL cleanup and V028 indexes |
+
 Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, access is_enabled, Solution A doc.
 
 | Script | Result | Details |

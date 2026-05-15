@@ -49,7 +49,8 @@ class FlywayMigrationIntegrationTest {
         assertThat(appliedVersions).contains(
                 "001", "002", "003", "004", "005", "006", "007", "008",
                 "009", "010", "011", "012", "013", "014", "015", "016",
-                "017", "018", "019", "020", "021", "022", "023"
+                "017", "018", "019", "020", "021", "022", "023", "024",
+                "025", "026", "027", "028"
         );
 
         String v021Script = jdbcTemplate.queryForObject(
@@ -116,6 +117,32 @@ class FlywayMigrationIntegrationTest {
                 String.class
         );
         assertThat(v026Script).isEqualTo("V026__runtime_op_updated_at.sql");
+
+        String v027Script = jdbcTemplate.queryForObject(
+                """
+                    SELECT script
+                    FROM flyway_schema_history
+                    WHERE version = '027'
+                      AND success = true
+                    ORDER BY installed_rank DESC
+                    LIMIT 1
+                    """,
+                String.class
+        );
+        assertThat(v027Script).isEqualTo("V027__postgres_observability.sql");
+
+        String v028Script = jdbcTemplate.queryForObject(
+                """
+                    SELECT script
+                    FROM flyway_schema_history
+                    WHERE version = '028'
+                      AND success = true
+                    ORDER BY installed_rank DESC
+                    LIMIT 1
+                    """,
+                String.class
+        );
+        assertThat(v028Script).isEqualTo("V028__audit_retention_indexes.sql");
     }
 
     @Test
@@ -180,6 +207,8 @@ class FlywayMigrationIntegrationTest {
         assertThat(indexExists("idx_catalog_items_catalog_enabled")).isTrue();
         assertThat(indexExists("idx_item_class_rules_lookup")).isTrue();
         assertThat(indexExists("idx_item_team_rules_lookup")).isTrue();
+        assertThat(indexExists("idx_admin_audit_events_created_at")).isTrue();
+        assertThat(indexExists("idx_server_audit_events_created_at")).isTrue();
 
         Map<String, Object> activeCatalogIndex = uniquePartialIndex("uq_catalog_active_new_matches");
         assertThat(activeCatalogIndex.get("is_unique")).isEqualTo(true);
@@ -203,6 +232,20 @@ class FlywayMigrationIntegrationTest {
         assertThat(columnType("player_match_profiles", "payload")).isEqualTo("jsonb");
         assertThat(columnType("outbox_events", "payload")).isEqualTo("jsonb");
         assertThat(columnType("server_identities", "allowed_scopes")).isEqualTo("_text");
+    }
+
+    @Test
+    void shouldEnablePostgresObservabilityExtensionsAndSettings() {
+        assertThat(rowExists("""
+                SELECT 1
+                FROM pg_extension
+                WHERE extname = 'pg_stat_statements'
+                """)).isTrue();
+
+        assertThat(postgresSetting("shared_preload_libraries")).contains("pg_stat_statements");
+        assertThat(postgresSetting("pg_stat_statements.track")).isEqualTo("all");
+        assertThat(postgresSetting("track_io_timing")).isEqualTo("on");
+        assertThat(postgresSetting("log_min_duration_statement")).isEqualTo("200");
     }
 
     @Test
@@ -399,6 +442,18 @@ class FlywayMigrationIntegrationTest {
                 String.class,
                 tableName,
                 columnName
+        );
+    }
+
+    private String postgresSetting(String settingName) {
+        return jdbcTemplate.queryForObject(
+                """
+                    SELECT setting
+                    FROM pg_settings
+                    WHERE name = ?
+                    """,
+                String.class,
+                settingName
         );
     }
 

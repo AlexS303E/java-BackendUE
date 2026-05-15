@@ -16,6 +16,13 @@ spring:
     timeout-per-shutdown-phase: ${SHUTDOWN_PHASE_TIMEOUT:30s}
 
 app:
+  audit:
+    retention:
+      enabled: ${AUDIT_RETENTION_ENABLED:true}
+      admin-retention: ${AUDIT_ADMIN_RETENTION:P180D}
+      server-retention: ${AUDIT_SERVER_RETENTION:P90D}
+      batch-size: ${AUDIT_RETENTION_BATCH_SIZE:1000}
+      cleanup-interval-ms: ${AUDIT_RETENTION_CLEANUP_INTERVAL_MS:86400000}
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
     window: ${RATE_LIMIT_WINDOW:PT1M}
