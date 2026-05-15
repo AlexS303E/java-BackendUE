@@ -28,10 +28,20 @@ class ProductionHardeningValidatorTest {
         assertThatThrownBy(() -> ProductionHardeningValidator.validateForStartup(
                 new String[]{"prod"},
                 "strong-production-admin-token",
-                "short"
+                "short",
+                "https://game.example"
         ))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("at least 32 characters");
+
+        assertThatThrownBy(() -> ProductionHardeningValidator.validateForStartup(
+                new String[]{"prod"},
+                "strong-production-admin-token",
+                "strong-production-jwt-secret-value",
+                ""
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app.cors.allowed-origins");
     }
 
     @Test
@@ -39,7 +49,8 @@ class ProductionHardeningValidatorTest {
         assertThatCode(() -> ProductionHardeningValidator.validateForStartup(
                 new String[]{"prod"},
                 "strong-production-admin-token",
-                "strong-production-jwt-secret-value"
+                "strong-production-jwt-secret-value",
+                "https://game.example"
         ))
                 .doesNotThrowAnyException();
 

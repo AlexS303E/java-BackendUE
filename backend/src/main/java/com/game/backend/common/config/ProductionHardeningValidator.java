@@ -23,23 +23,30 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
     private final Environment environment;
     private final String adminToken;
     private final String jwtSecret;
+    private final String corsAllowedOrigins;
 
     public ProductionHardeningValidator(
         Environment environment,
         @Value("${app.admin.token:}") String adminToken,
-        @Value("${app.auth.jwt-secret:}") String jwtSecret
+        @Value("${app.auth.jwt-secret:}") String jwtSecret,
+        @Value("${app.cors.allowed-origins:}") String corsAllowedOrigins
     ) {
         this.environment = environment;
         this.adminToken = adminToken;
         this.jwtSecret = jwtSecret;
+        this.corsAllowedOrigins = corsAllowedOrigins;
     }
 
     @Override
     public void afterSingletonsInstantiated() {
-        validateForStartup(environment.getActiveProfiles(), adminToken, jwtSecret);
+        validateForStartup(environment.getActiveProfiles(), adminToken, jwtSecret, corsAllowedOrigins);
     }
 
     public static void validateForStartup(String[] activeProfiles, String adminToken, String jwtSecret) {
+        validateForStartup(activeProfiles, adminToken, jwtSecret, "https://game.example");
+    }
+
+    public static void validateForStartup(String[] activeProfiles, String adminToken, String jwtSecret, String corsAllowedOrigins) {
         if (!hasProductionProfile(activeProfiles)) {
             return;
         }
@@ -48,6 +55,9 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         requireProductionSecret("app.auth.jwt-secret", jwtSecret, UNSAFE_JWT_SECRETS);
         if (jwtSecret.trim().length() < 32) {
             throw new IllegalStateException("Production profile requires app.auth.jwt-secret to be at least 32 characters");
+        }
+        if (corsAllowedOrigins == null || corsAllowedOrigins.isBlank()) {
+            throw new IllegalStateException("Production profile requires app.cors.allowed-origins");
         }
     }
 

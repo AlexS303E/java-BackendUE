@@ -37,8 +37,11 @@ logs/
 .env
 
 # --- Project-specific ---
+backups/
 tools/mtls/**/out/
+tools/mtls/out*/
 tools/mtls/logs/
 tools/mtls/work/
+tools/smoke/logs/
 tools/load/k6/results/
 tools/load/tank/*.log

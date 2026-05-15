@@ -99,6 +99,19 @@ Verified 2026-05-16 after PR-08 Audit retention hardening.
 | `.\gradlew.bat bootJar` (Gradle) | pass | Fat JAR produced successfully with audit retention service and V028 migration included |
 | targeted Gradle tests | pass | AuditRetentionServiceIntegrationTest and FlywayMigrationIntegrationTest pass after adding scheduled audit TTL cleanup and V028 indexes |
 
+Verified 2026-05-16 after PR-08 Production hardening completion.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat cleanTest test` (Gradle) | pass | Full test suite passed after completing production hardening |
+| `.\gradlew.bat bootJar` (Gradle) | pass | Fat JAR produced successfully after production hardening completion |
+| `tools\openapi\verify-openapi-stage3.ps1` | pass | OpenAPI stage 3 verification unchanged by production hardening |
+| targeted Gradle tests | pass | CorsConfigurationSourceTest, ProductionHardeningValidatorTest, AuditRetentionServiceIntegrationTest, FlywayMigrationIntegrationTest |
+| `tools\backup\backup-postgres.ps1` | pass | Created PostgreSQL custom-format dump with local retention cleanup |
+| `tools\backup\verify-postgres-backup.ps1` | pass | Restored the dump into a temporary verification database and validated Flyway history |
+| `tools\smoke\prod-profile-smoke.ps1` | pass | Fat JAR started with `SPRING_PROFILES_ACTIVE=prod`; health/info reachable, metrics blocked, CORS preflight allowed only configured origin |
+| `tools\mtls\run-mtls-smoke.ps1` | pass | Real mTLS private connector passed 1 positive and 5 negative checks |
+
 Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, access is_enabled, Solution A doc.
 
 | Script | Result | Details |

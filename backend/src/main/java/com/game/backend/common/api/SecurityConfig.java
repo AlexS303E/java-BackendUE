@@ -13,6 +13,9 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * Общая настройка безопасности: публичные endpoints, player JWT, server identity и admin token фильтры.
@@ -29,10 +32,12 @@ public class SecurityConfig {
         JwtAuthenticationFilter jwtAuthenticationFilter,
         ServerAuthenticationFilter serverAuthenticationFilter,
         AdminAuthenticationFilter adminAuthenticationFilter,
-        RateLimitingFilter rateLimitingFilter
+        RateLimitingFilter rateLimitingFilter,
+        CorsConfigurationSource corsConfigurationSource
     ) throws Exception {
         return http
             .csrf(csrf -> csrf.disable())
+            .cors(cors -> cors.configurationSource(corsConfigurationSource))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
@@ -49,6 +54,21 @@ public class SecurityConfig {
             .addFilterBefore(serverAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .build();
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource(CorsProperties properties) {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(properties.getAllowedOrigins());
+        configuration.setAllowedMethods(properties.getAllowedMethods());
+        configuration.setAllowedHeaders(properties.getAllowedHeaders());
+        configuration.setExposedHeaders(properties.getExposedHeaders());
+        configuration.setAllowCredentials(false);
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 
     /**

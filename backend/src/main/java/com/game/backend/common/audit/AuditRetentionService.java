@@ -2,6 +2,7 @@ package com.game.backend.common.audit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -19,6 +20,7 @@ public class AuditRetentionService {
     private final AuditRetentionProperties properties;
     private final Clock clock;
 
+    @Autowired
     public AuditRetentionService(JdbcTemplate jdbcTemplate, AuditRetentionProperties properties) {
         this(jdbcTemplate, properties, Clock.systemUTC());
     }

@@ -25,7 +25,7 @@
 - [ ] **mTLS timeout** — handshake timeout not explicitly configured.
 
 ### General
-- [ ] **CORS** — not configured. Prod must restrict origins.
+- [x] **CORS** — prod profile requires `CORS_ALLOWED_ORIGINS`; Spring Security CORS allows only configured origins.
 - [x] **Rate limiting** — production profile enables fixed-window rate limits for `/auth/*`, `/server/*`, and `/admin/*`; local/dev profile keeps it disabled by default.
 - [ ] **SQL injection** — all queries use parameterized statements. ✅
 - [ ] **Secrets in repo** — `.env` in gitignore, `.env.example` committed without secrets. ✅
@@ -40,10 +40,10 @@
 - [ ] **Rollback plan** — no V*__undo scripts. Manual rollback via DB restore.
 
 ### Backups
-- [ ] **Configured** — not configured in MVP. Requires `pg_dump` cron or WAL archiving.
-- [ ] **RPO** — not defined.
-- [ ] **RTO** — not defined.
-- [ ] **Restore tested** — not tested.
+- [x] **Configured** — `tools/backup/backup-postgres.ps1` creates PostgreSQL custom-format dumps with local retention cleanup.
+- [x] **RPO** — MVP baseline target is 24 hours for scheduled daily dumps.
+- [x] **RTO** — MVP baseline target is 30 minutes for same-region restore from a validated dump.
+- [x] **Restore tested** — `tools/backup/verify-postgres-backup.ps1` restored the latest dump into an isolated temporary database.
 
 ### Connection Pool
 - [ ] **Pool sizing documented** — Hikari max=30, min-idle=10, connection-timeout=5s.
@@ -117,7 +117,7 @@
 - **Result:** 18.5k req, 0% failures, p95=356ms, checks=100%
 
 ### mTLS Smoke
-- [ ] **mTLS smoke test** — not yet run. Must test with `mTLS enabled` + `header fallback disabled` + `private port`.
+- [x] **mTLS smoke test** — `tools/mtls/run-mtls-smoke.ps1` passed with mTLS enabled, header fallback disabled, and private port required.
 
 ### Yandex.Tank
 - [ ] **Yandex.Tank baseline** — previously 95.73% HTTP 200, 4.27% connection timeouts (Docker networking overhead). Not a production-grade baseline. Recommend k6-only for load testing.
@@ -127,7 +127,7 @@
 ## Deployment
 
 ### Build
-- [x] **bootJar** — `gradlew bootJar` produces fat JAR. Re-run after PR-08 baseline and rate limiting passed.
+- [x] **bootJar** — `gradlew bootJar` produces fat JAR; prod-profile smoke starts the JAR with production settings.
 - [ ] **Java version** — 21 (LTS). ✅
 - [x] **Graceful shutdown** — `application-prod.yml` sets `server.shutdown=graceful` and configurable `spring.lifecycle.timeout-per-shutdown-phase`.
 - [ ] **Health check port** — separate management port not configured. Prod actuator HTTP exposure is limited to `health,info`.
@@ -139,7 +139,7 @@
 
 ### Environment
 - [x] **application-prod.yml** — created. It externalizes JWT/admin secrets and forces mTLS private-port settings. Datasource/Redis still use environment-backed placeholders from base config.
-- [ ] **Profile activation** — `SPRING_PROFILES_ACTIVE=prod` or `--spring.profiles.active=prod`.
+- [x] **Profile activation** — `tools/smoke/prod-profile-smoke.ps1` starts the fat JAR with `SPRING_PROFILES_ACTIVE=prod`.
 
 ---
 
@@ -155,11 +155,11 @@
 - Admin audit trail
 - All SQL parameterized
 
-### ❌ Needs work before prod
-1. bootJar with prod profile smoke
-2. mTLS smoke test
-3. Backup strategy
-4. CORS configuration
+### ✅ Production Hardening Baseline Closed
+- Prod-profile smoke passed.
+- mTLS smoke passed.
+- Backup and restore drill passed.
+- CORS is configured and required for prod startup.
 
 ---
 

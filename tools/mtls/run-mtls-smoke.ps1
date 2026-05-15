@@ -544,6 +544,7 @@ try {
         -WorkingDirectory $backendDir `
         -RedirectStandardOutput $backendStdout `
         -RedirectStandardError $backendStderr `
+        -WindowStyle Hidden `
         -PassThru
 
     Write-Host "Backend PID: $($backendProcess.Id)"
