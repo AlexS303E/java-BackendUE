@@ -42,6 +42,13 @@ Verified 2026-05-15 after PR-05 Outbox handlers.
 | `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after replacing routing if/switch with explicit OutboxEventHandler implementations |
 | targeted Gradle tests | pass | OutboxWorkerIntegrationTest, OutboxEventHandlersTest |
 
+Verified 2026-05-15 after PR-06 Runtime changes service split.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat test` (Gradle) | pass | Full test suite passed after extracting RuntimeOperationRecorder, RuntimeOperationStreamService, and RuntimeChangeConflictService |
+| targeted Gradle tests | pass | RuntimeOperationRecorderIntegrationTest, RuntimeOperationStreamServiceIntegrationTest, RuntimeChangeConflictServiceIntegrationTest, WeaponPresetRuntimeChangeApplierIntegrationTest, RuntimePresetChangeIdempotencyTest |
+
 Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, access is_enabled, Solution A doc.
 
 | Script | Result | Details |

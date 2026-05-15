@@ -3,7 +3,6 @@ package com.game.backend.runtimechanges.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
-import com.game.backend.notifications.application.PlayerNotificationService;
 import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
@@ -31,7 +30,6 @@ import java.util.UUID;
  */
 @Service
 public class RuntimePresetChangeService {
-    private static final int PENDING_TTL_DAYS = 7;
     private static final String AUDIT_ACTION = "runtime_preset_change.submit";
     private static final String AUDIT_SCOPE = "runtime_preset_change:write";
 
@@ -41,7 +39,9 @@ public class RuntimePresetChangeService {
     private final ServerAuditService serverAuditService;
     private final WeaponPresetRuntimeChangeApplier runtimeChangeApplier;
     private final OutboxService outboxService;
-    private final PlayerNotificationService playerNotificationService;
+    private final RuntimeOperationRecorder operationRecorder;
+    private final RuntimeOperationStreamService operationStreamService;
+    private final RuntimeChangeConflictService conflictService;
 
     public RuntimePresetChangeService(
         JdbcTemplate jdbcTemplate,
@@ -50,7 +50,9 @@ public class RuntimePresetChangeService {
         ServerAuditService serverAuditService,
         WeaponPresetRuntimeChangeApplier runtimeChangeApplier,
         OutboxService outboxService,
-        PlayerNotificationService playerNotificationService
+        RuntimeOperationRecorder operationRecorder,
+        RuntimeOperationStreamService operationStreamService,
+        RuntimeChangeConflictService conflictService
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
@@ -58,12 +60,11 @@ public class RuntimePresetChangeService {
         this.serverAuditService = serverAuditService;
         this.runtimeChangeApplier = runtimeChangeApplier;
         this.outboxService = outboxService;
-        this.playerNotificationService = playerNotificationService;
+        this.operationRecorder = operationRecorder;
+        this.operationStreamService = operationStreamService;
+        this.conflictService = conflictService;
     }
 
-    /**
-     * Проверяет идемпотентность, владение матчем, ревизию preset и применяет операцию.
-     */
     @Transactional
     public RuntimePresetChangeResponse submit(
         ServerIdentity server,
@@ -81,30 +82,28 @@ public class RuntimePresetChangeService {
             OffsetDateTime now = OffsetDateTime.now();
 
             // 1. Check for existing operation (idempotency) before locking/ordering
-            ExistingOperation existing = existingOperation(request.operationId());
+            RuntimeOperationRecorder.ExistingOperation existing = operationRecorder.find(request.operationId());
             if (existing != null) {
                 return auditedResponse(server, request, replayExistingOperation(request, requestHash, existing));
             }
 
             // 2. Lock stream and validate ordering
-            lockOperationStream(request);
-            ensureOperationOrdering(request);
+            operationStreamService.lockAndValidateNextSequence(request);
 
             // 3. INSERT operation with 'processing' status
-            int inserted = tryInsertOperation(request, requestHash, now);
+            int inserted = operationRecorder.insertProcessing(request, requestHash, now);
             if (inserted == 0) {
                 // Race: concurrent thread inserted between SELECT and INSERT
-                existing = existingOperation(request.operationId());
+                existing = operationRecorder.find(request.operationId());
                 return auditedResponse(server, request, replayExistingOperation(request, requestHash, existing));
             }
 
             // 3. Lock preset and apply
             PresetHeader preset = lockWeaponPreset(request);
             if (preset.revision() != request.baseWeaponPresetRevision()) {
-                UUID pendingChangeId = createPendingChange(request, preset.revision(), now);
-                updateOperationStatus(request.operationId(), "conflict", null, pendingChangeId, now);
-                updateOperationStream(request);
-                recordPendingChangeCreated(request, preset.revision(), pendingChangeId, now);
+                UUID pendingChangeId = conflictService.createRevisionConflict(request, preset.revision(), now);
+                operationRecorder.markConflict(request.operationId(), pendingChangeId, now);
+                operationStreamService.advance(request);
                 return auditedResponse(
                     server, request,
                     new RuntimePresetChangeResponse(
@@ -122,8 +121,12 @@ public class RuntimePresetChangeService {
             } catch (ApiException exception) {
                 String opStatus = exception.status() == HttpStatus.UNPROCESSABLE_ENTITY ? "rejected" : "failed";
                 String reason = exception.code();
-                updateOperationStatus(request.operationId(), opStatus, null, null, now);
-                updateOperationStream(request);
+                if ("rejected".equals(opStatus)) {
+                    operationRecorder.markRejected(request.operationId(), now);
+                } else {
+                    operationRecorder.markFailed(request.operationId(), now);
+                }
+                operationStreamService.advance(request);
                 recordRuntimePresetFailed(request, preset.catalogVersion(), opStatus, reason, now);
                 return auditedResponse(
                     server, request,
@@ -149,8 +152,8 @@ public class RuntimePresetChangeService {
                 request.playerId(), request.classTag(), request.weaponPresetSlot(), preset.catalogVersion()
             );
 
-            updateOperationStatus(request.operationId(), "applied", resultRevision, null, now);
-            updateOperationStream(request);
+            operationRecorder.markApplied(request.operationId(), resultRevision, now);
+            operationStreamService.advance(request);
             recordRuntimePresetApplied(request, preset.catalogVersion(), resultRevision, now);
             return auditedResponse(
                 server, request,
@@ -292,43 +295,6 @@ public class RuntimePresetChangeService {
         );
     }
 
-    private void recordPendingChangeCreated(
-        RuntimePresetChangeRequest request,
-        long currentRevision,
-        UUID pendingChangeId,
-        OffsetDateTime now
-    ) {
-        Map<String, Object> payload = Map.of(
-            "player_id", request.playerId(),
-            "match_id", request.matchId(),
-            "operation_id", request.operationId(),
-            "class_tag", request.classTag(),
-            "preset_slot", request.weaponPresetSlot(),
-            "base_revision", request.baseWeaponPresetRevision(),
-            "current_revision", currentRevision,
-            "pending_change_id", pendingChangeId,
-            "status", "pending",
-            "source", "runtime"
-        );
-        outboxService.record(
-            "post_match_pending_change.created",
-            "post_match_pending_change",
-            pendingChangeId.toString(),
-            1,
-            payload,
-            now
-        );
-        playerNotificationService.record(
-            request.playerId(),
-            "post_match_pending_change.created",
-            "post_match_pending_change",
-            pendingChangeId.toString(),
-            1,
-            payload,
-            now
-        );
-    }
-
     private String weaponPresetAggregateId(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
         return playerId + ":" + classTag + ":" + presetSlot + ":" + catalogVersion;
     }
@@ -366,7 +332,7 @@ public class RuntimePresetChangeService {
     private RuntimePresetChangeResponse replayExistingOperation(
         RuntimePresetChangeRequest request,
         String requestHash,
-        ExistingOperation existing
+        RuntimeOperationRecorder.ExistingOperation existing
     ) {
         if (!existing.requestHash().equals(requestHash)) {
             throw new ApiException(
@@ -382,88 +348,6 @@ public class RuntimePresetChangeService {
             existing.pendingChangeId(),
             true,
             "conflict".equals(existing.status()) ? "PRESET_REVISION_CONFLICT" : null
-        );
-    }
-
-    private ExistingOperation existingOperation(UUID operationId) {
-        List<ExistingOperation> operations = jdbcTemplate.query(
-            """
-                SELECT status, result_revision, pending_change_id, request_hash
-                FROM runtime_preset_change_operations
-                WHERE operation_id = ?
-                """,
-            (rs, rowNum) -> new ExistingOperation(
-                rs.getString("status"),
-                rs.getObject("result_revision", Long.class),
-                rs.getObject("pending_change_id", UUID.class),
-                rs.getString("request_hash")
-            ),
-            operationId
-        );
-        return operations.isEmpty() ? null : operations.getFirst();
-    }
-
-    /**
-     * Блокирует stream-строку для (match_id, player_id), чтобы сериализовать операции.
-     */
-    private void lockOperationStream(RuntimePresetChangeRequest request) {
-        jdbcTemplate.update(
-            """
-                INSERT INTO runtime_operation_streams (match_id, player_id, last_applied_seq)
-                VALUES (?, ?, 0)
-                ON CONFLICT (match_id, player_id) DO NOTHING
-                """,
-            request.matchId(),
-            request.playerId()
-        );
-    }
-
-    /**
-     * Проверяет, что operation_seq строго равен last_applied_seq + 1.
-     */
-    private void ensureOperationOrdering(RuntimePresetChangeRequest request) {
-        Long lastAppliedSeq = jdbcTemplate.queryForObject(
-            """
-                SELECT last_applied_seq
-                FROM runtime_operation_streams
-                WHERE match_id = ?
-                  AND player_id = ?
-                FOR UPDATE
-                """,
-            Long.class,
-            request.matchId(),
-            request.playerId()
-        );
-        if (lastAppliedSeq == null) {
-            throw new ApiException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "RUNTIME_OPERATION_STREAM_NOT_FOUND",
-                "Runtime operation stream row disappeared after insert"
-            );
-        }
-        if (request.operationSeq() != lastAppliedSeq + 1) {
-            throw new ApiException(
-                HttpStatus.CONFLICT,
-                "RUNTIME_OPERATION_SEQ_OUT_OF_ORDER",
-                "Expected seq " + (lastAppliedSeq + 1) + " but got " + request.operationSeq()
-            );
-        }
-    }
-
-    /**
-     * Продвигает last_applied_seq после успешного применения или conflict.
-     */
-    private void updateOperationStream(RuntimePresetChangeRequest request) {
-        jdbcTemplate.update(
-            """
-                UPDATE runtime_operation_streams
-                SET last_applied_seq = ?
-                WHERE match_id = ?
-                  AND player_id = ?
-                """,
-            request.operationSeq(),
-            request.matchId(),
-            request.playerId()
         );
     }
 
@@ -496,114 +380,6 @@ public class RuntimePresetChangeService {
             );
         }
         return presets.getFirst();
-    }
-
-    /**
-     * Создает pending change для ручного или автоматического post-match resolution.
-     */
-    private UUID createPendingChange(RuntimePresetChangeRequest request, long currentRevision, OffsetDateTime now) {
-        UUID changeId = UUID.randomUUID();
-        jdbcTemplate.update(
-            """
-                INSERT INTO post_match_pending_changes(
-                  change_id,
-                  player_id,
-                  match_id,
-                  class_tag,
-                  weapon_preset_slot,
-                  base_weapon_preset_revision,
-                  current_conflicting_revision,
-                  reason_code,
-                  status,
-                  payload,
-                  payload_schema_version,
-                  created_at,
-                  expires_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'revision_conflict', 'pending', ?::jsonb, 1, ?, ?)
-                """,
-            changeId,
-            request.playerId(),
-            request.matchId(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            request.baseWeaponPresetRevision(),
-            currentRevision,
-            pendingPayload(request, currentRevision),
-            now,
-            now.plusDays(PENDING_TTL_DAYS)
-        );
-        return changeId;
-    }
-
-    private String pendingPayload(RuntimePresetChangeRequest request, long currentRevision) {
-        Map<String, Object> payload = Map.of(
-            "schema_version", 1,
-            "runtime_change_payload", request.runtimeChangePayload(),
-            "conflict", Map.of(
-                "reason_code", "revision_conflict",
-                "base_weapon_preset_revision", request.baseWeaponPresetRevision(),
-                "current_weapon_preset_revision", currentRevision
-            ),
-            "resolution_options", List.of("apply_if_still_valid", "discard", "manual_merge")
-        );
-        return toJson(payload);
-    }
-
-    /**
-     * Пытается вставить operation с 'processing' статусом.
-     * Если operation_id уже существует — возвращает ExistingOperation для replay.
-     * Если вставка успешна — возвращает null (вызывающий продолжит apply).
-     */
-    private int tryInsertOperation(
-        RuntimePresetChangeRequest request,
-        String requestHash,
-        OffsetDateTime now
-    ) {
-        return jdbcTemplate.update(
-            """
-                INSERT INTO runtime_preset_change_operations(
-                  operation_id, match_id, player_id, operation_seq,
-                  class_tag, weapon_preset_slot, base_weapon_preset_revision,
-                  status, result_revision, pending_change_id,
-                  request_hash, created_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'processing', NULL, NULL, ?, ?)
-                ON CONFLICT (operation_id) DO NOTHING
-                """,
-            request.operationId(),
-            request.matchId(),
-            request.playerId(),
-            request.operationSeq(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            request.baseWeaponPresetRevision(),
-            requestHash,
-            now
-        );
-    }
-
-    /**
-     * Обновляет статус уже вставленной операции (processing -> applied/conflict/rejected).
-     */
-    private void updateOperationStatus(
-        UUID operationId,
-        String status,
-        Long resultRevision,
-        UUID pendingChangeId,
-        OffsetDateTime now
-    ) {
-        jdbcTemplate.update(
-            """
-                UPDATE runtime_preset_change_operations
-                SET status = ?,
-                    result_revision = ?,
-                    pending_change_id = ?,
-                    updated_at = ?
-                WHERE operation_id = ?
-                """,
-            status, resultRevision, pendingChangeId, now, operationId
-        );
     }
 
     private String requestHash(RuntimePresetChangeRequest request) {
@@ -639,11 +415,4 @@ public class RuntimePresetChangeService {
     private record PresetHeader(long catalogVersion, long revision) {
     }
 
-    private record ExistingOperation(
-        String status,
-        Long resultRevision,
-        UUID pendingChangeId,
-        String requestHash
-    ) {
-    }
 }
