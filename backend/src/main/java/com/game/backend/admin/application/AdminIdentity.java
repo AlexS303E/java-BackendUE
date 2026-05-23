@@ -1,9 +1,12 @@
 package com.game.backend.admin.application;
 
-/**
- * Минимальная admin identity для MVP-админских операций.
- */
+import java.util.Set;
+
 public record AdminIdentity(
-    String actorId
+    String actorId,
+    Set<String> roles
 ) {
+    public AdminIdentity(String actorId) {
+        this(actorId, Set.of("status", "access", "catalog", "ops", "security"));
+    }
 }

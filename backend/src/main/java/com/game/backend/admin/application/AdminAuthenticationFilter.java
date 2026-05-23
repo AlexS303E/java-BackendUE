@@ -4,7 +4,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -12,21 +11,21 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
+import java.net.InetAddress;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-/**
- * Закрывает /admin/* простым dev-token до появления полноценного IAM/admin RBAC.
- */
 @Component
 public class AdminAuthenticationFilter extends OncePerRequestFilter {
     private static final String ADMIN_TOKEN_HEADER = "X-Admin-Token";
     private static final String ADMIN_ID_HEADER = "X-Admin-Id";
     private static final String DEFAULT_ADMIN_ID = "dev-admin";
 
-    private final String adminToken;
+    private final AdminSecurityProperties properties;
 
-    public AdminAuthenticationFilter(@Value("${app.admin.token}") String adminToken) {
-        this.adminToken = adminToken;
+    public AdminAuthenticationFilter(AdminSecurityProperties properties) {
+        this.properties = properties;
     }
 
     @Override
@@ -34,17 +33,19 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
         return !request.getRequestURI().startsWith("/admin/");
     }
 
-    /**
-     * Проверяет служебный токен и кладет AdminIdentity в SecurityContext для контроллеров /admin/*.
-     */
     @Override
     protected void doFilterInternal(
         HttpServletRequest request,
         HttpServletResponse response,
         FilterChain filterChain
     ) throws ServletException, IOException {
+        if (!isAllowedIp(request)) {
+            writeProblem(response, HttpServletResponse.SC_FORBIDDEN, "ADMIN_IP_FORBIDDEN", "Admin IP is not allowed");
+            return;
+        }
+
         String token = request.getHeader(ADMIN_TOKEN_HEADER);
-        if (adminToken == null || adminToken.isBlank() || token == null || !adminToken.equals(token)) {
+        if (properties.getToken() == null || properties.getToken().isBlank() || token == null || !properties.getToken().equals(token)) {
             writeProblem(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", "Admin token is required");
             return;
         }
@@ -54,14 +55,100 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
             actorId = DEFAULT_ADMIN_ID;
         }
 
-        AdminIdentity identity = new AdminIdentity(actorId.trim());
+        Set<String> roles = rolesFor();
+        String requiredRole = requiredRole(request);
+        if (!roles.contains(requiredRole)) {
+            writeProblem(response, HttpServletResponse.SC_FORBIDDEN, "ADMIN_ROLE_FORBIDDEN", "Admin role is required: " + requiredRole);
+            return;
+        }
+
+        AdminIdentity identity = new AdminIdentity(actorId.trim(), roles);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
             identity,
             "admin",
-            List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+            roles.stream()
+                .map(role -> new SimpleGrantedAuthority("ROLE_ADMIN_" + role.toUpperCase(Locale.ROOT)))
+                .toList()
         );
         SecurityContextHolder.getContext().setAuthentication(authentication);
         filterChain.doFilter(request, response);
+    }
+
+    private Set<String> rolesFor() {
+        return properties.getDefaultRoles().stream()
+            .map(this::normalizeRole)
+            .filter(role -> !role.isBlank())
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private String normalizeRole(String role) {
+        return role == null ? "" : role.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String requiredRole(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if (path.startsWith("/admin/status/")) {
+            return "status";
+        }
+        if (path.contains("/server-identities") || path.contains("/outbox/") || path.contains("/cache/")) {
+            return "ops";
+        }
+        if (path.startsWith("/admin/items/") || path.contains("/access/") || path.contains("/weapon-access")) {
+            return "access";
+        }
+        return "security";
+    }
+
+    private boolean isAllowedIp(HttpServletRequest request) {
+        if (properties.getAllowedCidrs().isEmpty()) {
+            return true;
+        }
+        String clientIp = clientIp(request);
+        return properties.getAllowedCidrs().stream().anyMatch(rule -> ipMatches(clientIp, rule));
+    }
+
+    private String clientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
+
+    private boolean ipMatches(String clientIp, String rule) {
+        if (rule == null || rule.isBlank()) {
+            return false;
+        }
+        String trimmed = rule.trim();
+        if (!trimmed.contains("/")) {
+            return trimmed.equals(clientIp);
+        }
+        try {
+            String[] parts = trimmed.split("/", 2);
+            byte[] address = InetAddress.getByName(clientIp).getAddress();
+            byte[] network = InetAddress.getByName(parts[0]).getAddress();
+            if (address.length != network.length) {
+                return false;
+            }
+            int prefix = Integer.parseInt(parts[1]);
+            if (prefix < 0 || prefix > address.length * 8) {
+                return false;
+            }
+            int fullBytes = prefix / 8;
+            int remainingBits = prefix % 8;
+            for (int i = 0; i < fullBytes; i++) {
+                if (address[i] != network[i]) {
+                    return false;
+                }
+            }
+            if (remainingBits == 0) {
+                return true;
+            }
+            int mask = (0xFF << (8 - remainingBits)) & 0xFF;
+            return (address[fullBytes] & mask) == (network[fullBytes] & mask);
+        } catch (Exception exception) {
+            return false;
+        }
     }
 
     private void writeProblem(HttpServletResponse response, int status, String code, String detail) throws IOException {

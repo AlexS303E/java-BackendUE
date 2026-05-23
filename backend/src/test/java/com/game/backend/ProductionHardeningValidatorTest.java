@@ -7,58 +7,79 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ProductionHardeningValidatorTest {
+    private static final String ADMIN_TOKEN = "strong-production-admin-token";
+    private static final String PRIVATE_KEY = "file:D:/secure/jwt-private.pem";
+    private static final String PUBLIC_KEY = "file:D:/secure/jwt-public.pem";
+    private static final String CORS = "https://game.example";
+    private static final String ADMIN_CIDRS = "10.0.0.0/8,127.0.0.1/32";
+
     @Test
-    void shouldRejectDevSecretsForProductionProfiles() {
+    void shouldRejectUnsafeProductionConfiguration() {
         assertThatThrownBy(() -> ProductionHardeningValidator.validateForStartup(
-                new String[]{"prod"},
-                "dev-admin-token",
-                "strong-production-jwt-secret-value"
+            new String[]{"prod"},
+            "dev-admin-token",
+            PRIVATE_KEY,
+            PUBLIC_KEY,
+            CORS,
+            ADMIN_CIDRS
         ))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("app.admin.token");
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("app.admin.token");
 
         assertThatThrownBy(() -> ProductionHardeningValidator.validateForStartup(
-                new String[]{"production"},
-                "strong-production-admin-token",
-                "dev-only-change-me-dev-only-change-me"
+            new String[]{"prod"},
+            ADMIN_TOKEN,
+            "",
+            PUBLIC_KEY,
+            CORS,
+            ADMIN_CIDRS
         ))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("app.auth.jwt-secret");
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("app.auth.jwt-private-key");
 
         assertThatThrownBy(() -> ProductionHardeningValidator.validateForStartup(
-                new String[]{"prod"},
-                "strong-production-admin-token",
-                "short",
-                "https://game.example"
+            new String[]{"prod"},
+            ADMIN_TOKEN,
+            PRIVATE_KEY,
+            PUBLIC_KEY,
+            "",
+            ADMIN_CIDRS
         ))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("at least 32 characters");
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("app.cors.allowed-origins");
 
         assertThatThrownBy(() -> ProductionHardeningValidator.validateForStartup(
-                new String[]{"prod"},
-                "strong-production-admin-token",
-                "strong-production-jwt-secret-value",
-                ""
+            new String[]{"prod"},
+            ADMIN_TOKEN,
+            PRIVATE_KEY,
+            PUBLIC_KEY,
+            CORS,
+            ""
         ))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("app.cors.allowed-origins");
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("app.admin.allowed-cidrs");
     }
 
     @Test
-    void shouldAllowSafeProductionAndLocalDevSecrets() {
+    void shouldAllowSafeProductionAndLocalDevConfiguration() {
         assertThatCode(() -> ProductionHardeningValidator.validateForStartup(
-                new String[]{"prod"},
-                "strong-production-admin-token",
-                "strong-production-jwt-secret-value",
-                "https://game.example"
+            new String[]{"prod"},
+            ADMIN_TOKEN,
+            PRIVATE_KEY,
+            PUBLIC_KEY,
+            CORS,
+            ADMIN_CIDRS
         ))
-                .doesNotThrowAnyException();
+            .doesNotThrowAnyException();
 
         assertThatCode(() -> ProductionHardeningValidator.validateForStartup(
-                new String[]{"local"},
-                "dev-admin-token",
-                "dev-only-change-me-dev-only-change-me"
+            new String[]{"local"},
+            "dev-admin-token",
+            "",
+            "",
+            "",
+            ""
         ))
-                .doesNotThrowAnyException();
+            .doesNotThrowAnyException();
     }
 }

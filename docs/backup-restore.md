@@ -1,6 +1,6 @@
 # PostgreSQL Backup And Restore
 
-Production baseline uses PostgreSQL custom-format dumps for daily backups and a restore drill against an isolated database.
+Production baseline uses PostgreSQL custom-format dumps for daily backups, WAL archiving for PITR readiness, and a restore drill against an isolated database.
 
 ## Backup
 
@@ -22,4 +22,6 @@ The verification script restores into a temporary database, checks Flyway histor
 
 - RPO: 24 hours for the MVP baseline.
 - RTO: 30 minutes for a same-region restore from a validated dump.
-- For production, schedule the backup script daily and keep off-host copies. Add WAL archiving/PITR before external release traffic.
+- WAL/PITR baseline: local Docker Postgres starts with `wal_level=replica`, `archive_mode=on`, and archives WAL segments into the `postgres_wal_archive` volume.
+- For production, schedule the backup script daily and copy both dumps and archived WAL segments to off-host storage.
+- Before external release traffic, replace the local volume archive target with cloud/object storage or a managed PostgreSQL PITR feature.

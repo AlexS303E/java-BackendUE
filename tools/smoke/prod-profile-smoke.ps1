@@ -56,6 +56,8 @@ $certDir = Join-Path $root "tools\mtls\out-prod-smoke"
 $password = "changeit"
 $backendP12 = Join-Path $certDir "backend.p12"
 $truststore = Join-Path $certDir "backend-truststore.p12"
+$jwtPrivateKey = Join-Path $certDir "jwt-private.pem"
+$jwtPublicKey = Join-Path $certDir "jwt-public.pem"
 $logDir = Join-Path $root "tools\smoke\logs"
 $stdout = Join-Path $logDir "backend-prod-smoke.out.log"
 $stderr = Join-Path $logDir "backend-prod-smoke.err.log"
@@ -108,7 +110,9 @@ try {
         "SPRING_PROFILES_ACTIVE",
         "SERVER_PORT",
         "ADMIN_TOKEN",
-        "JWT_SECRET",
+        "JWT_PRIVATE_KEY",
+        "JWT_PUBLIC_KEY",
+        "ADMIN_ALLOWED_CIDRS",
         "CORS_ALLOWED_ORIGINS",
         "SERVER_MTLS_ENABLED",
         "SERVER_MTLS_PORT",
@@ -128,7 +132,17 @@ try {
     $env:SPRING_PROFILES_ACTIVE = "prod"
     $env:SERVER_PORT = [string]$PublicPort
     $env:ADMIN_TOKEN = "prod-smoke-admin-token"
-    $env:JWT_SECRET = "prod-smoke-jwt-secret-value-at-least-32"
+    & openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out $jwtPrivateKey | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "openssl genpkey failed with exit code $LASTEXITCODE"
+    }
+    & openssl rsa -in $jwtPrivateKey -pubout -out $jwtPublicKey | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "openssl rsa -pubout failed with exit code $LASTEXITCODE"
+    }
+    $env:JWT_PRIVATE_KEY = "file:$jwtPrivateKey"
+    $env:JWT_PUBLIC_KEY = "file:$jwtPublicKey"
+    $env:ADMIN_ALLOWED_CIDRS = "127.0.0.1/32,::1/128"
     $env:CORS_ALLOWED_ORIGINS = $CorsOrigin
     $env:SERVER_MTLS_ENABLED = "true"
     $env:SERVER_MTLS_PORT = [string]$PrivateMtlsPort

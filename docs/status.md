@@ -112,6 +112,21 @@ Verified 2026-05-16 after PR-08 Production hardening completion.
 | `tools\smoke\prod-profile-smoke.ps1` | pass | Fat JAR started with `SPRING_PROFILES_ACTIVE=prod`; health/info reachable, metrics blocked, CORS preflight allowed only configured origin |
 | `tools\mtls\run-mtls-smoke.ps1` | pass | Real mTLS private connector passed 1 positive and 5 negative checks |
 
+Verified 2026-05-16 after production maturity pass.
+
+| Script | Result | Details |
+|---|---|---|
+| `.\gradlew.bat cleanTest test` (Gradle) | pass | Full test suite passed after RS256 JWT, admin RBAC/IP allowlist, WAL/PITR baseline, and structured logging |
+| `.\gradlew.bat bootJar` (Gradle) | pass | Fat JAR produced successfully with RS256/admin/logging changes |
+| `tools\openapi\verify-openapi-stage3.ps1` | pass | OpenAPI stage 3 verification unchanged |
+| targeted Gradle tests | pass | JwtTokenServiceTest, AdminAuthenticationFilterTest, ProductionHardeningValidatorTest, FlywayMigrationIntegrationTest, ServerAdminSecurityIntegrationTest |
+| `docker compose config` | pass | Compose config validates Postgres WAL archive settings |
+| `docker compose up -d postgres` | pass | Postgres recreated with `archive_mode=on` and `wal_level=replica` |
+| `tools\smoke\prod-profile-smoke.ps1` | pass | Prod fat JAR starts with RSA JWT key files, admin CIDR allowlist, JSON logging, CORS, mTLS, and restricted actuator exposure |
+| `tools\mtls\run-mtls-smoke.ps1` | pass | Real mTLS private connector still passes 1 positive and 5 negative checks |
+| `tools\backup\backup-postgres.ps1` | pass | Created PostgreSQL custom-format dump after WAL/PITR baseline |
+| `tools\backup\verify-postgres-backup.ps1` | pass | Restored latest dump into a temporary verification database and validated Flyway history |
+
 Verified 2026-05-11 after Fix 1-8: + routing outbox, catalog cache eviction, access is_enabled, Solution A doc.
 
 | Script | Result | Details |

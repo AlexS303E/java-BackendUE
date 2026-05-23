@@ -6,10 +6,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
@@ -18,7 +25,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Минимальный HMAC-SHA256 JWT сервис для access token MVP.
+ * Minimal RS256 JWT service for player access tokens.
  */
 @Service
 public class JwtTokenService {
@@ -26,27 +33,28 @@ public class JwtTokenService {
     };
 
     private final ObjectMapper objectMapper;
-    private final byte[] secret;
+    private final PrivateKey privateKey;
+    private final PublicKey publicKey;
     private final Duration accessTokenTtl;
 
     public JwtTokenService(
         ObjectMapper objectMapper,
-        @Value("${app.auth.jwt-secret:dev-only-change-me-dev-only-change-me}") String jwtSecret,
+        @Value("${app.auth.jwt-private-key:}") String jwtPrivateKey,
+        @Value("${app.auth.jwt-public-key:}") String jwtPublicKey,
         @Value("${app.auth.access-token-ttl:PT15M}") String accessTokenTtl
     ) {
         this.objectMapper = objectMapper;
-        this.secret = jwtSecret.getBytes(StandardCharsets.UTF_8);
+        KeyPair keyPair = resolveKeyPair(jwtPrivateKey, jwtPublicKey);
+        this.privateKey = keyPair.getPrivate();
+        this.publicKey = keyPair.getPublic();
         this.accessTokenTtl = Duration.parse(accessTokenTtl);
     }
 
-    /**
-     * Формирует JWT с player_id в sub, login_name и временем истечения.
-     */
     public String issueAccessToken(UUID playerId, String loginName) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(accessTokenTtl);
         Map<String, Object> header = Map.of(
-            "alg", "HS256",
+            "alg", "RS256",
             "typ", "JWT"
         );
         Map<String, Object> payload = Map.of(
@@ -62,17 +70,25 @@ public class JwtTokenService {
         return signingInput + "." + base64Url(sign(signingInput));
     }
 
-    /**
-     * Проверяет подпись, срок действия и извлекает AuthenticatedPlayer.
-     */
     public Optional<AuthenticatedPlayer> validate(String token) {
         String[] parts = token.split("\\.");
         if (parts.length != 3) {
             return Optional.empty();
         }
 
+        try {
+            Map<String, Object> header = objectMapper.readValue(
+                Base64.getUrlDecoder().decode(parts[0]),
+                MAP_TYPE
+            );
+            if (!"RS256".equals(header.get("alg"))) {
+                return Optional.empty();
+            }
+        } catch (Exception exception) {
+            return Optional.empty();
+        }
+
         String signingInput = parts[0] + "." + parts[1];
-        byte[] expectedSignature = sign(signingInput);
         byte[] actualSignature;
         try {
             actualSignature = Base64.getUrlDecoder().decode(parts[2]);
@@ -80,8 +96,7 @@ public class JwtTokenService {
             return Optional.empty();
         }
 
-        // Константное сравнение защищает подпись от timing-утечек.
-        if (!MessageDigest.isEqual(expectedSignature, actualSignature)) {
+        if (!verify(signingInput, actualSignature)) {
             return Optional.empty();
         }
 
@@ -102,9 +117,6 @@ public class JwtTokenService {
         }
     }
 
-    /**
-     * Возвращает TTL access token в секундах для auth response.
-     */
     public long accessTokenTtlSeconds() {
         return accessTokenTtl.toSeconds();
     }
@@ -127,11 +139,74 @@ public class JwtTokenService {
 
     private byte[] sign(String signingInput) {
         try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secret, "HmacSHA256"));
-            return mac.doFinal(signingInput.getBytes(StandardCharsets.UTF_8));
+            Signature signature = Signature.getInstance("SHA256withRSA");
+            signature.initSign(privateKey);
+            signature.update(signingInput.getBytes(StandardCharsets.UTF_8));
+            return signature.sign();
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to sign JWT", exception);
         }
+    }
+
+    private boolean verify(String signingInput, byte[] actualSignature) {
+        try {
+            Signature signature = Signature.getInstance("SHA256withRSA");
+            signature.initVerify(publicKey);
+            signature.update(signingInput.getBytes(StandardCharsets.UTF_8));
+            return signature.verify(actualSignature);
+        } catch (Exception exception) {
+            return false;
+        }
+    }
+
+    private KeyPair resolveKeyPair(String privateKeyPem, String publicKeyPem) {
+        if (privateKeyPem == null || privateKeyPem.isBlank() || publicKeyPem == null || publicKeyPem.isBlank()) {
+            return generateLocalOnlyKeyPair();
+        }
+        return new KeyPair(readPublicKey(publicKeyPem), readPrivateKey(privateKeyPem));
+    }
+
+    private KeyPair generateLocalOnlyKeyPair() {
+        try {
+            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+            generator.initialize(2048);
+            return generator.generateKeyPair();
+        } catch (Exception exception) {
+            throw new IllegalStateException("Unable to generate local JWT RSA key pair", exception);
+        }
+    }
+
+    private PrivateKey readPrivateKey(String value) {
+        try {
+            byte[] keyBytes = decodePem(value, "PRIVATE KEY");
+            return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
+        } catch (Exception exception) {
+            throw new IllegalStateException("Unable to read app.auth.jwt-private-key as PKCS#8 RSA private key", exception);
+        }
+    }
+
+    private PublicKey readPublicKey(String value) {
+        try {
+            byte[] keyBytes = decodePem(value, "PUBLIC KEY");
+            return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
+        } catch (Exception exception) {
+            throw new IllegalStateException("Unable to read app.auth.jwt-public-key as X.509 RSA public key", exception);
+        }
+    }
+
+    private byte[] decodePem(String value, String label) throws Exception {
+        String pem = resolvePemValue(value).replace("\\n", "\n").trim();
+        String normalized = pem
+            .replace("-----BEGIN " + label + "-----", "")
+            .replace("-----END " + label + "-----", "")
+            .replaceAll("\\s", "");
+        return Base64.getDecoder().decode(normalized);
+    }
+
+    private String resolvePemValue(String value) throws Exception {
+        if (value.startsWith("file:")) {
+            return Files.readString(Path.of(value.substring("file:".length())), StandardCharsets.UTF_8);
+        }
+        return value;
     }
 }

@@ -11,6 +11,12 @@ services:
       - track_io_timing=on
       - -c
       - log_min_duration_statement=200
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=mkdir -p /var/lib/postgresql/wal_archive && (test ! -f /var/lib/postgresql/wal_archive/%f && cp %p /var/lib/postgresql/wal_archive/%f || test -f /var/lib/postgresql/wal_archive/%f)
     environment:
       POSTGRES_DB: ue_backend
       POSTGRES_USER: ue_backend
@@ -19,6 +25,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - postgres_wal_archive:/var/lib/postgresql/wal_archive
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ue_backend -d ue_backend"]
       interval: 5s
@@ -37,3 +44,4 @@ services:
 
 volumes:
   postgres_data:
+  postgres_wal_archive:

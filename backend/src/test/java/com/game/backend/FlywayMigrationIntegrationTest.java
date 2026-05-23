@@ -246,6 +246,8 @@ class FlywayMigrationIntegrationTest {
         assertThat(postgresSetting("pg_stat_statements.track")).isEqualTo("all");
         assertThat(postgresSetting("track_io_timing")).isEqualTo("on");
         assertThat(postgresSetting("log_min_duration_statement")).isEqualTo("200");
+        assertThat(postgresSetting("wal_level")).isEqualTo("replica");
+        assertThat(postgresSetting("archive_mode")).isEqualTo("on");
     }
 
     @Test

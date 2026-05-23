@@ -7,14 +7,14 @@
 ## Security
 
 ### JWT
-- [x] **JWT secret not dev** — `application-prod.yml` requires `JWT_SECRET`; startup fail-fast rejects blank/dev values and secrets shorter than 32 chars.
+- [x] **JWT signing keys configured** — `application-prod.yml` requires `JWT_PRIVATE_KEY` and `JWT_PUBLIC_KEY`; startup fail-fast rejects missing keys.
 - [x] **Token expiry configured** — access token defaults to 15 minutes, refresh token defaults to 14 days.
-- [ ] **Algorithm** — HMAC-SHA256 (HS256). Consider RS256 for multi-service verification.
+- [x] **Algorithm** — access tokens use RS256; prod startup requires configured RSA private/public keys.
 
 ### Admin API
 - [x] **Admin token not dev** — `application-prod.yml` requires `ADMIN_TOKEN`; startup fail-fast rejects blank/dev values.
 - [ ] **Admin audit trail** — all admin operations logged to `admin_audit_events`. Verified.
-- [ ] **IP allowlist** — not implemented. Consider restricting admin API to internal/VPN IPs.
+- [x] **RBAC/IP allowlist** — admin filter enforces configured role buckets and prod requires `ADMIN_ALLOWED_CIDRS`.
 
 ### mTLS (Dedicated Server → Backend)
 - [x] **mTLS enabled in prod profile** — `application-prod.yml` defaults `app.server-auth.mtls.enabled=true`; startup fail-fast enforces it for `prod`/`production`.
@@ -40,7 +40,7 @@
 - [ ] **Rollback plan** — no V*__undo scripts. Manual rollback via DB restore.
 
 ### Backups
-- [x] **Configured** — `tools/backup/backup-postgres.ps1` creates PostgreSQL custom-format dumps with local retention cleanup.
+- [x] **Configured** — `tools/backup/backup-postgres.ps1` creates PostgreSQL custom-format dumps with local retention cleanup; Docker Postgres archives WAL into `postgres_wal_archive`.
 - [x] **RPO** — MVP baseline target is 24 hours for scheduled daily dumps.
 - [x] **RTO** — MVP baseline target is 30 minutes for same-region restore from a validated dump.
 - [x] **Restore tested** — `tools/backup/verify-postgres-backup.ps1` restored the latest dump into an isolated temporary database.
@@ -91,7 +91,7 @@
 
 ### Logging
 - [x] **Audit logs retention** — prod profile enables scheduled TTL cleanup for `server_audit_events` and `admin_audit_events`; V028 adds `created_at` indexes for bounded deletes.
-- [ ] **Structured logging** — not configured. Consider Logback JSON encoder for log aggregation.
+- [x] **Structured logging** — prod/production profile emits JSON console logs via `logback-spring.xml`.
 - [ ] **Log levels** — root=INFO. DEBUG for `com.game.backend` only in dev.
 
 ### Health checks
