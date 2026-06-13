@@ -1,6 +1,8 @@
 package com.game.backend.catalog.application;
 
 import com.game.backend.catalog.repository.CatalogRepository;
+import com.game.backend.catalog.repository.CatalogRepository.MountAllowedModule;
+import com.game.backend.catalog.repository.CatalogRepository.WeaponSlotRule;
 
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
@@ -34,15 +36,9 @@ public class CatalogValidationData {
     }
 
     private void loadAllWeaponSlotRules() {
-        List<Map<String, Object>> rows = repository.queryForList(
-            "SELECT class_tag, weapon_slot_id, is_allowed FROM class_weapon_slot_rules"
-        );
         Map<String, Map<String, Boolean>> grouped = new HashMap<>();
-        for (Map<String, Object> row : rows) {
-            String classTag = (String) row.get("class_tag");
-            String slotId = (String) row.get("weapon_slot_id");
-            boolean allowed = (Boolean) row.get("is_allowed");
-            grouped.computeIfAbsent(classTag, k -> new HashMap<>()).put(slotId, allowed);
+        for (WeaponSlotRule rule : repository.findAllWeaponSlotRules()) {
+            grouped.computeIfAbsent(rule.classTag(), k -> new HashMap<>()).put(rule.weaponSlotId(), rule.allowed());
         }
         grouped.forEach((classTag, rules) ->
             weaponSlotAllowedCache.put(classTag, Collections.unmodifiableMap(rules))
@@ -50,17 +46,11 @@ public class CatalogValidationData {
     }
 
     private void loadAllMountAllowedModules() {
-        List<Map<String, Object>> rows = repository.queryForList(
-            "SELECT catalog_version, mount_id, module_id FROM weapon_mount_allowed_modules ORDER BY catalog_version, mount_id, module_id"
-        );
         Map<Long, Map<String, Set<String>>> grouped = new HashMap<>();
-        for (Map<String, Object> row : rows) {
-            long catalogVersion = ((Number) row.get("catalog_version")).longValue();
-            String mountId = (String) row.get("mount_id");
-            String moduleId = (String) row.get("module_id");
-            grouped.computeIfAbsent(catalogVersion, k -> new HashMap<>())
-                .computeIfAbsent(mountId, k -> new HashSet<>())
-                .add(moduleId);
+        for (MountAllowedModule allowedModule : repository.findAllMountAllowedModules()) {
+            grouped.computeIfAbsent(allowedModule.catalogVersion(), k -> new HashMap<>())
+                .computeIfAbsent(allowedModule.mountId(), k -> new HashSet<>())
+                .add(allowedModule.moduleId());
         }
         grouped.forEach((version, mounts) -> {
             Map<String, Set<String>> frozen = mounts.entrySet().stream()
@@ -77,11 +67,8 @@ public class CatalogValidationData {
         if (rules != null) {
             return rules;
         }
-        rules = repository.query(
-            "SELECT weapon_slot_id, is_allowed FROM class_weapon_slot_rules WHERE class_tag = ?",
-            (rs, rowNum) -> Map.entry(rs.getString("weapon_slot_id"), rs.getBoolean("is_allowed")),
-            classTag
-        ).stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        rules = repository.findWeaponSlotRules(classTag).stream()
+            .collect(Collectors.toUnmodifiableMap(WeaponSlotRule::weaponSlotId, WeaponSlotRule::allowed));
         weaponSlotAllowedCache.put(classTag, rules);
         return rules;
     }
@@ -95,12 +82,7 @@ public class CatalogValidationData {
     }
 
     private Set<String> loadActiveClothingSlots() {
-        Set<String> active = Collections.unmodifiableSet(new HashSet<>(
-            repository.queryForList(
-                "SELECT clothing_slot_id FROM clothing_slot_definitions WHERE is_active = true",
-                String.class
-            )
-        ));
+        Set<String> active = Collections.unmodifiableSet(new HashSet<>(repository.findActiveClothingSlotIds()));
         clothingSlotActiveCache = active;
         return active;
     }
@@ -110,15 +92,9 @@ public class CatalogValidationData {
         if (cached != null) {
             return cached;
         }
-        List<Map<String, Object>> rows = repository.queryForList(
-            "SELECT mount_id, module_id FROM weapon_mount_allowed_modules WHERE catalog_version = ?",
-            catalogVersion
-        );
         Map<String, Set<String>> result = new HashMap<>();
-        for (Map<String, Object> row : rows) {
-            String mountId = (String) row.get("mount_id");
-            String moduleId = (String) row.get("module_id");
-            result.computeIfAbsent(mountId, k -> new HashSet<>()).add(moduleId);
+        for (MountAllowedModule allowedModule : repository.findMountAllowedModules(catalogVersion)) {
+            result.computeIfAbsent(allowedModule.mountId(), k -> new HashSet<>()).add(allowedModule.moduleId());
         }
         result = result.entrySet().stream()
             .collect(Collectors.toUnmodifiableMap(
