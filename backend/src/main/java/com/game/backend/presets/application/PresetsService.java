@@ -1,5 +1,7 @@
 package com.game.backend.presets.application;
 
+import com.game.backend.presets.repository.PresetsRepository;
+
 import com.game.backend.common.api.ApiException;
 import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.presets.api.ModuleSelectionDto;
@@ -13,7 +15,6 @@ import com.game.backend.presets.api.WeaponPresetSaveRequest;
 import com.game.backend.presets.api.WeaponPresetSaveResponse;
 import com.game.backend.presets.api.WeaponSlotPresetDto;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,16 +32,16 @@ import java.util.UUID;
  */
 @Service
 public class PresetsService {
-    private final JdbcTemplate jdbcTemplate;
+    private final PresetsRepository repository;
     private final OutboxService outboxService;
     private final LoadoutValidationService loadoutValidationService;
 
     public PresetsService(
-        JdbcTemplate jdbcTemplate,
+        PresetsRepository repository,
         OutboxService outboxService,
         LoadoutValidationService loadoutValidationService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.outboxService = outboxService;
         this.loadoutValidationService = loadoutValidationService;
     }
@@ -81,7 +82,7 @@ public class PresetsService {
         }
 
         long newRevision = expectedRevision + 1;
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE player_weapon_presets
                 SET revision = ?,
@@ -141,7 +142,7 @@ public class PresetsService {
     }
 
     private List<WeaponPresetDto> loadWeaponPresetsBatch(UUID playerId) {
-        List<WeaponPresetDto> presets = jdbcTemplate.query(
+        List<WeaponPresetDto> presets = repository.query(
             """
                 SELECT class_tag, preset_slot, catalog_version, revision, sanitized
                 FROM player_weapon_presets
@@ -168,7 +169,7 @@ public class PresetsService {
 
         Map<SlotAndWeaponKey, List<ModuleSelectionDto>> modulesBySlot = new HashMap<>();
 
-        jdbcTemplate.query(
+        repository.query(
             """
                 SELECT class_tag, preset_slot, catalog_version, weapon_slot_id, selected_weapon_id
                 FROM player_weapon_preset_slots
@@ -195,7 +196,7 @@ public class PresetsService {
         );
 
         if (!modulesBySlot.isEmpty()) {
-            jdbcTemplate.query(
+            repository.query(
                 """
                     SELECT class_tag, preset_slot, catalog_version, weapon_slot_id, weapon_id, mount_id, module_id
                     FROM player_weapon_preset_weapon_config_modules
@@ -225,7 +226,7 @@ public class PresetsService {
     }
 
     private List<OutfitPresetDto> loadOutfitPresetsBatch(UUID playerId) {
-        List<OutfitPresetDto> presets = jdbcTemplate.query(
+        List<OutfitPresetDto> presets = repository.query(
             """
                 SELECT team_tag, class_tag, outfit_preset_slot, catalog_version, revision, sanitized
                 FROM player_outfit_presets
@@ -251,7 +252,7 @@ public class PresetsService {
             itemsByPreset.put(new OutfitPresetKey(p.teamTag(), p.classTag(), p.outfitPresetSlot(), p.catalogVersion()), p.items());
         }
 
-        jdbcTemplate.query(
+        repository.query(
             """
                 SELECT team_tag, class_tag, outfit_preset_slot, catalog_version, clothing_slot_id, item_id
                 FROM player_outfit_preset_items
@@ -296,7 +297,7 @@ public class PresetsService {
     }
 
     public List<WeaponSlotPresetDto> weaponSlots(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT weapon_slot_id, selected_weapon_id
                 FROM player_weapon_preset_slots
@@ -332,7 +333,7 @@ public class PresetsService {
         String weaponSlotId,
         String weaponId
     ) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT mount_id, module_id
                 FROM player_weapon_preset_weapon_config_modules
@@ -358,7 +359,7 @@ public class PresetsService {
     }
 
     public List<OutfitItemDto> outfitItems(UUID playerId, String teamTag, String classTag, int outfitPresetSlot, long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT clothing_slot_id, item_id
                 FROM player_outfit_preset_items
@@ -413,7 +414,7 @@ public class PresetsService {
     }
 
     private PresetHeader lockWeaponPreset(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
-        List<PresetHeader> presets = jdbcTemplate.query(
+        List<PresetHeader> presets = repository.query(
             """
                 SELECT revision, sanitized
                 FROM player_weapon_presets
@@ -478,7 +479,7 @@ public class PresetsService {
         long catalogVersion,
         SaveWeaponSlotRequest slot
     ) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_weapon_preset_slots(
                   player_id,
@@ -509,7 +510,7 @@ public class PresetsService {
         SaveWeaponSlotRequest slot,
         OffsetDateTime now
     ) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_weapon_preset_weapon_configs(
                   player_id,
@@ -547,7 +548,7 @@ public class PresetsService {
         long catalogVersion,
         SaveWeaponSlotRequest slot
     ) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 DELETE FROM player_weapon_preset_weapon_config_modules
                 WHERE player_id = ?
@@ -566,7 +567,7 @@ public class PresetsService {
         );
 
         for (SaveModuleRequest module : slot.modules()) {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     INSERT INTO player_weapon_preset_weapon_config_modules(
                       player_id,

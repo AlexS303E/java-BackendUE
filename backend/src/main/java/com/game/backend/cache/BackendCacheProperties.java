@@ -9,6 +9,7 @@ public class BackendCacheProperties {
     private boolean enabled = true;
     private Duration catalogSnapshotTtl = Duration.ofMinutes(10);
     private Duration accessTtl = Duration.ofMinutes(5);
+    private Duration matchProfileTtl = Duration.ofMinutes(10);
 
     public boolean isEnabled() {
         return enabled;
@@ -32,5 +33,13 @@ public class BackendCacheProperties {
 
     public void setAccessTtl(Duration accessTtl) {
         this.accessTtl = accessTtl;
+    }
+
+    public Duration getMatchProfileTtl() {
+        return matchProfileTtl;
+    }
+
+    public void setMatchProfileTtl(Duration matchProfileTtl) {
+        this.matchProfileTtl = matchProfileTtl;
     }
 }

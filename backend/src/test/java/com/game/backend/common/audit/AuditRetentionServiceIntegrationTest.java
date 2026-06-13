@@ -1,5 +1,6 @@
 package com.game.backend.common.audit;
 
+import com.game.backend.common.repository.CommonRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,7 +62,7 @@ class AuditRetentionServiceIntegrationTest {
         properties.setBatchSize(1);
 
         AuditRetentionService service = new AuditRetentionService(
-            jdbcTemplate,
+            new CommonRepository(jdbcTemplate),
             properties,
             Clock.fixed(now.toInstant(), ZoneOffset.UTC)
         );
@@ -89,7 +90,7 @@ class AuditRetentionServiceIntegrationTest {
         properties.setBatchSize(100);
 
         assertThatThrownBy(() -> new AuditRetentionService(
-            jdbcTemplate,
+            new CommonRepository(jdbcTemplate),
             properties,
             Clock.systemUTC()
         ))

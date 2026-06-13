@@ -1,10 +1,11 @@
 package com.game.backend.presets.application;
 
+import com.game.backend.presets.repository.PresetsRepository;
+
 import com.game.backend.common.api.ApiException;
 import com.game.backend.notifications.application.PlayerNotificationService;
 import com.game.backend.outbox.application.OutboxService;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -17,16 +18,16 @@ import java.util.UUID;
  */
 @Service
 public class LoadoutSanitizationService {
-    private final JdbcTemplate jdbcTemplate;
+    private final PresetsRepository repository;
     private final OutboxService outboxService;
     private final PlayerNotificationService playerNotificationService;
 
     public LoadoutSanitizationService(
-        JdbcTemplate jdbcTemplate,
+        PresetsRepository repository,
         OutboxService outboxService,
         PlayerNotificationService playerNotificationService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.outboxService = outboxService;
         this.playerNotificationService = playerNotificationService;
     }
@@ -55,7 +56,7 @@ public class LoadoutSanitizationService {
     }
 
     private String itemType(String itemId, long catalogVersion) {
-        List<String> itemTypes = jdbcTemplate.queryForList(
+        List<String> itemTypes = repository.queryForList(
             """
                 SELECT item_type
                 FROM catalog_items
@@ -82,7 +83,7 @@ public class LoadoutSanitizationService {
     ) {
         List<WeaponPresetKey> presets = weaponPresetsUsingWeapon(playerId, weaponId, catalogVersion);
         for (WeaponPresetKey preset : presets) {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     DELETE FROM player_weapon_preset_weapon_configs
                     WHERE player_id = ?
@@ -97,7 +98,7 @@ public class LoadoutSanitizationService {
                 catalogVersion,
                 weaponId
             );
-            jdbcTemplate.update(
+            repository.update(
                 """
                     UPDATE player_weapon_preset_slots
                     SET selected_weapon_id = null
@@ -129,7 +130,7 @@ public class LoadoutSanitizationService {
     ) {
         List<WeaponPresetKey> presets = weaponPresetsUsingModule(playerId, moduleId, catalogVersion);
         for (WeaponPresetKey preset : presets) {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     UPDATE player_weapon_preset_weapon_configs cfg
                     SET config_revision = cfg.config_revision + 1,
@@ -157,7 +158,7 @@ public class LoadoutSanitizationService {
                 catalogVersion,
                 moduleId
             );
-            jdbcTemplate.update(
+            repository.update(
                 """
                     DELETE FROM player_weapon_preset_weapon_config_modules
                     WHERE player_id = ?
@@ -188,7 +189,7 @@ public class LoadoutSanitizationService {
     ) {
         List<OutfitPresetKey> presets = outfitPresetsUsingItem(playerId, itemId, catalogVersion);
         for (OutfitPresetKey preset : presets) {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     DELETE FROM player_outfit_preset_items
                     WHERE player_id = ?
@@ -212,7 +213,7 @@ public class LoadoutSanitizationService {
     }
 
     private List<WeaponPresetKey> weaponPresetsUsingWeapon(UUID playerId, String weaponId, long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT wp.class_tag, wp.preset_slot, wp.catalog_version
                 FROM player_weapon_presets wp
@@ -241,7 +242,7 @@ public class LoadoutSanitizationService {
     }
 
     private List<WeaponPresetKey> weaponPresetsUsingModule(UUID playerId, String moduleId, long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT wp.class_tag, wp.preset_slot, wp.catalog_version
                 FROM player_weapon_presets wp
@@ -270,7 +271,7 @@ public class LoadoutSanitizationService {
     }
 
     private List<OutfitPresetKey> outfitPresetsUsingItem(UUID playerId, String itemId, long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT op.team_tag, op.class_tag, op.outfit_preset_slot, op.catalog_version
                 FROM player_outfit_presets op
@@ -301,7 +302,7 @@ public class LoadoutSanitizationService {
     }
 
     private long markWeaponPresetSanitized(UUID playerId, WeaponPresetKey preset, OffsetDateTime now) {
-        return jdbcTemplate.queryForObject(
+        return repository.queryForObject(
             """
                 UPDATE player_weapon_presets
                 SET revision = revision + 1,
@@ -323,7 +324,7 @@ public class LoadoutSanitizationService {
     }
 
     private long markOutfitPresetSanitized(UUID playerId, OutfitPresetKey preset, OffsetDateTime now) {
-        return jdbcTemplate.queryForObject(
+        return repository.queryForObject(
             """
                 UPDATE player_outfit_presets
                 SET revision = revision + 1,

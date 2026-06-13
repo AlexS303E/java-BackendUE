@@ -1,5 +1,7 @@
 package com.game.backend.auth.application;
 
+import com.game.backend.auth.repository.AuthRepository;
+
 import com.game.backend.auth.api.AuthTokenResponse;
 import com.game.backend.auth.api.LoginRequest;
 import com.game.backend.auth.api.LogoutRequest;
@@ -10,7 +12,6 @@ import com.game.backend.common.api.ApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +26,7 @@ import java.util.UUID;
  */
 @Service
 public class AuthService {
-    private final JdbcTemplate jdbcTemplate;
+    private final AuthRepository repository;
     private final PasswordEncoder passwordEncoder;
     private final PlayerBootstrapService playerBootstrapService;
     private final JwtTokenService jwtTokenService;
@@ -33,14 +34,14 @@ public class AuthService {
     private final Duration refreshTokenTtl;
 
     public AuthService(
-        JdbcTemplate jdbcTemplate,
+        AuthRepository repository,
         PasswordEncoder passwordEncoder,
         PlayerBootstrapService playerBootstrapService,
         JwtTokenService jwtTokenService,
         RefreshTokenService refreshTokenService,
         @Value("${app.auth.refresh-token-ttl:P14D}") String refreshTokenTtl
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.playerBootstrapService = playerBootstrapService;
         this.jwtTokenService = jwtTokenService;
@@ -58,7 +59,7 @@ public class AuthService {
         String passwordHash = passwordEncoder.encode(request.password());
 
         try {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     INSERT INTO player_accounts(
                       player_id,
@@ -103,7 +104,7 @@ public class AuthService {
     @Transactional
     public AuthTokenResponse refresh(RefreshRequest request) {
         String refreshTokenHash = refreshTokenService.hashRefreshToken(request.refreshToken());
-        List<RefreshSession> sessions = jdbcTemplate.query(
+        List<RefreshSession> sessions = repository.query(
             """
                 SELECT
                   pas.session_id,
@@ -133,7 +134,7 @@ public class AuthService {
         RefreshSession session = sessions.getFirst();
         OffsetDateTime now = OffsetDateTime.now();
         if (!session.expiresAt().isAfter(now)) {
-            jdbcTemplate.update(
+            repository.update(
                 "UPDATE player_auth_sessions SET status = 'expired' WHERE session_id = ?",
                 session.sessionId()
             );
@@ -141,7 +142,7 @@ public class AuthService {
         }
 
         ensureActive(session.accountStatus());
-        jdbcTemplate.update(
+        repository.update(
             "UPDATE player_auth_sessions SET status = 'revoked', revoked_at = ? WHERE session_id = ?",
             now,
             session.sessionId()
@@ -155,7 +156,7 @@ public class AuthService {
     @Transactional
     public void logout(LogoutRequest request) {
         String refreshTokenHash = refreshTokenService.hashRefreshToken(request.refreshToken());
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE player_auth_sessions
                 SET status = 'revoked',
@@ -169,7 +170,7 @@ public class AuthService {
     }
 
     private Account accountByLoginName(String loginName) {
-        List<Account> accounts = jdbcTemplate.query(
+        List<Account> accounts = repository.query(
             """
                 SELECT player_id, login_name, password_hash, status
                 FROM player_accounts
@@ -204,7 +205,7 @@ public class AuthService {
         String refreshTokenHash = refreshTokenService.hashRefreshToken(refreshToken);
         OffsetDateTime refreshExpiresAt = now.plus(refreshTokenTtl);
 
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_auth_sessions(
                   session_id,

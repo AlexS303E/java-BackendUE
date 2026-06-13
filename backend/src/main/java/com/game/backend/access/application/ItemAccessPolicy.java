@@ -1,6 +1,7 @@
 package com.game.backend.access.application;
 
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.game.backend.access.repository.AccessRepository;
+
 import org.springframework.stereotype.Service;
 
 import java.util.Set;
@@ -8,10 +9,10 @@ import java.util.UUID;
 
 @Service
 public class ItemAccessPolicy {
-    private final JdbcTemplate jdbcTemplate;
+    private final AccessRepository repository;
 
-    public ItemAccessPolicy(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public ItemAccessPolicy(AccessRepository repository) {
+        this.repository = repository;
     }
 
     public boolean canUseForUi(
@@ -65,7 +66,7 @@ public class ItemAccessPolicy {
         params[i++] = classTag;
         params[i] = classTag;
 
-        return Set.copyOf(jdbcTemplate.queryForList(
+        return Set.copyOf(repository.queryForList(
             """
                 SELECT ci.item_id
                 FROM catalog_items ci
@@ -125,7 +126,7 @@ public class ItemAccessPolicy {
         String classTag,
         String itemType
     ) {
-        Boolean canUse = jdbcTemplate.queryForObject(
+        Boolean canUse = repository.queryForObject(
             """
                 SELECT EXISTS(
                   SELECT 1

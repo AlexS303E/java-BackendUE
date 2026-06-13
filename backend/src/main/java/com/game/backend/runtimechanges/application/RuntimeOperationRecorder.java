@@ -1,7 +1,8 @@
 package com.game.backend.runtimechanges.application;
 
+import com.game.backend.runtimechanges.repository.RuntimeChangesRepository;
+
 import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -10,14 +11,14 @@ import java.util.UUID;
 
 @Service
 public class RuntimeOperationRecorder {
-    private final JdbcTemplate jdbcTemplate;
+    private final RuntimeChangesRepository repository;
 
-    public RuntimeOperationRecorder(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public RuntimeOperationRecorder(RuntimeChangesRepository repository) {
+        this.repository = repository;
     }
 
     public ExistingOperation find(UUID operationId) {
-        List<ExistingOperation> operations = jdbcTemplate.query(
+        List<ExistingOperation> operations = repository.query(
             """
                 SELECT status, result_revision, pending_change_id, request_hash
                 FROM runtime_preset_change_operations
@@ -39,7 +40,7 @@ public class RuntimeOperationRecorder {
         String requestHash,
         OffsetDateTime now
     ) {
-        return jdbcTemplate.update(
+        return repository.update(
             """
                 INSERT INTO runtime_preset_change_operations(
                   operation_id, match_id, player_id, operation_seq,
@@ -85,7 +86,7 @@ public class RuntimeOperationRecorder {
         UUID pendingChangeId,
         OffsetDateTime now
     ) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE runtime_preset_change_operations
                 SET status = ?,

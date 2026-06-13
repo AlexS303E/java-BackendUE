@@ -1,5 +1,7 @@
 package com.game.backend.admin.application;
 
+import com.game.backend.admin.repository.AdminRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,7 +16,6 @@ import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
 import com.game.backend.outbox.application.OutboxService;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +33,7 @@ public class AdminAccessMaintenanceService {
     private static final TypeReference<Map<String, Object>> JSON_MAP = new TypeReference<>() {
     };
 
-    private final JdbcTemplate jdbcTemplate;
+    private final AdminRepository repository;
     private final ObjectMapper objectMapper;
     private final AdminMutationIdempotencyService idempotencyService;
     private final AdminAuditService adminAuditService;
@@ -41,7 +42,7 @@ public class AdminAccessMaintenanceService {
     private final RedisCacheService cacheService;
 
     public AdminAccessMaintenanceService(
-        JdbcTemplate jdbcTemplate,
+        AdminRepository repository,
         ObjectMapper objectMapper,
         AdminMutationIdempotencyService idempotencyService,
         AdminAuditService adminAuditService,
@@ -49,7 +50,7 @@ public class AdminAccessMaintenanceService {
         MatchProfileInvalidationService matchProfileInvalidationService,
         RedisCacheService cacheService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.objectMapper = objectMapper;
         this.idempotencyService = idempotencyService;
         this.adminAuditService = adminAuditService;
@@ -125,11 +126,11 @@ public class AdminAccessMaintenanceService {
         UUID lastLedgerEventId = ledgerRows.isEmpty() ? null : ledgerRows.getLast().ledgerEventId();
         long nextRevision = currentRevision + 1;
 
-        jdbcTemplate.update("DELETE FROM player_item_access WHERE player_id = ?", request.playerId());
+        repository.update("DELETE FROM player_item_access WHERE player_id = ?", request.playerId());
         for (Map.Entry<ProjectionKey, ProjectionFlags> entry : projection.entrySet()) {
             insertProjectionRow(request.playerId(), entry.getKey(), entry.getValue(), now);
         }
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE player_access_projection_state
                 SET access_revision = ?,
@@ -230,7 +231,7 @@ public class AdminAccessMaintenanceService {
 
     @Transactional
     protected AdminServerIdentityRevokeResponse revokeServerIdentityOnce(AdminIdentity admin, AdminServerIdentityRevokeRequest request) {
-        List<String> statuses = jdbcTemplate.queryForList(
+        List<String> statuses = repository.queryForList(
             "SELECT status FROM server_identities WHERE server_id = ? FOR UPDATE",
             String.class,
             request.serverId()
@@ -238,7 +239,7 @@ public class AdminAccessMaintenanceService {
         if (statuses.isEmpty()) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SERVER_IDENTITY_NOT_FOUND", "Server identity was not found");
         }
-        boolean updated = jdbcTemplate.update(
+        boolean updated = repository.update(
             """
                 UPDATE server_identities
                 SET status = 'revoked',
@@ -276,7 +277,7 @@ public class AdminAccessMaintenanceService {
     }
 
     private void ensurePlayerExists(UUID playerId) {
-        Boolean exists = jdbcTemplate.queryForObject(
+        Boolean exists = repository.queryForObject(
             "SELECT EXISTS(SELECT 1 FROM player_accounts WHERE player_id = ?)",
             Boolean.class,
             playerId
@@ -287,7 +288,7 @@ public class AdminAccessMaintenanceService {
     }
 
     private long lockOrCreateProjectionState(UUID playerId, OffsetDateTime now) {
-        List<Long> revisions = jdbcTemplate.queryForList(
+        List<Long> revisions = repository.queryForList(
             "SELECT access_revision FROM player_access_projection_state WHERE player_id = ? FOR UPDATE",
             Long.class,
             playerId
@@ -295,7 +296,7 @@ public class AdminAccessMaintenanceService {
         if (!revisions.isEmpty()) {
             return revisions.getFirst();
         }
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_access_projection_state(
                   player_id,
@@ -311,7 +312,7 @@ public class AdminAccessMaintenanceService {
     }
 
     private List<LedgerRow> ledgerRows(UUID playerId) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT
                   ledger_event_id,
@@ -378,7 +379,7 @@ public class AdminAccessMaintenanceService {
     }
 
     private void insertProjectionRow(UUID playerId, ProjectionKey key, ProjectionFlags flags, OffsetDateTime now) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_item_access(
                   player_id,

@@ -51,6 +51,7 @@ export default function (data) {
     supported_catalog_versions: [data.catalogVersion],
     preferred_catalog_version: data.catalogVersion,
     server_build_id: SERVER_BUILD_ID,
+    game_mode_id: "default",
   }), {
     headers: {
       "Content-Type": "application/json",

@@ -1,5 +1,7 @@
 package com.game.backend.runtimechanges.application;
 
+import com.game.backend.runtimechanges.repository.RuntimeChangesRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
@@ -7,7 +9,6 @@ import com.game.backend.notifications.application.PlayerNotificationService;
 import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -20,18 +21,18 @@ public class RuntimeChangeConflictService {
     private static final int PENDING_TTL_DAYS = 7;
     private static final String REVISION_CONFLICT_REASON = "revision_conflict";
 
-    private final JdbcTemplate jdbcTemplate;
+    private final RuntimeChangesRepository repository;
     private final ObjectMapper objectMapper;
     private final OutboxService outboxService;
     private final PlayerNotificationService playerNotificationService;
 
     public RuntimeChangeConflictService(
-        JdbcTemplate jdbcTemplate,
+        RuntimeChangesRepository repository,
         ObjectMapper objectMapper,
         OutboxService outboxService,
         PlayerNotificationService playerNotificationService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.objectMapper = objectMapper;
         this.outboxService = outboxService;
         this.playerNotificationService = playerNotificationService;
@@ -53,7 +54,7 @@ public class RuntimeChangeConflictService {
         OffsetDateTime now
     ) {
         UUID changeId = UUID.randomUUID();
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO post_match_pending_changes(
                   change_id,

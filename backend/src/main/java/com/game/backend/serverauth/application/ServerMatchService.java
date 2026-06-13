@@ -1,10 +1,11 @@
 package com.game.backend.serverauth.application;
 
+import com.game.backend.serverauth.repository.ServerAuthRepository;
+
 import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,10 +19,10 @@ import java.util.UUID;
  */
 @Service
 public class ServerMatchService {
-    private final JdbcTemplate jdbcTemplate;
+    private final ServerAuthRepository repository;
 
-    public ServerMatchService(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public ServerMatchService(ServerAuthRepository repository) {
+        this.repository = repository;
     }
 
     /**
@@ -45,7 +46,7 @@ public class ServerMatchService {
     }
 
     private ServerMatch insertWithReturning(ServerIdentity identity, BuildMatchProfileRequest request) {
-        List<ServerMatch> matches = jdbcTemplate.query(
+        List<ServerMatch> matches = repository.query(
             """
                 INSERT INTO server_matches(
                   match_id,
@@ -99,7 +100,7 @@ public class ServerMatchService {
     }
 
     private ServerMatch loadMatch(UUID matchId) {
-        List<ServerMatch> matches = jdbcTemplate.query(
+        List<ServerMatch> matches = repository.query(
             """
                 SELECT match_id, server_id, realm_id, status
                 FROM server_matches

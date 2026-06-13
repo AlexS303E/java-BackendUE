@@ -1,5 +1,7 @@
 package com.game.backend.serverauth.application;
 
+import com.game.backend.serverauth.repository.ServerAuthRepository;
+
 import com.game.backend.serverauth.config.ServerMtlsProperties;
 import com.game.backend.serverauth.mtls.CertificateFingerprints;
 import com.game.backend.serverauth.mtls.ClientCertificateExtractor;
@@ -7,7 +9,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -35,18 +36,18 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
     private static final String SERVER_ID_HEADER = "X-Server-Id";
     private static final String CERTIFICATE_FINGERPRINT_HEADER = "X-Server-Certificate-Fingerprint";
 
-    private final JdbcTemplate jdbcTemplate;
+    private final ServerAuthRepository repository;
     private final ServerAuditService serverAuditService;
     private final ServerMtlsProperties mtlsProperties;
     private final ClientCertificateExtractor clientCertificateExtractor;
 
     public ServerAuthenticationFilter(
-            JdbcTemplate jdbcTemplate,
+            ServerAuthRepository repository,
             ServerAuditService serverAuditService,
             ServerMtlsProperties mtlsProperties,
             ClientCertificateExtractor clientCertificateExtractor
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.serverAuditService = serverAuditService;
         this.mtlsProperties = mtlsProperties;
         this.clientCertificateExtractor = clientCertificateExtractor;
@@ -219,7 +220,7 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
      * чтобы отказ можно было аудировать с конкретной причиной.
      */
     private ServerIdentityRecord loadServerIdentityRecord(UUID serverId) {
-        List<ServerIdentityRecord> identities = jdbcTemplate.query(
+        List<ServerIdentityRecord> identities = repository.query(
                 """
                     SELECT server_id, realm_id, server_build_id, certificate_fingerprint, status, allowed_scopes, expires_at
                     FROM server_identities
@@ -290,7 +291,7 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private boolean serverIdentityExists(UUID serverId) {
-        Boolean exists = jdbcTemplate.queryForObject(
+        Boolean exists = repository.queryForObject(
                 "SELECT EXISTS(SELECT 1 FROM server_identities WHERE server_id = ?)",
                 Boolean.class,
                 serverId

@@ -1,11 +1,12 @@
 package com.game.backend.runtimechanges.application;
 
+import com.game.backend.runtimechanges.repository.RuntimeChangesRepository;
+
 import com.game.backend.common.api.ApiException;
 import com.game.backend.presets.application.LoadoutValidationService;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -16,14 +17,14 @@ import java.util.UUID;
  */
 @Service
 public class WeaponPresetRuntimeChangeApplier {
-    private final JdbcTemplate jdbcTemplate;
+    private final RuntimeChangesRepository repository;
     private final LoadoutValidationService loadoutValidationService;
 
     public WeaponPresetRuntimeChangeApplier(
-        JdbcTemplate jdbcTemplate,
+        RuntimeChangesRepository repository,
         LoadoutValidationService loadoutValidationService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.loadoutValidationService = loadoutValidationService;
     }
 
@@ -137,7 +138,7 @@ public class WeaponPresetRuntimeChangeApplier {
             change.weaponSlotId(),
             change.weaponId()
         );
-        jdbcTemplate.update(
+        repository.update(
             """
                 DELETE FROM player_weapon_preset_weapon_config_modules
                 WHERE player_id = ?
@@ -176,7 +177,7 @@ public class WeaponPresetRuntimeChangeApplier {
         String weaponSlotId,
         String weaponId
     ) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_weapon_preset_slots(
                   player_id,
@@ -208,7 +209,7 @@ public class WeaponPresetRuntimeChangeApplier {
         String weaponId,
         OffsetDateTime now
     ) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_weapon_preset_weapon_configs(
                   player_id,
@@ -243,7 +244,7 @@ public class WeaponPresetRuntimeChangeApplier {
         long catalogVersion,
         RuntimePresetChangeStep change
     ) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 DELETE FROM player_weapon_preset_weapon_config_modules
                 WHERE player_id = ?
@@ -263,7 +264,7 @@ public class WeaponPresetRuntimeChangeApplier {
             change.mountId()
         );
 
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_weapon_preset_weapon_config_modules(
                   player_id,

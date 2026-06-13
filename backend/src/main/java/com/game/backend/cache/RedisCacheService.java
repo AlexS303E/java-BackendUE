@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.access.api.AccessResponse;
 import com.game.backend.catalog.api.CatalogSnapshotResponse;
+import com.game.backend.matchprofile.api.MatchProfileResponse;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -60,6 +61,49 @@ public class RedisCacheService {
         evictIndexed(accessIndexKey(playerId));
     }
 
+    public Optional<MatchProfileResponse> getMatchProfile(
+        UUID playerId,
+        String realmId,
+        String classTag,
+        String teamTag,
+        int weaponPresetSlot,
+        int outfitPresetSlot,
+        long catalogVersion,
+        long weaponPresetRevision,
+        long outfitPresetRevision,
+        long accessRevision
+    ) {
+        return read(matchProfileKey(
+            playerId,
+            realmId,
+            classTag,
+            teamTag,
+            weaponPresetSlot,
+            outfitPresetSlot,
+            catalogVersion,
+            weaponPresetRevision,
+            outfitPresetRevision,
+            accessRevision
+        ), MatchProfileResponse.class);
+    }
+
+    public void putMatchProfile(MatchProfileResponse response) {
+        String key = matchProfileKey(
+            response.playerId(),
+            response.realmId(),
+            response.classTag(),
+            response.teamTag(),
+            response.weaponPresetSlot(),
+            response.outfitPresetSlot(),
+            response.catalogVersion(),
+            response.dependencyRevisions().weaponPresetRevision(),
+            response.dependencyRevisions().outfitPresetRevision(),
+            response.dependencyRevisions().accessRevision()
+        );
+        String indexKey = matchProfileIndexKey(response.playerId());
+        write(key, indexKey, response, properties.getMatchProfileTtl());
+    }
+
     private static final Duration CATALOG_ALLOWS_NEW_MATCHES_TTL = Duration.ofMinutes(5);
 
     public Optional<Boolean> getCatalogAllowsNewMatches(String realmId, long catalogVersion) {
@@ -92,6 +136,31 @@ public class RedisCacheService {
 
     public String accessKey(UUID playerId, long catalogVersion, long accessRevision) {
         return PREFIX + ":access:" + playerId + ":" + catalogVersion + ":" + accessRevision;
+    }
+
+    public String matchProfileKey(
+        UUID playerId,
+        String realmId,
+        String classTag,
+        String teamTag,
+        int weaponPresetSlot,
+        int outfitPresetSlot,
+        long catalogVersion,
+        long weaponPresetRevision,
+        long outfitPresetRevision,
+        long accessRevision
+    ) {
+        return PREFIX + ":match-profile:"
+            + playerId + ":"
+            + realmId + ":"
+            + classTag + ":"
+            + teamTag + ":"
+            + weaponPresetSlot + ":"
+            + outfitPresetSlot + ":"
+            + catalogVersion + ":"
+            + weaponPresetRevision + ":"
+            + outfitPresetRevision + ":"
+            + accessRevision;
     }
 
     private String catalogAllowsNewMatchesKey(String realmId, long catalogVersion) {
@@ -161,5 +230,9 @@ public class RedisCacheService {
 
     private String accessIndexKey(UUID playerId) {
         return PREFIX + ":access:index:" + playerId;
+    }
+
+    private String matchProfileIndexKey(UUID playerId) {
+        return PREFIX + ":match-profile:index:" + playerId;
     }
 }

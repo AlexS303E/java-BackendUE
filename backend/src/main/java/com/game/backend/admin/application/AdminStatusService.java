@@ -1,11 +1,12 @@
 package com.game.backend.admin.application;
 
+import com.game.backend.admin.repository.AdminRepository;
+
 import com.game.backend.common.api.ApiException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -20,12 +21,12 @@ import java.util.UUID;
  */
 @Service
 public class AdminStatusService {
-    private final JdbcTemplate jdbcTemplate;
+    private final AdminRepository repository;
     private final StringRedisTemplate redisTemplate;
     private final OffsetDateTime startedAt;
 
-    public AdminStatusService(JdbcTemplate jdbcTemplate, StringRedisTemplate redisTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public AdminStatusService(AdminRepository repository, StringRedisTemplate redisTemplate) {
+        this.repository = repository;
         this.redisTemplate = redisTemplate;
         this.startedAt = OffsetDateTime.now();
     }
@@ -53,7 +54,7 @@ public class AdminStatusService {
     }
 
     public List<Map<String, Object>> servers() {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT server_id, realm_id, server_build_id, status, allowed_scopes, created_at, expires_at, revoked_at
                 FROM server_identities
@@ -76,7 +77,7 @@ public class AdminStatusService {
     }
 
     public List<Map<String, Object>> matches() {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT match_id, server_id, realm_id, status, created_at, finished_at
                 FROM server_matches
@@ -97,7 +98,7 @@ public class AdminStatusService {
     }
 
     public List<Map<String, Object>> recentAudit() {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT event_id, actor_id, action, target_type, target_id, result, created_at
                 FROM admin_audit_events
@@ -126,7 +127,7 @@ public class AdminStatusService {
 
         UUID playerId = parseUuid(trimmed);
         if (playerId != null) {
-            return jdbcTemplate.query(
+            return repository.query(
                 """
                     SELECT pa.player_id, pa.login_name, pa.status, ps.access_revision
                     FROM player_accounts pa
@@ -138,7 +139,7 @@ public class AdminStatusService {
             );
         }
 
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT pa.player_id, pa.login_name, pa.status, ps.access_revision
                 FROM player_accounts pa
@@ -153,7 +154,7 @@ public class AdminStatusService {
     }
 
     public Map<String, Object> weaponAccess(UUID playerId, String weaponId, long catalogVersion) {
-        List<Map<String, Object>> rows = jdbcTemplate.query(
+        List<Map<String, Object>> rows = repository.query(
             """
                 SELECT
                   pia.item_id,
@@ -200,7 +201,7 @@ public class AdminStatusService {
     }
 
     public List<Map<String, Object>> weaponAccessAudit(UUID playerId, String weaponId, long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT ledger_event_id, event_type, source_type, source_ref, actor_type, actor_id, payload, created_at
                 FROM entitlement_ledger
@@ -232,7 +233,7 @@ public class AdminStatusService {
 
     private boolean databaseOk() {
         try {
-            Integer result = jdbcTemplate.queryForObject("SELECT 1", Integer.class);
+            Integer result = repository.queryForObject("SELECT 1", Integer.class);
             return result != null && result == 1;
         } catch (RuntimeException exception) {
             return false;
@@ -250,7 +251,7 @@ public class AdminStatusService {
     }
 
     private Map<String, Object> activeCatalog() {
-        List<Map<String, Object>> rows = jdbcTemplate.query(
+        List<Map<String, Object>> rows = repository.query(
             """
                 SELECT catalog_version, deployment_state, allow_new_matches, allow_existing_matches, activated_at
                 FROM catalog_deployments
@@ -277,11 +278,11 @@ public class AdminStatusService {
         counts.put("pending", 0L);
         counts.put("failed", 0L);
         counts.put("processed", 0L);
-        for (Map<String, Object> row : jdbcTemplate.queryForList("SELECT status, count(*) AS count FROM outbox_events GROUP BY status")) {
+        for (Map<String, Object> row : repository.queryForList("SELECT status, count(*) AS count FROM outbox_events GROUP BY status")) {
             counts.put((String) row.get("status"), ((Number) row.get("count")).longValue());
         }
 
-        OffsetDateTime oldest = jdbcTemplate.queryForObject(
+        OffsetDateTime oldest = repository.queryForObject(
             "SELECT min(created_at) FROM outbox_events WHERE status = 'pending'",
             OffsetDateTime.class
         );
@@ -295,7 +296,7 @@ public class AdminStatusService {
     }
 
     private long count(String sql) {
-        Long count = jdbcTemplate.queryForObject(sql, Long.class);
+        Long count = repository.queryForObject(sql, Long.class);
         return count == null ? 0 : count;
     }
 

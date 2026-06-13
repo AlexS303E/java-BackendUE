@@ -1,5 +1,7 @@
 package com.game.backend.matchprofile.application;
 
+import com.game.backend.matchprofile.repository.MatchProfileRepository;
+
 import com.game.backend.access.application.ItemAccessPolicy;
 import com.game.backend.catalog.application.CatalogValidationData;
 import com.game.backend.common.api.ApiException;
@@ -8,7 +10,6 @@ import com.game.backend.matchprofile.api.MatchModuleDto;
 import com.game.backend.matchprofile.api.MatchOutfitItemDto;
 import com.game.backend.matchprofile.api.MatchWeaponDto;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -20,16 +21,16 @@ import java.util.Set;
 
 @Service
 public class MatchProfileSnapshotBuilder {
-    private final JdbcTemplate jdbcTemplate;
+    private final MatchProfileRepository repository;
     private final CatalogValidationData catalogValidationData;
     private final ItemAccessPolicy itemAccessPolicy;
 
     public MatchProfileSnapshotBuilder(
-        JdbcTemplate jdbcTemplate,
+        MatchProfileRepository repository,
         CatalogValidationData catalogValidationData,
         ItemAccessPolicy itemAccessPolicy
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.catalogValidationData = catalogValidationData;
         this.itemAccessPolicy = itemAccessPolicy;
     }
@@ -44,7 +45,7 @@ public class MatchProfileSnapshotBuilder {
     }
 
     private boolean loadEnforceTeamItemRules(String gameModeId) {
-        List<Boolean> results = jdbcTemplate.queryForList(
+        List<Boolean> results = repository.queryForList(
             "SELECT enforce_team_item_rules FROM game_mode_rules WHERE game_mode_id = ?",
             Boolean.class,
             gameModeId
@@ -56,7 +57,7 @@ public class MatchProfileSnapshotBuilder {
     }
 
     private List<MatchWeaponDto> weapons(BuildMatchProfileRequest request, long catalogVersion) {
-        List<Object[]> rows = jdbcTemplate.query(
+        List<Object[]> rows = repository.query(
             """
                 SELECT ws.weapon_slot_id, ws.selected_weapon_id,
                        wcm.mount_id, wcm.module_id
@@ -107,7 +108,7 @@ public class MatchProfileSnapshotBuilder {
     }
 
     private List<MatchOutfitItemDto> outfit(BuildMatchProfileRequest request, long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT clothing_slot_id, item_id
                 FROM player_outfit_preset_items
@@ -183,7 +184,7 @@ public class MatchProfileSnapshotBuilder {
             params[i++] = id;
         }
         params[i] = teamTag;
-        return Set.copyOf(jdbcTemplate.queryForList(
+        return Set.copyOf(repository.queryForList(
             """
                 SELECT ci.item_id
                 FROM catalog_items ci
@@ -226,7 +227,7 @@ public class MatchProfileSnapshotBuilder {
             params[i++] = id;
         }
         params[i] = teamTag;
-        return Set.copyOf(jdbcTemplate.queryForList(
+        return Set.copyOf(repository.queryForList(
             """
                 SELECT ci.item_id
                 FROM catalog_items ci

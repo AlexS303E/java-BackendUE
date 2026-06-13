@@ -1,10 +1,11 @@
 package com.game.backend.admin.application;
 
+import com.game.backend.admin.repository.AdminRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,11 +24,11 @@ import java.util.function.Supplier;
 public class AdminMutationIdempotencyService {
     private static final int SUCCESS_STATUS_CODE = 200;
 
-    private final JdbcTemplate jdbcTemplate;
+    private final AdminRepository repository;
     private final ObjectMapper objectMapper;
 
-    public AdminMutationIdempotencyService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
-        this.jdbcTemplate = jdbcTemplate;
+    public AdminMutationIdempotencyService(AdminRepository repository, ObjectMapper objectMapper) {
+        this.repository = repository;
         this.objectMapper = objectMapper;
     }
 
@@ -73,7 +74,7 @@ public class AdminMutationIdempotencyService {
     }
 
     private void deleteExpiredRecord(String operationScope, String actorId, String idempotencyKey, OffsetDateTime now) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 DELETE FROM api_idempotency_records
                 WHERE operation_scope = ?
@@ -89,7 +90,7 @@ public class AdminMutationIdempotencyService {
     }
 
     private ExistingRecord existingRecord(String operationScope, String actorId, String idempotencyKey) {
-        List<ExistingRecord> records = jdbcTemplate.query(
+        List<ExistingRecord> records = repository.query(
             """
                 SELECT request_hash, response_body::text AS response_body
                 FROM api_idempotency_records
@@ -118,7 +119,7 @@ public class AdminMutationIdempotencyService {
         OffsetDateTime now
     ) {
         try {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     INSERT INTO api_idempotency_records(
                       operation_scope,

@@ -1,10 +1,11 @@
 package com.game.backend.serverauth.application;
 
+import com.game.backend.serverauth.repository.ServerAuthRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,11 +21,11 @@ import java.util.UUID;
 public class ServerAuditService {
     private static final Logger log = LoggerFactory.getLogger(ServerAuditService.class);
 
-    private final JdbcTemplate jdbcTemplate;
+    private final ServerAuthRepository repository;
     private final ObjectMapper objectMapper;
 
-    public ServerAuditService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
-        this.jdbcTemplate = jdbcTemplate;
+    public ServerAuditService(ServerAuthRepository repository, ObjectMapper objectMapper) {
+        this.repository = repository;
         this.objectMapper = objectMapper;
     }
 
@@ -81,7 +82,7 @@ public class ServerAuditService {
         Map<String, Object> payload
     ) {
         try {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     INSERT INTO server_audit_events(
                       event_id,

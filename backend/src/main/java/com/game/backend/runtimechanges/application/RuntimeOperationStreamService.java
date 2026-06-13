@@ -1,21 +1,22 @@
 package com.game.backend.runtimechanges.application;
 
+import com.game.backend.runtimechanges.repository.RuntimeChangesRepository;
+
 import com.game.backend.common.api.ApiException;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
 public class RuntimeOperationStreamService {
-    private final JdbcTemplate jdbcTemplate;
+    private final RuntimeChangesRepository repository;
 
-    public RuntimeOperationStreamService(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public RuntimeOperationStreamService(RuntimeChangesRepository repository) {
+        this.repository = repository;
     }
 
     public void lockAndValidateNextSequence(RuntimePresetChangeRequest request) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO runtime_operation_streams (match_id, player_id, last_applied_seq)
                 VALUES (?, ?, 0)
@@ -25,7 +26,7 @@ public class RuntimeOperationStreamService {
             request.playerId()
         );
 
-        Long lastAppliedSeq = jdbcTemplate.queryForObject(
+        Long lastAppliedSeq = repository.queryForObject(
             """
                 SELECT last_applied_seq
                 FROM runtime_operation_streams
@@ -54,7 +55,7 @@ public class RuntimeOperationStreamService {
     }
 
     public void advance(RuntimePresetChangeRequest request) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE runtime_operation_streams
                 SET last_applied_seq = ?

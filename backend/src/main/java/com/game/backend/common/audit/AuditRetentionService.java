@@ -1,10 +1,11 @@
 package com.game.backend.common.audit;
 
+import com.game.backend.common.repository.CommonRepository;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -16,17 +17,17 @@ import java.time.OffsetDateTime;
 public class AuditRetentionService {
     private static final Logger log = LoggerFactory.getLogger(AuditRetentionService.class);
 
-    private final JdbcTemplate jdbcTemplate;
+    private final CommonRepository repository;
     private final AuditRetentionProperties properties;
     private final Clock clock;
 
     @Autowired
-    public AuditRetentionService(JdbcTemplate jdbcTemplate, AuditRetentionProperties properties) {
-        this(jdbcTemplate, properties, Clock.systemUTC());
+    public AuditRetentionService(CommonRepository repository, AuditRetentionProperties properties) {
+        this(repository, properties, Clock.systemUTC());
     }
 
-    AuditRetentionService(JdbcTemplate jdbcTemplate, AuditRetentionProperties properties, Clock clock) {
-        this.jdbcTemplate = jdbcTemplate;
+    AuditRetentionService(CommonRepository repository, AuditRetentionProperties properties, Clock clock) {
+        this.repository = repository;
         this.properties = properties;
         this.clock = clock;
         validateProperties(properties);
@@ -58,7 +59,7 @@ public class AuditRetentionService {
     }
 
     private int deleteExpired(String tableName, OffsetDateTime cutoff, int batchSize) {
-        Integer deleted = jdbcTemplate.queryForObject(
+        Integer deleted = repository.queryForObject(
             """
                 WITH deleted AS (
                   DELETE FROM %s

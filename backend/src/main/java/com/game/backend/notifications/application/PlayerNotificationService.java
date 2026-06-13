@@ -1,5 +1,7 @@
 package com.game.backend.notifications.application;
 
+import com.game.backend.notifications.repository.NotificationsRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,7 +10,6 @@ import com.game.backend.notifications.api.NotificationAcknowledgeResponse;
 import com.game.backend.notifications.api.NotificationDto;
 import com.game.backend.notifications.api.NotificationsResponse;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,11 +29,11 @@ public class PlayerNotificationService {
     private static final int MAX_LIMIT = 100;
     private static final Set<String> READABLE_STATUSES = Set.of("unread", "read", "archived", "all");
 
-    private final JdbcTemplate jdbcTemplate;
+    private final NotificationsRepository repository;
     private final ObjectMapper objectMapper;
 
-    public PlayerNotificationService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
-        this.jdbcTemplate = jdbcTemplate;
+    public PlayerNotificationService(NotificationsRepository repository, ObjectMapper objectMapper) {
+        this.repository = repository;
         this.objectMapper = objectMapper;
     }
 
@@ -49,7 +50,7 @@ public class PlayerNotificationService {
         OffsetDateTime now
     ) {
         UUID notificationId = UUID.randomUUID();
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_notifications(
                   notification_id,
@@ -88,7 +89,7 @@ public class PlayerNotificationService {
                 playerId,
                 normalizedStatus,
                 normalizedLimit,
-                jdbcTemplate.query(
+                repository.query(
                     """
                         SELECT
                           notification_id,
@@ -128,7 +129,7 @@ public class PlayerNotificationService {
             playerId,
             normalizedStatus,
             normalizedLimit,
-            jdbcTemplate.query(
+            repository.query(
                 """
                     SELECT
                       notification_id,
@@ -172,7 +173,7 @@ public class PlayerNotificationService {
     @Transactional
     public NotificationAcknowledgeResponse markRead(UUID playerId, UUID notificationId) {
         OffsetDateTime now = OffsetDateTime.now();
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE player_notifications
                 SET status = 'read',
@@ -190,7 +191,7 @@ public class PlayerNotificationService {
     }
 
     private NotificationAcknowledgeResponse readAcknowledgeResponse(UUID playerId, UUID notificationId) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT notification_id, status, read_at
                 FROM player_notifications

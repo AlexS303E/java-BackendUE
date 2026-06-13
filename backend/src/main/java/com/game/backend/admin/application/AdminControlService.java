@@ -1,12 +1,13 @@
 package com.game.backend.admin.application;
 
+import com.game.backend.admin.repository.AdminRepository;
+
 import com.game.backend.admin.api.AdminItemAccessUpdateRequest;
 import com.game.backend.admin.api.AdminItemAccessUpdateResponse;
 import com.game.backend.admin.api.AdminWeaponAccessControlRequest;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,20 +21,20 @@ import java.util.UUID;
  */
 @Service
 public class AdminControlService {
-    private final JdbcTemplate jdbcTemplate;
+    private final AdminRepository repository;
     private final AdminPlayerAccessService adminPlayerAccessService;
     private final AdminStatusService adminStatusService;
     private final AdminAuditService adminAuditService;
     private final MatchProfileInvalidationService matchProfileInvalidationService;
 
     public AdminControlService(
-        JdbcTemplate jdbcTemplate,
+        AdminRepository repository,
         AdminPlayerAccessService adminPlayerAccessService,
         AdminStatusService adminStatusService,
         AdminAuditService adminAuditService,
         MatchProfileInvalidationService matchProfileInvalidationService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.adminPlayerAccessService = adminPlayerAccessService;
         this.adminStatusService = adminStatusService;
         this.adminAuditService = adminAuditService;
@@ -73,7 +74,7 @@ public class AdminControlService {
      */
     @Transactional
     public Map<String, Object> revokeServerIdentity(AdminIdentity admin, UUID serverId) {
-        int updated = jdbcTemplate.update(
+        int updated = repository.update(
             """
                 UPDATE server_identities
                 SET status = 'revoked',
@@ -108,7 +109,7 @@ public class AdminControlService {
     @Transactional
     public Map<String, Object> retryFailedOutbox(AdminIdentity admin) {
         OffsetDateTime now = OffsetDateTime.now();
-        int retried = jdbcTemplate.update(
+        int retried = repository.update(
             """
                 UPDATE outbox_events
                 SET status = 'pending',

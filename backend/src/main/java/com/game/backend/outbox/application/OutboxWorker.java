@@ -1,8 +1,9 @@
 package com.game.backend.outbox.application;
 
+import com.game.backend.outbox.repository.OutboxRepository;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -17,7 +18,7 @@ import java.util.UUID;
 @Service
 @ConditionalOnProperty(prefix = "app.outbox", name = "worker-enabled", havingValue = "true", matchIfMissing = true)
 public class OutboxWorker {
-    private final JdbcTemplate jdbcTemplate;
+    private final OutboxRepository repository;
     private final TransactionTemplate transactionTemplate;
     private final OutboxPublisher outboxPublisher;
     private final boolean workerEnabled;
@@ -27,7 +28,7 @@ public class OutboxWorker {
     private final long processingTimeoutSeconds;
 
     public OutboxWorker(
-        JdbcTemplate jdbcTemplate,
+        OutboxRepository repository,
         TransactionTemplate transactionTemplate,
         OutboxPublisher outboxPublisher,
         @Value("${app.outbox.worker-enabled:true}") boolean workerEnabled,
@@ -36,7 +37,7 @@ public class OutboxWorker {
         @Value("${app.outbox.retry-delay-seconds:10}") long retryDelaySeconds,
         @Value("${app.outbox.processing-timeout-seconds:60}") long processingTimeoutSeconds
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.transactionTemplate = transactionTemplate;
         this.outboxPublisher = outboxPublisher;
         this.workerEnabled = workerEnabled;
@@ -64,7 +65,7 @@ public class OutboxWorker {
     }
 
     private List<OutboxEvent> claimBatch(OffsetDateTime now) {
-        return transactionTemplate.execute(status -> jdbcTemplate.query(
+        return transactionTemplate.execute(status -> repository.query(
             """
                 WITH claimed AS (
                   SELECT event_id
@@ -118,7 +119,7 @@ public class OutboxWorker {
     }
 
     private void markProcessed(UUID eventId, OffsetDateTime now) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE outbox_events
                 SET status = 'processed',
@@ -134,7 +135,7 @@ public class OutboxWorker {
     private void markFailed(OutboxEvent event, OffsetDateTime now, RuntimeException exception) {
         int newAttempts = event.attempts();
         if (newAttempts >= maxAttempts) {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     UPDATE outbox_events
                     SET status = 'dead_letter',
@@ -145,7 +146,7 @@ public class OutboxWorker {
                 event.eventId()
             );
         } else {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     UPDATE outbox_events
                     SET status = 'failed',
@@ -161,7 +162,7 @@ public class OutboxWorker {
     }
 
     private void requeueTimedOutProcessingEvents(OffsetDateTime now) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE outbox_events
                 SET status = CASE

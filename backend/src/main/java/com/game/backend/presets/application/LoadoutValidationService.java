@@ -1,9 +1,10 @@
 package com.game.backend.presets.application;
 
+import com.game.backend.presets.repository.PresetsRepository;
+
 import com.game.backend.access.application.ItemAccessPolicy;
 import com.game.backend.common.api.ApiException;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,14 +12,14 @@ import java.util.UUID;
 
 @Service
 public class LoadoutValidationService {
-    private final JdbcTemplate jdbcTemplate;
+    private final PresetsRepository repository;
     private final ItemAccessPolicy itemAccessPolicy;
 
     public LoadoutValidationService(
-        JdbcTemplate jdbcTemplate,
+        PresetsRepository repository,
         ItemAccessPolicy itemAccessPolicy
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.itemAccessPolicy = itemAccessPolicy;
     }
 
@@ -90,7 +91,7 @@ public class LoadoutValidationService {
     }
 
     private void validateWeaponSlotAllowed(String classTag, String weaponSlotId) {
-        Boolean allowed = jdbcTemplate.queryForObject(
+        Boolean allowed = repository.queryForObject(
             """
                 SELECT EXISTS(
                   SELECT 1
@@ -117,7 +118,7 @@ public class LoadoutValidationService {
         String weaponSlotId,
         String weaponId
     ) {
-        Boolean matches = jdbcTemplate.queryForObject(
+        Boolean matches = repository.queryForObject(
             """
                 SELECT EXISTS(
                   SELECT 1
@@ -168,7 +169,7 @@ public class LoadoutValidationService {
     }
 
     private void validateMountModuleAllowed(long catalogVersion, String weaponId, String mountId, String moduleId) {
-        Boolean allowed = jdbcTemplate.queryForObject(
+        Boolean allowed = repository.queryForObject(
             """
                 SELECT EXISTS(
                   SELECT 1

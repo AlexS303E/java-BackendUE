@@ -1,10 +1,11 @@
 package com.game.backend.admin.application;
 
+import com.game.backend.admin.repository.AdminRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,11 +21,11 @@ import java.util.UUID;
 public class AdminAuditService {
     private static final Logger log = LoggerFactory.getLogger(AdminAuditService.class);
 
-    private final JdbcTemplate jdbcTemplate;
+    private final AdminRepository repository;
     private final ObjectMapper objectMapper;
 
-    public AdminAuditService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
-        this.jdbcTemplate = jdbcTemplate;
+    public AdminAuditService(AdminRepository repository, ObjectMapper objectMapper) {
+        this.repository = repository;
         this.objectMapper = objectMapper;
     }
 
@@ -42,7 +43,7 @@ public class AdminAuditService {
         Map<String, Object> payload
     ) {
         try {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     INSERT INTO admin_audit_events(
                       event_id,

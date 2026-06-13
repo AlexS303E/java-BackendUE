@@ -1,5 +1,7 @@
 package com.game.backend.admin.application;
 
+import com.game.backend.admin.repository.AdminRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,7 +15,6 @@ import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.presets.application.LoadoutSanitizationResult;
 import com.game.backend.presets.application.LoadoutSanitizationService;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +37,7 @@ public class AdminPlayerAccessService {
     };
     private static final String AUDIT_ACTION = "player_access.item_update";
 
-    private final JdbcTemplate jdbcTemplate;
+    private final AdminRepository repository;
     private final ObjectMapper objectMapper;
     private final AdminAuditService adminAuditService;
     private final OutboxService outboxService;
@@ -46,7 +47,7 @@ public class AdminPlayerAccessService {
     private final RedisCacheService cacheService;
 
     public AdminPlayerAccessService(
-        JdbcTemplate jdbcTemplate,
+        AdminRepository repository,
         ObjectMapper objectMapper,
         AdminAuditService adminAuditService,
         OutboxService outboxService,
@@ -55,7 +56,7 @@ public class AdminPlayerAccessService {
         PlayerNotificationService playerNotificationService,
         RedisCacheService cacheService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.objectMapper = objectMapper;
         this.adminAuditService = adminAuditService;
         this.outboxService = outboxService;
@@ -170,7 +171,7 @@ public class AdminPlayerAccessService {
     }
 
     private ExistingLedgerEvent existingLedgerEvent(UUID playerId, String idempotencyKey) {
-        List<ExistingLedgerEvent> events = jdbcTemplate.query(
+        List<ExistingLedgerEvent> events = repository.query(
             """
                 SELECT
                   ledger_event_id,
@@ -198,7 +199,7 @@ public class AdminPlayerAccessService {
     }
 
     private void ensurePlayerExists(UUID playerId) {
-        Boolean exists = jdbcTemplate.queryForObject(
+        Boolean exists = repository.queryForObject(
             "SELECT EXISTS(SELECT 1 FROM player_accounts WHERE player_id = ?)",
             Boolean.class,
             playerId
@@ -209,7 +210,7 @@ public class AdminPlayerAccessService {
     }
 
     private void ensureCatalogItemExists(String itemId, long catalogVersion) {
-        Boolean exists = jdbcTemplate.queryForObject(
+        Boolean exists = repository.queryForObject(
             """
                 SELECT EXISTS(
                   SELECT 1
@@ -228,7 +229,7 @@ public class AdminPlayerAccessService {
     }
 
     private long lockAccessProjection(UUID playerId) {
-        List<Long> revisions = jdbcTemplate.queryForList(
+        List<Long> revisions = repository.queryForList(
             """
                 SELECT access_revision
                 FROM player_access_projection_state
@@ -257,7 +258,7 @@ public class AdminPlayerAccessService {
         AdminItemAccessUpdateRequest request,
         OffsetDateTime now
     ) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO entitlement_ledger(
                   ledger_event_id,
@@ -294,7 +295,7 @@ public class AdminPlayerAccessService {
         AdminItemAccessUpdateRequest request,
         OffsetDateTime now
     ) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_item_access(
                   player_id,
@@ -336,7 +337,7 @@ public class AdminPlayerAccessService {
     }
 
     private void updateAccessRevision(UUID playerId, long accessRevision, UUID ledgerEventId, OffsetDateTime now) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE player_access_projection_state
                 SET access_revision = ?,
@@ -464,7 +465,7 @@ public class AdminPlayerAccessService {
         UUID ledgerEventId,
         boolean duplicate
     ) {
-        List<ProjectionRow> rows = jdbcTemplate.query(
+        List<ProjectionRow> rows = repository.query(
             """
                 SELECT
                   ps.access_revision,

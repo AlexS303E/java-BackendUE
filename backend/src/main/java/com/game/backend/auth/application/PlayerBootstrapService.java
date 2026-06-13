@@ -1,8 +1,9 @@
 package com.game.backend.auth.application;
 
+import com.game.backend.auth.repository.AuthRepository;
+
 import com.game.backend.common.api.ApiException;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -23,10 +24,10 @@ public class PlayerBootstrapService {
     private static final String DEFAULT_MOUNT_ID = "weapon.ak12.mount.scope.01";
     private static final String DEFAULT_MODULE_ID = "module.scope.red_dot_01";
 
-    private final JdbcTemplate jdbcTemplate;
+    private final AuthRepository repository;
 
-    public PlayerBootstrapService(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public PlayerBootstrapService(AuthRepository repository) {
+        this.repository = repository;
     }
 
     /**
@@ -40,7 +41,7 @@ public class PlayerBootstrapService {
     }
 
     private long activeCatalogVersion() {
-        List<Long> versions = jdbcTemplate.queryForList(
+        List<Long> versions = repository.queryForList(
             """
                 SELECT catalog_version
                 FROM catalog_deployments
@@ -63,7 +64,7 @@ public class PlayerBootstrapService {
      * Открывает игроку все enabled items активного MVP-каталога и фиксирует это в ledger.
      */
     private void bootstrapAccess(UUID playerId, long catalogVersion, OffsetDateTime now) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_access_projection_state(
                   player_id,
@@ -76,14 +77,14 @@ public class PlayerBootstrapService {
             now
         );
 
-        List<String> itemIds = jdbcTemplate.queryForList(
+        List<String> itemIds = repository.queryForList(
             "SELECT item_id FROM catalog_items WHERE catalog_version = ? AND is_enabled = true ORDER BY item_id",
             String.class,
             catalogVersion
         );
 
         for (String itemId : itemIds) {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     INSERT INTO entitlement_ledger(
                       ledger_event_id,
@@ -108,7 +109,7 @@ public class PlayerBootstrapService {
             );
         }
 
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_item_access(
                   player_id,
@@ -143,7 +144,7 @@ public class PlayerBootstrapService {
      * Создает дефолтный weapon preset для class.assault.
      */
     private void bootstrapWeaponPreset(UUID playerId, long catalogVersion, OffsetDateTime now) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_weapon_presets(
                   player_id,
@@ -163,7 +164,7 @@ public class PlayerBootstrapService {
             now
         );
 
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_weapon_preset_slots(
                   player_id,
@@ -193,7 +194,7 @@ public class PlayerBootstrapService {
             DEFAULT_CLASS_TAG
         );
 
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_weapon_preset_weapon_configs(
                   player_id,
@@ -216,7 +217,7 @@ public class PlayerBootstrapService {
             now
         );
 
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_weapon_preset_weapon_config_modules(
                   player_id,
@@ -245,14 +246,14 @@ public class PlayerBootstrapService {
      * Создает стартовые outfit presets для доступных команд.
      */
     private void bootstrapOutfitPresets(UUID playerId, long catalogVersion, OffsetDateTime now) {
-        List<String> teamTags = jdbcTemplate.queryForList(
+        List<String> teamTags = repository.queryForList(
             "SELECT team_tag FROM outfit_preset_rules WHERE class_tag = ? ORDER BY team_tag",
             String.class,
             DEFAULT_CLASS_TAG
         );
 
         for (String teamTag : teamTags) {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     INSERT INTO player_outfit_presets(
                       player_id,
@@ -274,7 +275,7 @@ public class PlayerBootstrapService {
                 now
             );
 
-            jdbcTemplate.update(
+            repository.update(
                 """
                     INSERT INTO player_outfit_preset_items(
                       player_id,

@@ -1,10 +1,11 @@
 package com.game.backend.outbox.application;
 
+import com.game.backend.outbox.repository.OutboxRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -16,11 +17,11 @@ import java.util.UUID;
  */
 @Service
 public class OutboxService {
-    private final JdbcTemplate jdbcTemplate;
+    private final OutboxRepository repository;
     private final ObjectMapper objectMapper;
 
-    public OutboxService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
-        this.jdbcTemplate = jdbcTemplate;
+    public OutboxService(OutboxRepository repository, ObjectMapper objectMapper) {
+        this.repository = repository;
         this.objectMapper = objectMapper;
     }
 
@@ -35,7 +36,7 @@ public class OutboxService {
         Map<String, Object> payload,
         OffsetDateTime now
     ) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO outbox_events(
                   event_id,

@@ -1,12 +1,14 @@
 package com.game.backend.matchprofile.application;
 
+import com.game.backend.matchprofile.repository.MatchProfileRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.game.backend.cache.RedisCacheService;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import com.game.backend.matchprofile.api.MatchProfileResponse;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -15,15 +17,18 @@ import java.util.UUID;
 
 @Service
 public class MatchProfileCacheService {
-    private final JdbcTemplate jdbcTemplate;
+    private final MatchProfileRepository repository;
     private final ObjectMapper objectMapper;
+    private final RedisCacheService cacheService;
 
     public MatchProfileCacheService(
-        JdbcTemplate jdbcTemplate,
-        ObjectMapper objectMapper
+        MatchProfileRepository repository,
+        ObjectMapper objectMapper,
+        RedisCacheService cacheService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.objectMapper = objectMapper;
+        this.cacheService = cacheService;
     }
 
     public MatchProfileResponse findByDependencyTuple(
@@ -33,7 +38,23 @@ public class MatchProfileCacheService {
         long outfitPresetRevision,
         long accessRevision
     ) {
-        List<String> payloads = jdbcTemplate.queryForList(
+        MatchProfileResponse cached = cacheService.getMatchProfile(
+            request.playerId(),
+            request.realmId(),
+            request.classTag(),
+            request.teamTag(),
+            request.weaponPresetSlot(),
+            request.outfitPresetSlot(),
+            catalogVersion,
+            weaponPresetRevision,
+            outfitPresetRevision,
+            accessRevision
+        ).orElse(null);
+        if (cached != null) {
+            return cached;
+        }
+
+        List<String> payloads = repository.queryForList(
             """
                 SELECT payload
                 FROM player_match_profiles
@@ -49,7 +70,6 @@ public class MatchProfileCacheService {
                   AND access_revision = ?
                   AND is_stale = false
                   AND expires_at > NOW()
-                ORDER BY generated_at DESC
                 LIMIT 1
                 """,
             String.class,
@@ -68,7 +88,9 @@ public class MatchProfileCacheService {
             return null;
         }
         try {
-            return objectMapper.readValue(payloads.getFirst(), MatchProfileResponse.class);
+            MatchProfileResponse response = objectMapper.readValue(payloads.getFirst(), MatchProfileResponse.class);
+            cacheService.putMatchProfile(response);
+            return response;
         } catch (Exception exception) {
             return null;
         }
@@ -78,7 +100,7 @@ public class MatchProfileCacheService {
         OffsetDateTime now = OffsetDateTime.now();
         String payload = toJson(response);
 
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO player_match_profiles(
                   profile_id,
@@ -138,6 +160,7 @@ public class MatchProfileCacheService {
             now,
             now.plusMinutes(10)
         );
+        cacheService.putMatchProfile(response);
     }
 
     private String toJson(MatchProfileResponse response) {

@@ -1,5 +1,7 @@
 package com.game.backend.catalog.application;
 
+import com.game.backend.catalog.repository.CatalogRepository;
+
 import com.game.backend.catalog.api.AllowedModuleDto;
 import com.game.backend.catalog.api.CatalogItemDto;
 import com.game.backend.catalog.api.CatalogSnapshotResponse;
@@ -7,7 +9,6 @@ import com.game.backend.catalog.api.WeaponMountDto;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.common.api.ApiException;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,11 +19,11 @@ import java.util.Optional;
  */
 @Service
 public class CatalogService {
-    private final JdbcTemplate jdbcTemplate;
+    private final CatalogRepository repository;
     private final RedisCacheService cacheService;
 
-    public CatalogService(JdbcTemplate jdbcTemplate, RedisCacheService cacheService) {
-        this.jdbcTemplate = jdbcTemplate;
+    public CatalogService(CatalogRepository repository, RedisCacheService cacheService) {
+        this.repository = repository;
         this.cacheService = cacheService;
     }
 
@@ -49,7 +50,7 @@ public class CatalogService {
      * Находит активную версию каталога, разрешенную для новых матчей.
      */
     public long activeCatalogVersion(String realmId) {
-        List<Long> versions = jdbcTemplate.queryForList(
+        List<Long> versions = repository.queryForList(
             """
                 SELECT catalog_version
                 FROM catalog_deployments
@@ -77,7 +78,7 @@ public class CatalogService {
         if (cached.isPresent()) {
             return cached.get();
         }
-        Boolean exists = jdbcTemplate.queryForObject(
+        Boolean exists = repository.queryForObject(
             """
                 SELECT EXISTS(
                   SELECT 1
@@ -98,7 +99,7 @@ public class CatalogService {
     }
 
     private List<CatalogItemDto> items(long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT item_id, catalog_version, item_type, display_name, is_enabled
                 FROM catalog_items
@@ -117,7 +118,7 @@ public class CatalogService {
     }
 
     private List<WeaponMountDto> weaponMounts(long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT mount_id, catalog_version, weapon_id, mount_type, mount_index, is_required, display_order
                 FROM weapon_module_mounts
@@ -138,7 +139,7 @@ public class CatalogService {
     }
 
     private List<AllowedModuleDto> allowedModules(long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT mount_id, module_id, catalog_version
                 FROM weapon_mount_allowed_modules

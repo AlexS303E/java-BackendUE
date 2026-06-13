@@ -1,7 +1,8 @@
 package com.game.backend.catalog.application;
 
+import com.game.backend.catalog.repository.CatalogRepository;
+
 import jakarta.annotation.PostConstruct;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -15,14 +16,14 @@ import java.util.stream.Collectors;
 
 @Component
 public class CatalogValidationData {
-    private final JdbcTemplate jdbcTemplate;
+    private final CatalogRepository repository;
 
     private final ConcurrentHashMap<String, Map<String, Boolean>> weaponSlotAllowedCache = new ConcurrentHashMap<>();
     private volatile Set<String> clothingSlotActiveCache = null;
     private final ConcurrentHashMap<Long, Map<String, Set<String>>> mountAllowedModulesCache = new ConcurrentHashMap<>();
 
-    public CatalogValidationData(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public CatalogValidationData(CatalogRepository repository) {
+        this.repository = repository;
     }
 
     @PostConstruct
@@ -33,7 +34,7 @@ public class CatalogValidationData {
     }
 
     private void loadAllWeaponSlotRules() {
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+        List<Map<String, Object>> rows = repository.queryForList(
             "SELECT class_tag, weapon_slot_id, is_allowed FROM class_weapon_slot_rules"
         );
         Map<String, Map<String, Boolean>> grouped = new HashMap<>();
@@ -49,7 +50,7 @@ public class CatalogValidationData {
     }
 
     private void loadAllMountAllowedModules() {
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+        List<Map<String, Object>> rows = repository.queryForList(
             "SELECT catalog_version, mount_id, module_id FROM weapon_mount_allowed_modules ORDER BY catalog_version, mount_id, module_id"
         );
         Map<Long, Map<String, Set<String>>> grouped = new HashMap<>();
@@ -76,7 +77,7 @@ public class CatalogValidationData {
         if (rules != null) {
             return rules;
         }
-        rules = jdbcTemplate.query(
+        rules = repository.query(
             "SELECT weapon_slot_id, is_allowed FROM class_weapon_slot_rules WHERE class_tag = ?",
             (rs, rowNum) -> Map.entry(rs.getString("weapon_slot_id"), rs.getBoolean("is_allowed")),
             classTag
@@ -95,7 +96,7 @@ public class CatalogValidationData {
 
     private Set<String> loadActiveClothingSlots() {
         Set<String> active = Collections.unmodifiableSet(new HashSet<>(
-            jdbcTemplate.queryForList(
+            repository.queryForList(
                 "SELECT clothing_slot_id FROM clothing_slot_definitions WHERE is_active = true",
                 String.class
             )
@@ -109,7 +110,7 @@ public class CatalogValidationData {
         if (cached != null) {
             return cached;
         }
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+        List<Map<String, Object>> rows = repository.queryForList(
             "SELECT mount_id, module_id FROM weapon_mount_allowed_modules WHERE catalog_version = ?",
             catalogVersion
         );

@@ -1,5 +1,7 @@
 package com.game.backend.runtimechanges.application;
 
+import com.game.backend.runtimechanges.repository.RuntimeChangesRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
@@ -11,7 +13,6 @@ import com.game.backend.serverauth.application.ServerAuditService;
 import com.game.backend.serverauth.application.ServerIdentity;
 import com.game.backend.serverauth.application.ServerMatchService;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,7 +34,7 @@ public class RuntimePresetChangeService {
     private static final String AUDIT_ACTION = "runtime_preset_change.submit";
     private static final String AUDIT_SCOPE = "runtime_preset_change:write";
 
-    private final JdbcTemplate jdbcTemplate;
+    private final RuntimeChangesRepository repository;
     private final ObjectMapper objectMapper;
     private final ServerMatchService serverMatchService;
     private final ServerAuditService serverAuditService;
@@ -44,7 +45,7 @@ public class RuntimePresetChangeService {
     private final RuntimeChangeConflictService conflictService;
 
     public RuntimePresetChangeService(
-        JdbcTemplate jdbcTemplate,
+        RuntimeChangesRepository repository,
         ObjectMapper objectMapper,
         ServerMatchService serverMatchService,
         ServerAuditService serverAuditService,
@@ -54,7 +55,7 @@ public class RuntimePresetChangeService {
         RuntimeOperationStreamService operationStreamService,
         RuntimeChangeConflictService conflictService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.objectMapper = objectMapper;
         this.serverMatchService = serverMatchService;
         this.serverAuditService = serverAuditService;
@@ -137,7 +138,7 @@ public class RuntimePresetChangeService {
             }
 
             long resultRevision = preset.revision() + 1;
-            jdbcTemplate.update(
+            repository.update(
                 """
                     UPDATE player_weapon_presets
                     SET revision = ?,
@@ -355,7 +356,7 @@ public class RuntimePresetChangeService {
      * Блокирует weapon preset до конца транзакции, чтобы ревизия и запись операции были согласованы.
      */
     private PresetHeader lockWeaponPreset(RuntimePresetChangeRequest request) {
-        List<PresetHeader> presets = jdbcTemplate.query(
+        List<PresetHeader> presets = repository.query(
             """
                 SELECT catalog_version, revision
                 FROM player_weapon_presets

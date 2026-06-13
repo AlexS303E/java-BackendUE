@@ -1,5 +1,7 @@
 package com.game.backend.access.application;
 
+import com.game.backend.access.repository.AccessRepository;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.access.api.AccessItemDto;
@@ -8,7 +10,6 @@ import com.game.backend.cache.RedisCacheService;
 import com.game.backend.catalog.application.CatalogService;
 import com.game.backend.common.api.ApiException;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -23,20 +24,20 @@ public class AccessService {
     private static final TypeReference<Map<String, Object>> JSON_MAP = new TypeReference<>() {
     };
 
-    private final JdbcTemplate jdbcTemplate;
+    private final AccessRepository repository;
     private final CatalogService catalogService;
     private final ObjectMapper objectMapper;
     private final RedisCacheService cacheService;
     private final ItemAccessPolicy itemAccessPolicy;
 
     public AccessService(
-        JdbcTemplate jdbcTemplate,
+        AccessRepository repository,
         CatalogService catalogService,
         ObjectMapper objectMapper,
         RedisCacheService cacheService,
         ItemAccessPolicy itemAccessPolicy
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.catalogService = catalogService;
         this.objectMapper = objectMapper;
         this.cacheService = cacheService;
@@ -66,7 +67,7 @@ public class AccessService {
     }
 
     private long accessRevision(UUID playerId) {
-        List<Long> revisions = jdbcTemplate.queryForList(
+        List<Long> revisions = repository.queryForList(
             "SELECT access_revision FROM player_access_projection_state WHERE player_id = ?",
             Long.class,
             playerId
@@ -78,7 +79,7 @@ public class AccessService {
     }
 
     private List<AccessItemDto> items(UUID playerId, long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT
                   pia.item_id,

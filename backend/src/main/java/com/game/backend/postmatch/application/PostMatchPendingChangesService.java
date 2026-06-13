@@ -1,5 +1,7 @@
 package com.game.backend.postmatch.application;
 
+import com.game.backend.postmatch.repository.PostMatchRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -14,7 +16,6 @@ import com.game.backend.postmatch.api.PostMatchPendingChangesResponse;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.application.WeaponPresetRuntimeChangeApplier;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,20 +42,20 @@ public class PostMatchPendingChangesService {
         "superseded"
     );
 
-    private final JdbcTemplate jdbcTemplate;
+    private final PostMatchRepository repository;
     private final ObjectMapper objectMapper;
     private final WeaponPresetRuntimeChangeApplier runtimeChangeApplier;
     private final OutboxService outboxService;
     private final PlayerNotificationService playerNotificationService;
 
     public PostMatchPendingChangesService(
-        JdbcTemplate jdbcTemplate,
+        PostMatchRepository repository,
         ObjectMapper objectMapper,
         WeaponPresetRuntimeChangeApplier runtimeChangeApplier,
         OutboxService outboxService,
         PlayerNotificationService playerNotificationService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.objectMapper = objectMapper;
         this.runtimeChangeApplier = runtimeChangeApplier;
         this.outboxService = outboxService;
@@ -69,7 +70,7 @@ public class PostMatchPendingChangesService {
         String normalizedStatus = normalizeStatus(status);
         expireOldPendingChanges(playerId, OffsetDateTime.now());
 
-        List<PostMatchPendingChangeDto> changes = jdbcTemplate.query(
+        List<PostMatchPendingChangeDto> changes = repository.query(
             """
                 SELECT
                   change_id,
@@ -176,7 +177,7 @@ public class PostMatchPendingChangesService {
         );
 
         long resultRevision = preset.revision() + 1;
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE player_weapon_presets
                 SET revision = ?,
@@ -258,7 +259,7 @@ public class PostMatchPendingChangesService {
     }
 
     private void expireOldPendingChanges(UUID playerId, OffsetDateTime now) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE post_match_pending_changes
                 SET status = 'expired',
@@ -286,7 +287,7 @@ public class PostMatchPendingChangesService {
     }
 
     private PendingChange lockPendingChange(UUID playerId, UUID changeId) {
-        List<PendingChange> changes = jdbcTemplate.query(
+        List<PendingChange> changes = repository.query(
             """
                 SELECT
                   change_id,
@@ -323,7 +324,7 @@ public class PostMatchPendingChangesService {
     }
 
     private PresetHeader lockWeaponPreset(PendingChange change) {
-        List<PresetHeader> presets = jdbcTemplate.query(
+        List<PresetHeader> presets = repository.query(
             """
                 SELECT catalog_version, revision
                 FROM player_weapon_presets
@@ -357,7 +358,7 @@ public class PostMatchPendingChangesService {
     }
 
     private void updateChangeStatus(UUID changeId, String status, OffsetDateTime resolvedAt) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE post_match_pending_changes
                 SET status = ?,

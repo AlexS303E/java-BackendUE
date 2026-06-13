@@ -3,6 +3,7 @@ package com.game.backend;
 import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
 import com.game.backend.outbox.application.OutboxWorker;
 import com.game.backend.outbox.application.RoutingOutboxPublisher;
+import com.game.backend.outbox.repository.OutboxRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -88,7 +89,7 @@ class OutboxWorkerIntegrationTest {
 
         AtomicBoolean publishedTargetEvent = new AtomicBoolean(false);
         OutboxWorker worker = new OutboxWorker(
-                jdbcTemplate,
+                new OutboxRepository(jdbcTemplate),
                 transactionTemplate,
                 event -> {
                     if (event.eventId().equals(eventId)) {
@@ -188,7 +189,7 @@ class OutboxWorkerIntegrationTest {
 
     private OutboxWorker worker(com.game.backend.outbox.application.OutboxPublisher outboxPublisher) {
         return new OutboxWorker(
-                jdbcTemplate,
+                new OutboxRepository(jdbcTemplate),
                 transactionTemplate,
                 outboxPublisher,
                 true,

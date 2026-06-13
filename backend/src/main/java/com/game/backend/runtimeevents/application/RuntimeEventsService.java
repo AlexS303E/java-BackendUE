@@ -1,5 +1,7 @@
 package com.game.backend.runtimeevents.application;
 
+import com.game.backend.runtimeevents.repository.RuntimeEventsRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
@@ -11,7 +13,6 @@ import com.game.backend.serverauth.application.ServerIdentity;
 import com.game.backend.serverauth.application.ServerMatchService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,20 +45,20 @@ public class RuntimeEventsService {
         "match_finished"
     );
 
-    private final JdbcTemplate jdbcTemplate;
+    private final RuntimeEventsRepository repository;
     private final ObjectMapper objectMapper;
     private final ServerMatchService serverMatchService;
     private final ServerAuditService serverAuditService;
     private final OutboxService outboxService;
 
     public RuntimeEventsService(
-        JdbcTemplate jdbcTemplate,
+        RuntimeEventsRepository repository,
         ObjectMapper objectMapper,
         ServerMatchService serverMatchService,
         ServerAuditService serverAuditService,
         OutboxService outboxService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.objectMapper = objectMapper;
         this.serverMatchService = serverMatchService;
         this.serverAuditService = serverAuditService;
@@ -141,7 +142,7 @@ public class RuntimeEventsService {
     }
 
     private boolean eventExists(UUID eventId) {
-        Boolean exists = jdbcTemplate.queryForObject(
+        Boolean exists = repository.queryForObject(
             "SELECT EXISTS(SELECT 1 FROM server_runtime_events WHERE event_id = ?)",
             Boolean.class,
             eventId
@@ -150,7 +151,7 @@ public class RuntimeEventsService {
     }
 
     private void deleteExpiredIdempotencyRecord(ServerIdentity server, String idempotencyKey, OffsetDateTime now) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 DELETE FROM api_idempotency_records
                 WHERE operation_scope = ?
@@ -166,7 +167,7 @@ public class RuntimeEventsService {
     }
 
     private ExistingIdempotencyRecord existingIdempotencyRecord(ServerIdentity server, String idempotencyKey) {
-        List<ExistingIdempotencyRecord> records = jdbcTemplate.query(
+        List<ExistingIdempotencyRecord> records = repository.query(
             """
                 SELECT request_hash, status_code, response_body::text AS response_body
                 FROM api_idempotency_records
@@ -206,7 +207,7 @@ public class RuntimeEventsService {
         OffsetDateTime now
     ) {
         try {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     INSERT INTO api_idempotency_records(
                       operation_scope,
@@ -241,7 +242,7 @@ public class RuntimeEventsService {
 
     private void insertRuntimeEvent(ServerIdentity server, RuntimeEventRequest request, OffsetDateTime now) {
         try {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     INSERT INTO server_runtime_events(
                       event_id,
@@ -278,7 +279,7 @@ public class RuntimeEventsService {
     }
 
     private void finishMatch(UUID matchId, OffsetDateTime now) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE server_matches
                 SET status = 'finished',

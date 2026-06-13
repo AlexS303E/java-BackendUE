@@ -1,5 +1,7 @@
 package com.game.backend.catalog.application;
 
+import com.game.backend.catalog.repository.CatalogRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.admin.application.AdminAuditService;
@@ -11,7 +13,6 @@ import com.game.backend.catalog.api.CatalogRollbackRequest;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.outbox.application.OutboxService;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,7 +38,7 @@ public class CatalogLifecycleService {
     private static final String ACTION_ROLLBACK = "catalog.rollback";
     private static final int MANUAL_CONFLICT_TTL_DAYS = 7;
 
-    private final JdbcTemplate jdbcTemplate;
+    private final CatalogRepository repository;
     private final ObjectMapper objectMapper;
     private final AdminAuditService adminAuditService;
     private final OutboxService outboxService;
@@ -45,14 +46,14 @@ public class CatalogLifecycleService {
     private final CatalogValidationData catalogValidationData;
 
     public CatalogLifecycleService(
-        JdbcTemplate jdbcTemplate,
+        CatalogRepository repository,
         ObjectMapper objectMapper,
         AdminAuditService adminAuditService,
         OutboxService outboxService,
         RedisCacheService cacheService,
         CatalogValidationData catalogValidationData
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.objectMapper = objectMapper;
         this.adminAuditService = adminAuditService;
         this.outboxService = outboxService;
@@ -189,7 +190,7 @@ public class CatalogLifecycleService {
     }
 
     private int migratePlayerAccess(long fromVersion, long toVersion, OffsetDateTime now) {
-        List<UUID> playerIds = jdbcTemplate.queryForList(
+        List<UUID> playerIds = repository.queryForList(
             "SELECT player_id FROM player_access_projection_state ORDER BY player_id",
             UUID.class
         );
@@ -201,7 +202,7 @@ public class CatalogLifecycleService {
             for (CatalogItem item : newItems) {
                 String oldItemId = oldItemIdForNewItem(item.itemId(), fromVersion, toVersion);
                 AccessFlags flags = oldItemId == null ? AccessFlags.defaultOpen(item.enabled()) : accessFlags(playerId, oldItemId, fromVersion, item.enabled());
-                int updated = jdbcTemplate.update(
+                int updated = repository.update(
                     """
                         INSERT INTO player_item_access(
                           player_id,
@@ -243,7 +244,7 @@ public class CatalogLifecycleService {
                 changed = changed || updated > 0;
             }
             if (changed) {
-                jdbcTemplate.update(
+                repository.update(
                     """
                         UPDATE player_access_projection_state
                         SET access_revision = access_revision + 1,
@@ -260,7 +261,7 @@ public class CatalogLifecycleService {
     }
 
     private int migrateWeaponPresets(long fromVersion, long toVersion, UUID operationId, OffsetDateTime now) {
-        List<WeaponPresetHeader> headers = jdbcTemplate.query(
+        List<WeaponPresetHeader> headers = repository.query(
             """
                 SELECT player_id, class_tag, preset_slot, catalog_version, revision, sanitized
                 FROM player_weapon_presets
@@ -294,7 +295,7 @@ public class CatalogLifecycleService {
 
         for (WeaponPresetSnapshot preset : presets) {
             MigratedWeaponPreset migrated = migrateWeaponPresetSnapshot(preset, fromVersion, toVersion);
-            jdbcTemplate.update(
+            repository.update(
                 """
                     DELETE FROM player_weapon_presets
                     WHERE player_id = ?
@@ -305,7 +306,7 @@ public class CatalogLifecycleService {
                 preset.classTag(),
                 preset.presetSlot()
             );
-            jdbcTemplate.update(
+            repository.update(
                 """
                     INSERT INTO player_weapon_presets(
                       player_id,
@@ -327,7 +328,7 @@ public class CatalogLifecycleService {
                 now
             );
             for (MigratedWeaponSlot slot : migrated.slots()) {
-                jdbcTemplate.update(
+                repository.update(
                     """
                         INSERT INTO player_weapon_preset_slots(
                           player_id,
@@ -348,7 +349,7 @@ public class CatalogLifecycleService {
                 );
             }
             for (MigratedWeaponConfig config : migrated.configs()) {
-                jdbcTemplate.update(
+                repository.update(
                     """
                         INSERT INTO player_weapon_preset_weapon_configs(
                           player_id,
@@ -372,7 +373,7 @@ public class CatalogLifecycleService {
                     now
                 );
                 for (MigratedModule module : config.modules()) {
-                    jdbcTemplate.update(
+                    repository.update(
                         """
                             INSERT INTO player_weapon_preset_weapon_config_modules(
                               player_id,
@@ -471,7 +472,7 @@ public class CatalogLifecycleService {
     }
 
     private int migrateOutfitPresets(long fromVersion, long toVersion, OffsetDateTime now) {
-        List<OutfitPresetHeader> headers = jdbcTemplate.query(
+        List<OutfitPresetHeader> headers = repository.query(
             """
                 SELECT player_id, team_tag, class_tag, outfit_preset_slot, catalog_version, revision, sanitized
                 FROM player_outfit_presets
@@ -506,7 +507,7 @@ public class CatalogLifecycleService {
 
         for (OutfitPresetSnapshot preset : presets) {
             MigratedOutfitPreset migrated = migrateOutfitPresetSnapshot(preset, fromVersion, toVersion);
-            jdbcTemplate.update(
+            repository.update(
                 """
                     DELETE FROM player_outfit_presets
                     WHERE player_id = ?
@@ -519,7 +520,7 @@ public class CatalogLifecycleService {
                 preset.classTag(),
                 preset.outfitPresetSlot()
             );
-            jdbcTemplate.update(
+            repository.update(
                 """
                     INSERT INTO player_outfit_presets(
                       player_id,
@@ -543,7 +544,7 @@ public class CatalogLifecycleService {
                 now
             );
             for (MigratedOutfitItem item : migrated.items()) {
-                jdbcTemplate.update(
+                repository.update(
                     """
                         INSERT INTO player_outfit_preset_items(
                           player_id,
@@ -592,7 +593,7 @@ public class CatalogLifecycleService {
 
     private void activateCatalog(String realmId, long previousVersion, long targetVersion, int rolloutPercent, boolean allowExistingMatches, OffsetDateTime now) {
         if (previousVersion != 0L) {
-            jdbcTemplate.update(
+            repository.update(
                 """
                     UPDATE catalog_deployments
                     SET deployment_state = 'previous',
@@ -607,7 +608,7 @@ public class CatalogLifecycleService {
                 now,
                 realmId
             );
-            jdbcTemplate.update(
+            repository.update(
                 """
                     UPDATE catalog_versions
                     SET state = 'previous',
@@ -619,7 +620,7 @@ public class CatalogLifecycleService {
             );
         }
 
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO catalog_deployments(
                   realm_id,
@@ -647,7 +648,7 @@ public class CatalogLifecycleService {
             allowExistingMatches,
             now
         );
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE catalog_versions
                 SET state = 'active',
@@ -661,7 +662,7 @@ public class CatalogLifecycleService {
     }
 
     private void rollbackDeployment(String realmId, long activeVersion, long targetVersion, OffsetDateTime now) {
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE catalog_deployments
                 SET deployment_state = 'rolled_back',
@@ -676,7 +677,7 @@ public class CatalogLifecycleService {
             realmId,
             activeVersion
         );
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE catalog_versions
                 SET state = 'rolled_back',
@@ -686,7 +687,7 @@ public class CatalogLifecycleService {
             now,
             activeVersion
         );
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE catalog_deployments
                 SET deployment_state = 'active',
@@ -702,7 +703,7 @@ public class CatalogLifecycleService {
             realmId,
             targetVersion
         );
-        jdbcTemplate.update(
+        repository.update(
             """
                 UPDATE catalog_versions
                 SET state = 'active',
@@ -716,7 +717,7 @@ public class CatalogLifecycleService {
     }
 
     private int invalidateRealmProfiles(String realmId, String reason, UUID operationId, OffsetDateTime now) {
-        return jdbcTemplate.update(
+        return repository.update(
             """
                 UPDATE player_match_profiles
                 SET is_stale = true,
@@ -801,7 +802,7 @@ public class CatalogLifecycleService {
     }
 
     private void ensureRealmExists(String realmId) {
-        Boolean exists = jdbcTemplate.queryForObject(
+        Boolean exists = repository.queryForObject(
             "SELECT EXISTS(SELECT 1 FROM realms WHERE realm_id = ? AND is_active = true)",
             Boolean.class,
             realmId
@@ -812,7 +813,7 @@ public class CatalogLifecycleService {
     }
 
     private void ensurePublishableCatalogVersion(long catalogVersion) {
-        List<String> states = jdbcTemplate.queryForList(
+        List<String> states = repository.queryForList(
             "SELECT state FROM catalog_versions WHERE catalog_version = ? FOR UPDATE",
             String.class,
             catalogVersion
@@ -827,7 +828,7 @@ public class CatalogLifecycleService {
     }
 
     private void ensureRollbackTarget(String realmId, long catalogVersion) {
-        Boolean exists = jdbcTemplate.queryForObject(
+        Boolean exists = repository.queryForObject(
             """
                 SELECT EXISTS(
                   SELECT 1
@@ -857,7 +858,7 @@ public class CatalogLifecycleService {
     }
 
     private CatalogDeployment activeDeployment(String realmId) {
-        List<CatalogDeployment> rows = jdbcTemplate.query(
+        List<CatalogDeployment> rows = repository.query(
             """
                 SELECT catalog_version, allow_new_matches, allow_existing_matches
                 FROM catalog_deployments
@@ -879,7 +880,7 @@ public class CatalogLifecycleService {
     }
 
     private long latestPreviousDeploymentVersion(String realmId) {
-        List<Long> versions = jdbcTemplate.queryForList(
+        List<Long> versions = repository.queryForList(
             """
                 SELECT catalog_version
                 FROM catalog_deployments
@@ -898,7 +899,7 @@ public class CatalogLifecycleService {
     }
 
     private List<CatalogItem> catalogItems(long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT item_id, item_type, is_enabled
                 FROM catalog_items
@@ -915,7 +916,7 @@ public class CatalogLifecycleService {
     }
 
     private AccessFlags accessFlags(UUID playerId, String itemId, long catalogVersion, boolean targetCatalogEnabled) {
-        List<AccessFlags> rows = jdbcTemplate.query(
+        List<AccessFlags> rows = repository.query(
             """
                 SELECT
                   is_hidden,
@@ -950,7 +951,7 @@ public class CatalogLifecycleService {
         if (catalogItemExists(newItemId, fromVersion)) {
             return newItemId;
         }
-        List<String> mapped = jdbcTemplate.queryForList(
+        List<String> mapped = repository.queryForList(
             """
                 SELECT old_id
                 FROM catalog_id_migration_map
@@ -980,7 +981,7 @@ public class CatalogLifecycleService {
     ) {
         UUID changeId = UUID.randomUUID();
         long resultRevision = preset.revision() + 1;
-        jdbcTemplate.update(
+        repository.update(
             """
                 INSERT INTO post_match_pending_changes(
                   change_id,
@@ -1122,7 +1123,7 @@ public class CatalogLifecycleService {
     }
 
     private MigrationEntry migrationEntry(long fromVersion, long toVersion, String idType, String oldId) {
-        List<MigrationEntry> rows = jdbcTemplate.query(
+        List<MigrationEntry> rows = repository.query(
             """
                 SELECT migration_action, new_id
                 FROM catalog_id_migration_map
@@ -1141,7 +1142,7 @@ public class CatalogLifecycleService {
     }
 
     private boolean catalogItemExists(String itemId, long catalogVersion) {
-        Boolean exists = jdbcTemplate.queryForObject(
+        Boolean exists = repository.queryForObject(
             "SELECT EXISTS(SELECT 1 FROM catalog_items WHERE item_id = ? AND catalog_version = ?)",
             Boolean.class,
             itemId,
@@ -1151,7 +1152,7 @@ public class CatalogLifecycleService {
     }
 
     private boolean mountExists(String mountId, long catalogVersion) {
-        Boolean exists = jdbcTemplate.queryForObject(
+        Boolean exists = repository.queryForObject(
             "SELECT EXISTS(SELECT 1 FROM weapon_module_mounts WHERE mount_id = ? AND catalog_version = ?)",
             Boolean.class,
             mountId,
@@ -1161,7 +1162,7 @@ public class CatalogLifecycleService {
     }
 
     private boolean catalogItemUsableForPreset(String itemId, long catalogVersion, String itemType, String classTag) {
-        Boolean usable = jdbcTemplate.queryForObject(
+        Boolean usable = repository.queryForObject(
             """
                 SELECT EXISTS(
                   SELECT 1
@@ -1208,7 +1209,7 @@ public class CatalogLifecycleService {
     }
 
     private boolean catalogItemUsableForOutfit(String itemId, long catalogVersion, String classTag) {
-        Boolean usable = jdbcTemplate.queryForObject(
+        Boolean usable = repository.queryForObject(
             """
                 SELECT EXISTS(
                   SELECT 1
@@ -1254,7 +1255,7 @@ public class CatalogLifecycleService {
     }
 
     private boolean mountModuleAllowed(long catalogVersion, String weaponId, String mountId, String moduleId) {
-        Boolean allowed = jdbcTemplate.queryForObject(
+        Boolean allowed = repository.queryForObject(
             """
                 SELECT EXISTS(
                   SELECT 1
@@ -1278,7 +1279,7 @@ public class CatalogLifecycleService {
     }
 
     private boolean weaponSlotAllowed(String classTag, String weaponSlotId) {
-        Boolean allowed = jdbcTemplate.queryForObject(
+        Boolean allowed = repository.queryForObject(
             """
                 SELECT EXISTS(
                   SELECT 1
@@ -1296,7 +1297,7 @@ public class CatalogLifecycleService {
     }
 
     private List<String> allowedWeaponSlots(String classTag) {
-        return jdbcTemplate.queryForList(
+        return repository.queryForList(
             """
                 SELECT weapon_slot_id
                 FROM class_weapon_slot_rules
@@ -1310,7 +1311,7 @@ public class CatalogLifecycleService {
     }
 
     private boolean clothingSlotActive(String clothingSlotId) {
-        Boolean active = jdbcTemplate.queryForObject(
+        Boolean active = repository.queryForObject(
             "SELECT EXISTS(SELECT 1 FROM clothing_slot_definitions WHERE clothing_slot_id = ? AND is_active = true)",
             Boolean.class,
             clothingSlotId
@@ -1319,7 +1320,7 @@ public class CatalogLifecycleService {
     }
 
     private List<WeaponSlotSnapshot> weaponSlotsSnapshot(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT weapon_slot_id, selected_weapon_id
                 FROM player_weapon_preset_slots
@@ -1338,7 +1339,7 @@ public class CatalogLifecycleService {
     }
 
     private List<WeaponConfigSnapshot> weaponConfigsSnapshot(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT weapon_slot_id, weapon_id, config_revision
                 FROM player_weapon_preset_weapon_configs
@@ -1362,7 +1363,7 @@ public class CatalogLifecycleService {
     }
 
     private List<ModuleSnapshot> modulesSnapshot(UUID playerId, String classTag, int presetSlot, long catalogVersion, String weaponSlotId, String weaponId) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT mount_id, module_id
                 FROM player_weapon_preset_weapon_config_modules
@@ -1385,7 +1386,7 @@ public class CatalogLifecycleService {
     }
 
     private List<OutfitItemSnapshot> outfitItemsSnapshot(UUID playerId, String teamTag, String classTag, int outfitPresetSlot, long catalogVersion) {
-        return jdbcTemplate.query(
+        return repository.query(
             """
                 SELECT clothing_slot_id, item_id
                 FROM player_outfit_preset_items

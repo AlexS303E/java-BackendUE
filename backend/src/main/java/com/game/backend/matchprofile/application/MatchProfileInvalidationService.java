@@ -1,7 +1,8 @@
 package com.game.backend.matchprofile.application;
 
+import com.game.backend.matchprofile.repository.MatchProfileRepository;
+
 import com.game.backend.outbox.application.OutboxService;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -14,11 +15,11 @@ import java.util.UUID;
  */
 @Service
 public class MatchProfileInvalidationService {
-    private final JdbcTemplate jdbcTemplate;
+    private final MatchProfileRepository repository;
     private final OutboxService outboxService;
 
-    public MatchProfileInvalidationService(JdbcTemplate jdbcTemplate, OutboxService outboxService) {
-        this.jdbcTemplate = jdbcTemplate;
+    public MatchProfileInvalidationService(MatchProfileRepository repository, OutboxService outboxService) {
+        this.repository = repository;
         this.outboxService = outboxService;
     }
 
@@ -32,7 +33,7 @@ public class MatchProfileInvalidationService {
         UUID sourceEventId,
         OffsetDateTime now
     ) {
-        List<StaleProfile> staleProfiles = jdbcTemplate.query(
+        List<StaleProfile> staleProfiles = repository.query(
             """
                 UPDATE player_match_profiles
                 SET is_stale = true,
@@ -87,7 +88,7 @@ public class MatchProfileInvalidationService {
         UUID sourceEventId,
         OffsetDateTime now
     ) {
-        List<UUID> staleProfileIds = jdbcTemplate.queryForList(
+        List<UUID> staleProfileIds = repository.queryForList(
             """
                 UPDATE player_match_profiles
                 SET is_stale = true,

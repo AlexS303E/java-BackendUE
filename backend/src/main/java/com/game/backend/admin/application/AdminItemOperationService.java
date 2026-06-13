@@ -1,12 +1,13 @@
 package com.game.backend.admin.application;
 
+import com.game.backend.admin.repository.AdminRepository;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.admin.api.AdminItemAccessUpdateRequest;
 import com.game.backend.admin.api.AdminItemAccessUpdateResponse;
 import com.game.backend.admin.api.AdminItemOperationRequest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,18 +22,18 @@ public class AdminItemOperationService {
     private static final TypeReference<Map<String, Object>> JSON_MAP = new TypeReference<>() {
     };
 
-    private final JdbcTemplate jdbcTemplate;
+    private final AdminRepository repository;
     private final ObjectMapper objectMapper;
     private final AdminPlayerAccessService adminPlayerAccessService;
     private final AdminMutationIdempotencyService idempotencyService;
 
     public AdminItemOperationService(
-        JdbcTemplate jdbcTemplate,
+        AdminRepository repository,
         ObjectMapper objectMapper,
         AdminPlayerAccessService adminPlayerAccessService,
         AdminMutationIdempotencyService idempotencyService
     ) {
-        this.jdbcTemplate = jdbcTemplate;
+        this.repository = repository;
         this.objectMapper = objectMapper;
         this.adminPlayerAccessService = adminPlayerAccessService;
         this.idempotencyService = idempotencyService;
@@ -142,7 +143,7 @@ public class AdminItemOperationService {
     }
 
     private AccessFlags currentFlags(AdminItemOperationRequest request) {
-        List<AccessFlags> rows = jdbcTemplate.query(
+        List<AccessFlags> rows = repository.query(
             """
                 SELECT
                   is_hidden,
