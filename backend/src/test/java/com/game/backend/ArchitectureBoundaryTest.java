@@ -43,6 +43,12 @@ class ArchitectureBoundaryTest {
         assertApplicationPackageDoesNotOwnSqlQueries(sourceRoot);
     }
 
+    @Test
+    void accessApplicationShouldNotOwnSqlQueries() throws IOException {
+        Path sourceRoot = Path.of("src/main/java/com/game/backend/access/application");
+        assertApplicationPackageDoesNotOwnSqlQueries(sourceRoot);
+    }
+
     private static void assertApplicationPackageDoesNotOwnSqlQueries(Path sourceRoot) throws IOException {
         List<Path> offenders;
         try (var paths = Files.walk(sourceRoot)) {

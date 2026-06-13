@@ -67,11 +67,7 @@ public class AccessService {
     }
 
     private long accessRevision(UUID playerId) {
-        List<Long> revisions = repository.queryForList(
-            "SELECT access_revision FROM player_access_projection_state WHERE player_id = ?",
-            Long.class,
-            playerId
-        );
+        List<Long> revisions = repository.findAccessRevision(playerId);
         if (revisions.isEmpty()) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "ACCESS_PROJECTION_NOT_FOUND", "Access projection was not found");
         }
@@ -79,51 +75,28 @@ public class AccessService {
     }
 
     private List<AccessItemDto> items(UUID playerId, long catalogVersion) {
-        return repository.query(
-            """
-                SELECT
-                  pia.item_id,
-                  ci.item_type,
-                  ci.display_name,
-                  ci.is_enabled,
-                  pia.is_hidden,
-                  pia.is_locked_in_shop,
-                  pia.is_locked_by_quest,
-                  pia.is_disabled,
-                  pia.disabled_reason,
-                  pia.unlock_hint_code,
-                  pia.unlock_hint_payload::text AS unlock_hint_payload
-                FROM player_item_access pia
-                JOIN catalog_items ci
-                  ON ci.item_id = pia.item_id
-                 AND ci.catalog_version = pia.catalog_version
-                WHERE pia.player_id = ?
-                  AND pia.catalog_version = ?
-                ORDER BY ci.item_type, pia.item_id
-                """,
-            (rs, rowNum) -> {
-                boolean isEnabled = rs.getBoolean("is_enabled");
-                boolean hidden = rs.getBoolean("is_hidden");
-                boolean lockedInShop = rs.getBoolean("is_locked_in_shop");
-                boolean lockedByQuest = rs.getBoolean("is_locked_by_quest");
-                boolean disabled = rs.getBoolean("is_disabled");
-                return new AccessItemDto(
-                    rs.getString("item_id"),
-                    rs.getString("item_type"),
-                    rs.getString("display_name"),
-                    hidden,
-                    lockedInShop,
-                    lockedByQuest,
-                    disabled,
-                    rs.getString("disabled_reason"),
-                    rs.getString("unlock_hint_code"),
-                    parsePayload(rs.getString("unlock_hint_payload")),
-                    itemAccessPolicy.canUseForUi(isEnabled, hidden, lockedInShop, lockedByQuest, disabled)
-                );
-            },
-            playerId,
-            catalogVersion
-        );
+        return repository.findAccessItems(playerId, catalogVersion)
+            .stream()
+            .map(row -> new AccessItemDto(
+                    row.itemId(),
+                    row.itemType(),
+                    row.displayName(),
+                    row.hidden(),
+                    row.lockedInShop(),
+                    row.lockedByQuest(),
+                    row.disabled(),
+                    row.disabledReason(),
+                    row.unlockHintCode(),
+                    parsePayload(row.unlockHintPayload()),
+                    itemAccessPolicy.canUseForUi(
+                        row.enabled(),
+                        row.hidden(),
+                        row.lockedInShop(),
+                        row.lockedByQuest(),
+                        row.disabled()
+                    )
+                ))
+            .toList();
     }
 
     /**
