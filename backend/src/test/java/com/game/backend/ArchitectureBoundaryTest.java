@@ -58,6 +58,15 @@ class ArchitectureBoundaryTest {
             .isFalse();
     }
 
+    @Test
+    void loadoutSanitizationServiceShouldNotOwnSqlQueries() throws IOException {
+        Path sourceFile = Path.of("src/main/java/com/game/backend/presets/application/LoadoutSanitizationService.java");
+
+        assertThat(ownsSqlOrGenericRepositoryCalls(sourceFile))
+            .as("LoadoutSanitizationService should call named repository methods, not own SQL/query plumbing")
+            .isFalse();
+    }
+
     private static void assertApplicationPackageDoesNotOwnSqlQueries(Path sourceRoot) throws IOException {
         List<Path> offenders;
         try (var paths = Files.walk(sourceRoot)) {
