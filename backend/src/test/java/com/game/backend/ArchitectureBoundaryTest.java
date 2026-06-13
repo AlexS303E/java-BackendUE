@@ -67,6 +67,15 @@ class ArchitectureBoundaryTest {
             .isFalse();
     }
 
+    @Test
+    void presetsServiceShouldNotOwnSqlQueries() throws IOException {
+        Path sourceFile = Path.of("src/main/java/com/game/backend/presets/application/PresetsService.java");
+
+        assertThat(ownsSqlOrGenericRepositoryCalls(sourceFile))
+            .as("PresetsService should call named repository methods, not own SQL/query plumbing")
+            .isFalse();
+    }
+
     private static void assertApplicationPackageDoesNotOwnSqlQueries(Path sourceRoot) throws IOException {
         List<Path> offenders;
         try (var paths = Files.walk(sourceRoot)) {

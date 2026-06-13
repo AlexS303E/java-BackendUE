@@ -1,6 +1,13 @@
 package com.game.backend.presets.application;
 
 import com.game.backend.presets.repository.PresetsRepository;
+import com.game.backend.presets.repository.PresetsRepository.OutfitPresetItemRow;
+import com.game.backend.presets.repository.PresetsRepository.OutfitPresetKey;
+import com.game.backend.presets.repository.PresetsRepository.PresetHeader;
+import com.game.backend.presets.repository.PresetsRepository.SlotAndWeaponKey;
+import com.game.backend.presets.repository.PresetsRepository.WeaponConfigModuleRow;
+import com.game.backend.presets.repository.PresetsRepository.WeaponPresetKey;
+import com.game.backend.presets.repository.PresetsRepository.WeaponPresetSlotRow;
 
 import com.game.backend.common.api.ApiException;
 import com.game.backend.outbox.application.OutboxService;
@@ -82,24 +89,7 @@ public class PresetsService {
         }
 
         long newRevision = expectedRevision + 1;
-        repository.update(
-            """
-                UPDATE player_weapon_presets
-                SET revision = ?,
-                    sanitized = false,
-                    updated_at = ?
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                """,
-            newRevision,
-            now,
-            playerId,
-            classTag,
-            presetSlot,
-            catalogVersion
-        );
+        repository.updateWeaponPresetRevision(playerId, classTag, presetSlot, catalogVersion, newRevision, now);
         outboxService.record(
             "weapon_preset.saved",
             "weapon_preset",
@@ -142,23 +132,7 @@ public class PresetsService {
     }
 
     private List<WeaponPresetDto> loadWeaponPresetsBatch(UUID playerId) {
-        List<WeaponPresetDto> presets = repository.query(
-            """
-                SELECT class_tag, preset_slot, catalog_version, revision, sanitized
-                FROM player_weapon_presets
-                WHERE player_id = ?
-                ORDER BY class_tag, preset_slot
-                """,
-            (rs, rowNum) -> new WeaponPresetDto(
-                rs.getString("class_tag"),
-                rs.getInt("preset_slot"),
-                rs.getLong("catalog_version"),
-                rs.getLong("revision"),
-                rs.getBoolean("sanitized"),
-                new ArrayList<>()
-            ),
-            playerId
-        );
+        List<WeaponPresetDto> presets = repository.findWeaponPresets(playerId);
 
         if (presets.isEmpty()) return presets;
 
@@ -169,81 +143,41 @@ public class PresetsService {
 
         Map<SlotAndWeaponKey, List<ModuleSelectionDto>> modulesBySlot = new HashMap<>();
 
-        repository.query(
-            """
-                SELECT class_tag, preset_slot, catalog_version, weapon_slot_id, selected_weapon_id
-                FROM player_weapon_preset_slots
-                WHERE player_id = ?
-                ORDER BY class_tag, preset_slot, weapon_slot_id
-                """,
-            (rs, rowNum) -> {
-                String classTag = rs.getString("class_tag");
-                int presetSlot = rs.getInt("preset_slot");
-                long catalogVersion = rs.getLong("catalog_version");
-                String weaponSlotId = rs.getString("weapon_slot_id");
-                String selectedWeaponId = rs.getString("selected_weapon_id");
-                WeaponPresetKey pk = new WeaponPresetKey(classTag, presetSlot, catalogVersion);
-                List<WeaponSlotPresetDto> slots = slotsByPreset.get(pk);
-                List<ModuleSelectionDto> slotModules = new ArrayList<>();
-                WeaponSlotPresetDto slot = new WeaponSlotPresetDto(weaponSlotId, selectedWeaponId, slotModules);
-                if (slots != null) slots.add(slot);
-                if (selectedWeaponId != null) {
-                    modulesBySlot.put(new SlotAndWeaponKey(classTag, presetSlot, catalogVersion, weaponSlotId, selectedWeaponId), slotModules);
-                }
-                return null;
-            },
-            playerId
-        );
+        for (WeaponPresetSlotRow row : repository.findWeaponPresetSlotRows(playerId)) {
+            WeaponPresetKey pk = new WeaponPresetKey(row.classTag(), row.presetSlot(), row.catalogVersion());
+            List<WeaponSlotPresetDto> slots = slotsByPreset.get(pk);
+            List<ModuleSelectionDto> slotModules = new ArrayList<>();
+            WeaponSlotPresetDto slot = new WeaponSlotPresetDto(row.weaponSlotId(), row.selectedWeaponId(), slotModules);
+            if (slots != null) slots.add(slot);
+            if (row.selectedWeaponId() != null) {
+                modulesBySlot.put(
+                    new SlotAndWeaponKey(row.classTag(), row.presetSlot(), row.catalogVersion(), row.weaponSlotId(), row.selectedWeaponId()),
+                    slotModules
+                );
+            }
+        }
 
         if (!modulesBySlot.isEmpty()) {
-            repository.query(
-                """
-                    SELECT class_tag, preset_slot, catalog_version, weapon_slot_id, weapon_id, mount_id, module_id
-                    FROM player_weapon_preset_weapon_config_modules
-                    WHERE player_id = ?
-                    ORDER BY class_tag, preset_slot, catalog_version, weapon_slot_id, weapon_id, mount_id
-                    """,
-                (rs, rowNum) -> {
-                    String classTag = rs.getString("class_tag");
-                    int presetSlot = rs.getInt("preset_slot");
-                    long catalogVersion = rs.getLong("catalog_version");
-                    String weaponSlotId = rs.getString("weapon_slot_id");
-                    String weaponId = rs.getString("weapon_id");
-                    String mountId = rs.getString("mount_id");
-                    String moduleId = rs.getString("module_id");
-                    SlotAndWeaponKey sk = new SlotAndWeaponKey(classTag, presetSlot, catalogVersion, weaponSlotId, weaponId);
-                    List<ModuleSelectionDto> slotModules = modulesBySlot.get(sk);
-                    if (slotModules != null) {
-                        slotModules.add(new ModuleSelectionDto(mountId, moduleId));
-                    }
-                    return null;
-                },
-                playerId
-            );
+            for (WeaponConfigModuleRow row : repository.findWeaponConfigModuleRows(playerId)) {
+                SlotAndWeaponKey sk = new SlotAndWeaponKey(
+                    row.classTag(),
+                    row.presetSlot(),
+                    row.catalogVersion(),
+                    row.weaponSlotId(),
+                    row.weaponId()
+                );
+                List<ModuleSelectionDto> slotModules = modulesBySlot.get(sk);
+                if (slotModules != null) {
+                    slotModules.add(new ModuleSelectionDto(row.mountId(), row.moduleId()));
+                }
+            }
         }
 
         return presets;
     }
 
     private List<OutfitPresetDto> loadOutfitPresetsBatch(UUID playerId) {
-        List<OutfitPresetDto> presets = repository.query(
-            """
-                SELECT team_tag, class_tag, outfit_preset_slot, catalog_version, revision, sanitized
-                FROM player_outfit_presets
-                WHERE player_id = ?
-                ORDER BY team_tag, class_tag, outfit_preset_slot
-                """,
-            (rs, rowNum) -> new OutfitPresetDto(
-                rs.getString("team_tag"),
-                rs.getString("class_tag"),
-                rs.getInt("outfit_preset_slot"),
-                rs.getLong("catalog_version"),
-                rs.getLong("revision"),
-                rs.getBoolean("sanitized"),
-                new ArrayList<>()
-            ),
-            playerId
-        );
+        List<OutfitPresetDto> presets = repository.findOutfitPresets(playerId);
 
         if (presets.isEmpty()) return presets;
 
@@ -252,35 +186,16 @@ public class PresetsService {
             itemsByPreset.put(new OutfitPresetKey(p.teamTag(), p.classTag(), p.outfitPresetSlot(), p.catalogVersion()), p.items());
         }
 
-        repository.query(
-            """
-                SELECT team_tag, class_tag, outfit_preset_slot, catalog_version, clothing_slot_id, item_id
-                FROM player_outfit_preset_items
-                WHERE player_id = ?
-                ORDER BY team_tag, class_tag, outfit_preset_slot, clothing_slot_id
-                """,
-            (rs, rowNum) -> {
-                OutfitPresetKey pk = new OutfitPresetKey(
-                    rs.getString("team_tag"),
-                    rs.getString("class_tag"),
-                    rs.getInt("outfit_preset_slot"),
-                    rs.getLong("catalog_version")
-                );
-                List<OutfitItemDto> items = itemsByPreset.get(pk);
-                if (items != null) {
-                    items.add(new OutfitItemDto(rs.getString("clothing_slot_id"), rs.getString("item_id")));
-                }
-                return null;
-            },
-            playerId
-        );
+        for (OutfitPresetItemRow row : repository.findOutfitPresetItemRows(playerId)) {
+            OutfitPresetKey pk = new OutfitPresetKey(row.teamTag(), row.classTag(), row.outfitPresetSlot(), row.catalogVersion());
+            List<OutfitItemDto> items = itemsByPreset.get(pk);
+            if (items != null) {
+                items.add(new OutfitItemDto(row.clothingSlotId(), row.itemId()));
+            }
+        }
 
         return presets;
     }
-
-    private record WeaponPresetKey(String classTag, int presetSlot, long catalogVersion) {}
-    private record SlotAndWeaponKey(String classTag, int presetSlot, long catalogVersion, String weaponSlotId, String weaponId) {}
-    private record OutfitPresetKey(String teamTag, String classTag, int outfitPresetSlot, long catalogVersion) {}
 
     /**
      * Читает weapon presets вместе с выбранными slots/modules (оригинальный N+1 метод, сохранён для обратной совместимости).
@@ -297,32 +212,15 @@ public class PresetsService {
     }
 
     public List<WeaponSlotPresetDto> weaponSlots(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
-        return repository.query(
-            """
-                SELECT weapon_slot_id, selected_weapon_id
-                FROM player_weapon_preset_slots
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                ORDER BY weapon_slot_id
-                """,
-            (rs, rowNum) -> {
-                String weaponSlotId = rs.getString("weapon_slot_id");
-                String selectedWeaponId = rs.getString("selected_weapon_id");
-                return new WeaponSlotPresetDto(
-                    weaponSlotId,
-                    selectedWeaponId,
-                    selectedWeaponId == null
-                        ? List.of()
-                        : modules(playerId, classTag, presetSlot, catalogVersion, weaponSlotId, selectedWeaponId)
-                );
-            },
-            playerId,
-            classTag,
-            presetSlot,
-            catalogVersion
-        );
+        return repository.findWeaponSlots(playerId, classTag, presetSlot, catalogVersion).stream()
+            .map(slot -> new WeaponSlotPresetDto(
+                slot.weaponSlotId(),
+                slot.selectedWeaponId(),
+                slot.selectedWeaponId() == null
+                    ? List.of()
+                    : modules(playerId, classTag, presetSlot, catalogVersion, slot.weaponSlotId(), slot.selectedWeaponId())
+            ))
+            .toList();
     }
 
     public List<ModuleSelectionDto> modules(
@@ -333,53 +231,11 @@ public class PresetsService {
         String weaponSlotId,
         String weaponId
     ) {
-        return repository.query(
-            """
-                SELECT mount_id, module_id
-                FROM player_weapon_preset_weapon_config_modules
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                  AND weapon_slot_id = ?
-                  AND weapon_id = ?
-                ORDER BY mount_id
-                """,
-            (rs, rowNum) -> new ModuleSelectionDto(
-                rs.getString("mount_id"),
-                rs.getString("module_id")
-            ),
-            playerId,
-            classTag,
-            presetSlot,
-            catalogVersion,
-            weaponSlotId,
-            weaponId
-        );
+        return repository.findModules(playerId, classTag, presetSlot, catalogVersion, weaponSlotId, weaponId);
     }
 
     public List<OutfitItemDto> outfitItems(UUID playerId, String teamTag, String classTag, int outfitPresetSlot, long catalogVersion) {
-        return repository.query(
-            """
-                SELECT clothing_slot_id, item_id
-                FROM player_outfit_preset_items
-                WHERE player_id = ?
-                  AND team_tag = ?
-                  AND class_tag = ?
-                  AND outfit_preset_slot = ?
-                  AND catalog_version = ?
-                ORDER BY clothing_slot_id
-                """,
-            (rs, rowNum) -> new OutfitItemDto(
-                rs.getString("clothing_slot_id"),
-                rs.getString("item_id")
-            ),
-            playerId,
-            teamTag,
-            classTag,
-            outfitPresetSlot,
-            catalogVersion
-        );
+        return repository.findOutfitItems(playerId, teamTag, classTag, outfitPresetSlot, catalogVersion);
     }
 
     /**
@@ -414,22 +270,7 @@ public class PresetsService {
     }
 
     private PresetHeader lockWeaponPreset(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
-        List<PresetHeader> presets = repository.query(
-            """
-                SELECT revision, sanitized
-                FROM player_weapon_presets
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                FOR UPDATE
-                """,
-            (rs, rowNum) -> new PresetHeader(rs.getLong("revision"), rs.getBoolean("sanitized")),
-            playerId,
-            classTag,
-            presetSlot,
-            catalogVersion
-        );
+        List<PresetHeader> presets = repository.lockWeaponPreset(playerId, classTag, presetSlot, catalogVersion);
         if (presets.isEmpty()) {
             throw new ApiException(
                 HttpStatus.UNPROCESSABLE_ENTITY,
@@ -479,27 +320,7 @@ public class PresetsService {
         long catalogVersion,
         SaveWeaponSlotRequest slot
     ) {
-        repository.update(
-            """
-                INSERT INTO player_weapon_preset_slots(
-                  player_id,
-                  class_tag,
-                  preset_slot,
-                  catalog_version,
-                  weapon_slot_id,
-                  selected_weapon_id
-                )
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT (player_id, class_tag, preset_slot, catalog_version, weapon_slot_id)
-                DO UPDATE SET selected_weapon_id = EXCLUDED.selected_weapon_id
-                """,
-            playerId,
-            classTag,
-            presetSlot,
-            catalogVersion,
-            slot.weaponSlotId(),
-            slot.weaponId()
-        );
+        repository.upsertSelectedSlot(playerId, classTag, presetSlot, catalogVersion, slot);
     }
 
     private void upsertWeaponConfig(
@@ -510,32 +331,7 @@ public class PresetsService {
         SaveWeaponSlotRequest slot,
         OffsetDateTime now
     ) {
-        repository.update(
-            """
-                INSERT INTO player_weapon_preset_weapon_configs(
-                  player_id,
-                  class_tag,
-                  preset_slot,
-                  catalog_version,
-                  weapon_slot_id,
-                  weapon_id,
-                  config_revision,
-                  last_used_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-                ON CONFLICT (player_id, class_tag, preset_slot, catalog_version, weapon_slot_id, weapon_id)
-                DO UPDATE SET
-                  config_revision = player_weapon_preset_weapon_configs.config_revision + 1,
-                  last_used_at = EXCLUDED.last_used_at
-                """,
-            playerId,
-            classTag,
-            presetSlot,
-            catalogVersion,
-            slot.weaponSlotId(),
-            slot.weaponId(),
-            now
-        );
+        repository.upsertWeaponConfig(playerId, classTag, presetSlot, catalogVersion, slot, now);
     }
 
     /**
@@ -548,16 +344,7 @@ public class PresetsService {
         long catalogVersion,
         SaveWeaponSlotRequest slot
     ) {
-        repository.update(
-            """
-                DELETE FROM player_weapon_preset_weapon_config_modules
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                  AND weapon_slot_id = ?
-                  AND weapon_id = ?
-                """,
+        repository.deleteWeaponConfigModules(
             playerId,
             classTag,
             presetSlot,
@@ -567,32 +354,15 @@ public class PresetsService {
         );
 
         for (SaveModuleRequest module : slot.modules()) {
-            repository.update(
-                """
-                    INSERT INTO player_weapon_preset_weapon_config_modules(
-                      player_id,
-                      class_tag,
-                      preset_slot,
-                      catalog_version,
-                      weapon_slot_id,
-                      weapon_id,
-                      mount_id,
-                      module_id
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
+            repository.insertWeaponConfigModule(
                 playerId,
                 classTag,
                 presetSlot,
                 catalogVersion,
                 slot.weaponSlotId(),
                 slot.weaponId(),
-                module.mountId(),
-                module.moduleId()
+                module
             );
         }
-    }
-
-    private record PresetHeader(long revision, boolean sanitized) {
     }
 }
