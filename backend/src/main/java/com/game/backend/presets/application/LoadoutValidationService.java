@@ -91,21 +91,7 @@ public class LoadoutValidationService {
     }
 
     private void validateWeaponSlotAllowed(String classTag, String weaponSlotId) {
-        Boolean allowed = repository.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM class_weapon_slot_rules
-                  WHERE class_tag = ?
-                    AND weapon_slot_id = ?
-                    AND is_allowed = true
-                )
-                """,
-            Boolean.class,
-            classTag,
-            weaponSlotId
-        );
-        if (!Boolean.TRUE.equals(allowed)) {
+        if (!repository.isWeaponSlotAllowed(classTag, weaponSlotId)) {
             throw loadoutValidationFailed("Weapon slot is not allowed for class: " + weaponSlotId);
         }
     }
@@ -118,28 +104,14 @@ public class LoadoutValidationService {
         String weaponSlotId,
         String weaponId
     ) {
-        Boolean matches = repository.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM player_weapon_preset_slots
-                  WHERE player_id = ?
-                    AND class_tag = ?
-                    AND preset_slot = ?
-                    AND catalog_version = ?
-                    AND weapon_slot_id = ?
-                    AND selected_weapon_id = ?
-                )
-                """,
-            Boolean.class,
+        if (!repository.isSelectedWeapon(
             playerId,
             classTag,
             weaponPresetSlot,
             catalogVersion,
             weaponSlotId,
             weaponId
-        );
-        if (!Boolean.TRUE.equals(matches)) {
+        )) {
             throw loadoutValidationFailed("Runtime module change targets a weapon that is not selected in slot: " + weaponSlotId);
         }
     }
@@ -169,27 +141,7 @@ public class LoadoutValidationService {
     }
 
     private void validateMountModuleAllowed(long catalogVersion, String weaponId, String mountId, String moduleId) {
-        Boolean allowed = repository.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM weapon_module_mounts wmm
-                  JOIN weapon_mount_allowed_modules wmam
-                    ON wmam.mount_id = wmm.mount_id
-                   AND wmam.catalog_version = wmm.catalog_version
-                  WHERE wmm.catalog_version = ?
-                    AND wmm.weapon_id = ?
-                    AND wmm.mount_id = ?
-                    AND wmam.module_id = ?
-                )
-                """,
-            Boolean.class,
-            catalogVersion,
-            weaponId,
-            mountId,
-            moduleId
-        );
-        if (!Boolean.TRUE.equals(allowed)) {
+        if (!repository.isMountModuleAllowed(catalogVersion, weaponId, mountId, moduleId)) {
             throw loadoutValidationFailed("Module is not allowed for weapon mount: " + moduleId);
         }
     }
