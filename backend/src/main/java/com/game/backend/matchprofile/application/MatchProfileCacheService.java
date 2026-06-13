@@ -54,25 +54,7 @@ public class MatchProfileCacheService {
             return cached;
         }
 
-        List<String> payloads = repository.queryForList(
-            """
-                SELECT payload
-                FROM player_match_profiles
-                WHERE player_id = ?
-                  AND realm_id = ?
-                  AND class_tag = ?
-                  AND team_tag = ?
-                  AND weapon_preset_slot = ?
-                  AND outfit_preset_slot = ?
-                  AND catalog_version = ?
-                  AND weapon_preset_revision = ?
-                  AND outfit_preset_revision = ?
-                  AND access_revision = ?
-                  AND is_stale = false
-                  AND expires_at > NOW()
-                LIMIT 1
-                """,
-            String.class,
+        List<String> payloads = repository.findFreshPayload(
             request.playerId(),
             request.realmId(),
             request.classTag(),
@@ -100,50 +82,7 @@ public class MatchProfileCacheService {
         OffsetDateTime now = OffsetDateTime.now();
         String payload = toJson(response);
 
-        repository.update(
-            """
-                INSERT INTO player_match_profiles(
-                  profile_id,
-                  player_id,
-                  realm_id,
-                  class_tag,
-                  team_tag,
-                  weapon_preset_slot,
-                  outfit_preset_slot,
-                  weapon_preset_revision,
-                  outfit_preset_revision,
-                  access_revision,
-                  catalog_version,
-                  profile_revision,
-                  payload,
-                  payload_schema_version,
-                  is_stale,
-                  generated_at,
-                  expires_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, 1, false, ?, ?)
-                ON CONFLICT (
-                  player_id,
-                  realm_id,
-                  class_tag,
-                  team_tag,
-                  weapon_preset_slot,
-                  outfit_preset_slot,
-                  weapon_preset_revision,
-                  outfit_preset_revision,
-                  access_revision,
-                  catalog_version
-                )
-                DO UPDATE SET
-                  profile_revision = EXCLUDED.profile_revision,
-                  payload = EXCLUDED.payload,
-                  payload_schema_version = EXCLUDED.payload_schema_version,
-                  is_stale = false,
-                  stale_reason = null,
-                  stale_at = null,
-                  generated_at = EXCLUDED.generated_at,
-                  expires_at = EXCLUDED.expires_at
-                """,
+        repository.saveProfile(
             UUID.randomUUID(),
             request.playerId(),
             response.realmId(),

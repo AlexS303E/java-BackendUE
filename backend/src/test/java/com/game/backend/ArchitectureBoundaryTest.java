@@ -31,12 +31,42 @@ class ArchitectureBoundaryTest {
             .isEmpty();
     }
 
+    @Test
+    void matchProfileApplicationShouldNotOwnSqlQueries() throws IOException {
+        Path sourceRoot = Path.of("src/main/java/com/game/backend/matchprofile/application");
+        List<Path> offenders;
+        try (var paths = Files.walk(sourceRoot)) {
+            offenders = paths
+                .filter(Files::isRegularFile)
+                .filter(path -> path.toString().endsWith(".java"))
+                .filter(ArchitectureBoundaryTest::ownsSqlOrGenericRepositoryCalls)
+                .toList();
+        }
+
+        assertThat(offenders)
+            .as("Match profile application services should call named repository methods, not own SQL/query plumbing")
+            .isEmpty();
+    }
+
     private static boolean usesJdbcTemplateDirectly(Path path) {
         try {
             String source = Files.readString(path);
             return source.contains("org.springframework.jdbc.core.JdbcTemplate")
                 || source.contains("JdbcTemplate ")
                 || source.contains("jdbcTemplate.");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean ownsSqlOrGenericRepositoryCalls(Path path) {
+        try {
+            String source = Files.readString(path);
+            return source.contains("\"\"\"")
+                || source.contains("repository.query(")
+                || source.contains("repository.queryForList(")
+                || source.contains("repository.queryForObject(")
+                || source.contains("repository.update(");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

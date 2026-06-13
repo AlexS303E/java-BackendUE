@@ -33,30 +33,11 @@ public class MatchProfileInvalidationService {
         UUID sourceEventId,
         OffsetDateTime now
     ) {
-        List<StaleProfile> staleProfiles = repository.query(
-            """
-                UPDATE player_match_profiles
-                SET is_stale = true,
-                    stale_reason = ?,
-                    stale_at = ?
-                WHERE player_id = ?
-                  AND catalog_version = ?
-                  AND is_stale = false
-                RETURNING profile_id, realm_id, class_tag, team_tag, weapon_preset_slot, outfit_preset_slot, profile_revision
-                """,
-            (rs, rowNum) -> new StaleProfile(
-                rs.getObject("profile_id", UUID.class),
-                rs.getString("realm_id"),
-                rs.getString("class_tag"),
-                rs.getString("team_tag"),
-                rs.getInt("weapon_preset_slot"),
-                rs.getInt("outfit_preset_slot"),
-                rs.getLong("profile_revision")
-            ),
-            staleReason,
-            now,
+        List<MatchProfileRepository.StaleProfile> staleProfiles = repository.staleProfilesForPlayerAccessChange(
             playerId,
-            catalogVersion
+            catalogVersion,
+            staleReason,
+            now
         );
 
         if (!staleProfiles.isEmpty()) {
@@ -88,20 +69,10 @@ public class MatchProfileInvalidationService {
         UUID sourceEventId,
         OffsetDateTime now
     ) {
-        List<UUID> staleProfileIds = repository.queryForList(
-            """
-                UPDATE player_match_profiles
-                SET is_stale = true,
-                    stale_reason = ?,
-                    stale_at = ?
-                WHERE player_id = ?
-                  AND is_stale = false
-                RETURNING profile_id
-                """,
-            UUID.class,
+        List<UUID> staleProfileIds = repository.staleProfileIdsForPlayer(
+            playerId,
             staleReason,
-            now,
-            playerId
+            now
         );
 
         if (!staleProfileIds.isEmpty()) {
@@ -121,16 +92,5 @@ public class MatchProfileInvalidationService {
             );
         }
         return staleProfileIds.size();
-    }
-
-    private record StaleProfile(
-        UUID profileId,
-        String realmId,
-        String classTag,
-        String teamTag,
-        int weaponPresetSlot,
-        int outfitPresetSlot,
-        long profileRevision
-    ) {
     }
 }

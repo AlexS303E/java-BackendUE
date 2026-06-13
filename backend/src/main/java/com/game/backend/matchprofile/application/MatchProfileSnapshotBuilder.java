@@ -36,7 +36,7 @@ public class MatchProfileSnapshotBuilder {
     }
 
     public Snapshot build(BuildMatchProfileRequest request, long catalogVersion) {
-        boolean enforceTeamItemRules = loadEnforceTeamItemRules(request.gameModeId());
+        boolean enforceTeamItemRules = repository.enforceTeamItemRules(request.gameModeId());
         List<MatchWeaponDto> weapons = weapons(request, catalogVersion);
         List<MatchOutfitItemDto> outfit = outfit(request, catalogVersion);
         List<String> warnings = new ArrayList<>();
@@ -44,43 +44,8 @@ public class MatchProfileSnapshotBuilder {
         return new Snapshot(weapons, outfit, warnings);
     }
 
-    private boolean loadEnforceTeamItemRules(String gameModeId) {
-        List<Boolean> results = repository.queryForList(
-            "SELECT enforce_team_item_rules FROM game_mode_rules WHERE game_mode_id = ?",
-            Boolean.class,
-            gameModeId
-        );
-        if (results.isEmpty()) {
-            return false;
-        }
-        return Boolean.TRUE.equals(results.getFirst());
-    }
-
     private List<MatchWeaponDto> weapons(BuildMatchProfileRequest request, long catalogVersion) {
-        List<Object[]> rows = repository.query(
-            """
-                SELECT ws.weapon_slot_id, ws.selected_weapon_id,
-                       wcm.mount_id, wcm.module_id
-                FROM player_weapon_preset_slots ws
-                LEFT JOIN player_weapon_preset_weapon_config_modules wcm
-                  ON  wcm.player_id = ws.player_id
-                  AND wcm.class_tag = ws.class_tag
-                  AND wcm.preset_slot = ws.preset_slot
-                  AND wcm.catalog_version = ws.catalog_version
-                  AND wcm.weapon_slot_id = ws.weapon_slot_id
-                  AND wcm.weapon_id = ws.selected_weapon_id
-                WHERE ws.player_id = ?
-                  AND ws.class_tag = ?
-                  AND ws.preset_slot = ?
-                  AND ws.catalog_version = ?
-                ORDER BY ws.weapon_slot_id, wcm.mount_id
-                """,
-            (rs, rowNum) -> new Object[]{
-                rs.getString("weapon_slot_id"),
-                rs.getString("selected_weapon_id"),
-                rs.getString("mount_id"),
-                rs.getString("module_id")
-            },
+        List<MatchProfileRepository.WeaponRow> rows = repository.findWeaponRows(
             request.playerId(),
             request.classTag(),
             request.weaponPresetSlot(),
@@ -88,11 +53,11 @@ public class MatchProfileSnapshotBuilder {
         );
 
         Map<String, MatchWeaponDto> weaponMap = new HashMap<>();
-        for (Object[] row : rows) {
-            String slotId = (String) row[0];
-            String weaponId = (String) row[1];
-            String mountId = (String) row[2];
-            String moduleId = (String) row[3];
+        for (MatchProfileRepository.WeaponRow row : rows) {
+            String slotId = row.weaponSlotId();
+            String weaponId = row.weaponId();
+            String mountId = row.mountId();
+            String moduleId = row.moduleId();
 
             MatchWeaponDto weapon = weaponMap.get(slotId);
             if (weapon == null) {
@@ -108,27 +73,15 @@ public class MatchProfileSnapshotBuilder {
     }
 
     private List<MatchOutfitItemDto> outfit(BuildMatchProfileRequest request, long catalogVersion) {
-        return repository.query(
-            """
-                SELECT clothing_slot_id, item_id
-                FROM player_outfit_preset_items
-                WHERE player_id = ?
-                  AND team_tag = ?
-                  AND class_tag = ?
-                  AND outfit_preset_slot = ?
-                  AND catalog_version = ?
-                ORDER BY clothing_slot_id
-                """,
-            (rs, rowNum) -> new MatchOutfitItemDto(
-                rs.getString("clothing_slot_id"),
-                rs.getString("item_id")
-            ),
+        return new ArrayList<>(repository.findOutfitRows(
             request.playerId(),
             request.teamTag(),
             request.classTag(),
             request.outfitPresetSlot(),
             catalogVersion
-        );
+        ).stream()
+            .map(row -> new MatchOutfitItemDto(row.clothingSlotId(), row.itemId()))
+            .toList());
     }
 
     private void validateLoadout(
@@ -166,98 +119,12 @@ public class MatchProfileSnapshotBuilder {
             request.classTag(),
             itemIds
         );
-        Set<String> teamUsableItems = queryTeamCompliantItems(catalogVersion, itemIds, request.teamTag());
-        Set<String> outfitTeamUsableItems = queryOutfitTeamCompliantItems(catalogVersion, clothingItemIds, request.teamTag());
+        Set<String> teamUsableItems = repository.findTeamCompliantItems(catalogVersion, itemIds, request.teamTag());
+        Set<String> outfitTeamUsableItems = repository.findOutfitTeamCompliantItems(catalogVersion, clothingItemIds, request.teamTag());
         filterRestrictedItems(weapons, outfit, baseUsableItems, teamUsableItems, outfitTeamUsableItems, enforceTeamItemRules, warnings);
         List<ModuleMountPair> filteredPairs = collectModuleMountPairs(weapons);
         validateMountModulesAllowedBatch(catalogVersion, filteredPairs, baseUsableItems);
         validateClothingSlotsBatch(clothingSlotIds);
-    }
-
-    private Set<String> queryTeamCompliantItems(long catalogVersion, Set<String> itemIds, String teamTag) {
-        if (itemIds.isEmpty()) return Set.of();
-        String placeholders = String.join(",", itemIds.stream().map(id -> "?").toArray(String[]::new));
-        Object[] params = new Object[2 + itemIds.size()];
-        params[0] = catalogVersion;
-        int i = 1;
-        for (String id : itemIds) {
-            params[i++] = id;
-        }
-        params[i] = teamTag;
-        return Set.copyOf(repository.queryForList(
-            """
-                SELECT ci.item_id
-                FROM catalog_items ci
-                WHERE ci.catalog_version = ?
-                  AND ci.item_id IN (""" + placeholders + """
-                )
-                  AND (
-                    EXISTS (
-                      SELECT 1 FROM item_team_rules itr
-                      WHERE itr.item_id = ci.item_id
-                        AND itr.catalog_version = ci.catalog_version
-                        AND itr.team_scope = 'all'
-                    )
-                    OR EXISTS (
-                      SELECT 1 FROM item_team_rules itr
-                      WHERE itr.item_id = ci.item_id
-                        AND itr.catalog_version = ci.catalog_version
-                        AND itr.team_scope = 'specific'
-                        AND itr.team_tag = ?
-                    )
-                    OR NOT EXISTS (
-                      SELECT 1 FROM item_team_rules itr
-                      WHERE itr.item_id = ci.item_id
-                        AND itr.catalog_version = ci.catalog_version
-                    )
-                  )
-                """,
-            String.class,
-            params
-        ));
-    }
-
-    private Set<String> queryOutfitTeamCompliantItems(long catalogVersion, Set<String> itemIds, String teamTag) {
-        if (itemIds.isEmpty()) return Set.of();
-        String placeholders = String.join(",", itemIds.stream().map(id -> "?").toArray(String[]::new));
-        Object[] params = new Object[2 + itemIds.size()];
-        params[0] = catalogVersion;
-        int i = 1;
-        for (String id : itemIds) {
-            params[i++] = id;
-        }
-        params[i] = teamTag;
-        return Set.copyOf(repository.queryForList(
-            """
-                SELECT ci.item_id
-                FROM catalog_items ci
-                WHERE ci.catalog_version = ?
-                  AND ci.item_id IN (""" + placeholders + """
-                )
-                  AND (
-                    EXISTS (
-                      SELECT 1 FROM outfit_item_team_rules oitr
-                      WHERE oitr.item_id = ci.item_id
-                        AND oitr.catalog_version = ci.catalog_version
-                        AND oitr.team_scope = 'all'
-                    )
-                    OR EXISTS (
-                      SELECT 1 FROM outfit_item_team_rules oitr
-                      WHERE oitr.item_id = ci.item_id
-                        AND oitr.catalog_version = ci.catalog_version
-                        AND oitr.team_scope = 'specific'
-                        AND oitr.team_tag = ?
-                    )
-                    OR NOT EXISTS (
-                      SELECT 1 FROM outfit_item_team_rules oitr
-                      WHERE oitr.item_id = ci.item_id
-                        AND oitr.catalog_version = ci.catalog_version
-                    )
-                  )
-                """,
-            String.class,
-            params
-        ));
     }
 
     private void filterRestrictedItems(
