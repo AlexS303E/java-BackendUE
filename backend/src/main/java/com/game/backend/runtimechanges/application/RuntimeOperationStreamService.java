@@ -16,28 +16,9 @@ public class RuntimeOperationStreamService {
     }
 
     public void lockAndValidateNextSequence(RuntimePresetChangeRequest request) {
-        repository.update(
-            """
-                INSERT INTO runtime_operation_streams (match_id, player_id, last_applied_seq)
-                VALUES (?, ?, 0)
-                ON CONFLICT (match_id, player_id) DO NOTHING
-                """,
-            request.matchId(),
-            request.playerId()
-        );
+        repository.ensureOperationStream(request.matchId(), request.playerId());
 
-        Long lastAppliedSeq = repository.queryForObject(
-            """
-                SELECT last_applied_seq
-                FROM runtime_operation_streams
-                WHERE match_id = ?
-                  AND player_id = ?
-                FOR UPDATE
-                """,
-            Long.class,
-            request.matchId(),
-            request.playerId()
-        );
+        Long lastAppliedSeq = repository.lockOperationStream(request.matchId(), request.playerId());
         if (lastAppliedSeq == null) {
             throw new ApiException(
                 HttpStatus.INTERNAL_SERVER_ERROR,
@@ -55,16 +36,6 @@ public class RuntimeOperationStreamService {
     }
 
     public void advance(RuntimePresetChangeRequest request) {
-        repository.update(
-            """
-                UPDATE runtime_operation_streams
-                SET last_applied_seq = ?
-                WHERE match_id = ?
-                  AND player_id = ?
-                """,
-            request.operationSeq(),
-            request.matchId(),
-            request.playerId()
-        );
+        repository.advanceOperationStream(request.matchId(), request.playerId(), request.operationSeq());
     }
 }

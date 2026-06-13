@@ -138,19 +138,13 @@ public class RuntimePresetChangeService {
             }
 
             long resultRevision = preset.revision() + 1;
-            repository.update(
-                """
-                    UPDATE player_weapon_presets
-                    SET revision = ?,
-                        sanitized = false,
-                        updated_at = ?
-                    WHERE player_id = ?
-                      AND class_tag = ?
-                      AND preset_slot = ?
-                      AND catalog_version = ?
-                    """,
-                resultRevision, now,
-                request.playerId(), request.classTag(), request.weaponPresetSlot(), preset.catalogVersion()
+            repository.updateWeaponPresetRevision(
+                request.playerId(),
+                request.classTag(),
+                request.weaponPresetSlot(),
+                preset.catalogVersion(),
+                resultRevision,
+                now
             );
 
             operationRecorder.markApplied(request.operationId(), resultRevision, now);
@@ -356,19 +350,7 @@ public class RuntimePresetChangeService {
      * Блокирует weapon preset до конца транзакции, чтобы ревизия и запись операции были согласованы.
      */
     private PresetHeader lockWeaponPreset(RuntimePresetChangeRequest request) {
-        List<PresetHeader> presets = repository.query(
-            """
-                SELECT catalog_version, revision
-                FROM player_weapon_presets
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                FOR UPDATE
-                """,
-            (rs, rowNum) -> new PresetHeader(
-                rs.getLong("catalog_version"),
-                rs.getLong("revision")
-            ),
+        List<RuntimeChangesRepository.PresetHeader> presets = repository.lockWeaponPreset(
             request.playerId(),
             request.classTag(),
             request.weaponPresetSlot()
@@ -380,7 +362,8 @@ public class RuntimePresetChangeService {
                 "Weapon preset was not found"
             );
         }
-        return presets.getFirst();
+        RuntimeChangesRepository.PresetHeader preset = presets.getFirst();
+        return new PresetHeader(preset.catalogVersion(), preset.revision());
     }
 
     private String requestHash(RuntimePresetChangeRequest request) {

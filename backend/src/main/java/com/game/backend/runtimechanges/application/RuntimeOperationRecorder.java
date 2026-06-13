@@ -18,21 +18,17 @@ public class RuntimeOperationRecorder {
     }
 
     public ExistingOperation find(UUID operationId) {
-        List<ExistingOperation> operations = repository.query(
-            """
-                SELECT status, result_revision, pending_change_id, request_hash
-                FROM runtime_preset_change_operations
-                WHERE operation_id = ?
-                """,
-            (rs, rowNum) -> new ExistingOperation(
-                rs.getString("status"),
-                rs.getObject("result_revision", Long.class),
-                rs.getObject("pending_change_id", UUID.class),
-                rs.getString("request_hash")
-            ),
-            operationId
+        List<RuntimeChangesRepository.RuntimeOperationRecord> operations = repository.findOperation(operationId);
+        if (operations.isEmpty()) {
+            return null;
+        }
+        RuntimeChangesRepository.RuntimeOperationRecord operation = operations.getFirst();
+        return new ExistingOperation(
+            operation.status(),
+            operation.resultRevision(),
+            operation.pendingChangeId(),
+            operation.requestHash()
         );
-        return operations.isEmpty() ? null : operations.getFirst();
     }
 
     public int insertProcessing(
@@ -40,17 +36,7 @@ public class RuntimeOperationRecorder {
         String requestHash,
         OffsetDateTime now
     ) {
-        return repository.update(
-            """
-                INSERT INTO runtime_preset_change_operations(
-                  operation_id, match_id, player_id, operation_seq,
-                  class_tag, weapon_preset_slot, base_weapon_preset_revision,
-                  status, result_revision, pending_change_id,
-                  request_hash, created_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'processing', NULL, NULL, ?, ?)
-                ON CONFLICT (operation_id) DO NOTHING
-                """,
+        return repository.insertProcessingOperation(
             request.operationId(),
             request.matchId(),
             request.playerId(),
@@ -86,17 +72,7 @@ public class RuntimeOperationRecorder {
         UUID pendingChangeId,
         OffsetDateTime now
     ) {
-        repository.update(
-            """
-                UPDATE runtime_preset_change_operations
-                SET status = ?,
-                    result_revision = ?,
-                    pending_change_id = ?,
-                    updated_at = ?
-                WHERE operation_id = ?
-                """,
-            status, resultRevision, pendingChangeId, now, operationId
-        );
+        repository.updateOperationStatus(operationId, status, resultRevision, pendingChangeId, now);
     }
 
     public record ExistingOperation(

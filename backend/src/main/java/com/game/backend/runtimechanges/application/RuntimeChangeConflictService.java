@@ -54,25 +54,7 @@ public class RuntimeChangeConflictService {
         OffsetDateTime now
     ) {
         UUID changeId = UUID.randomUUID();
-        repository.update(
-            """
-                INSERT INTO post_match_pending_changes(
-                  change_id,
-                  player_id,
-                  match_id,
-                  class_tag,
-                  weapon_preset_slot,
-                  base_weapon_preset_revision,
-                  current_conflicting_revision,
-                  reason_code,
-                  status,
-                  payload,
-                  payload_schema_version,
-                  created_at,
-                  expires_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?::jsonb, 1, ?, ?)
-                """,
+        repository.insertPostMatchPendingChange(
             changeId,
             request.playerId(),
             request.matchId(),

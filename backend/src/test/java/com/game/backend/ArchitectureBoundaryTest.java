@@ -34,6 +34,16 @@ class ArchitectureBoundaryTest {
     @Test
     void matchProfileApplicationShouldNotOwnSqlQueries() throws IOException {
         Path sourceRoot = Path.of("src/main/java/com/game/backend/matchprofile/application");
+        assertApplicationPackageDoesNotOwnSqlQueries(sourceRoot);
+    }
+
+    @Test
+    void runtimeChangesApplicationShouldNotOwnSqlQueries() throws IOException {
+        Path sourceRoot = Path.of("src/main/java/com/game/backend/runtimechanges/application");
+        assertApplicationPackageDoesNotOwnSqlQueries(sourceRoot);
+    }
+
+    private static void assertApplicationPackageDoesNotOwnSqlQueries(Path sourceRoot) throws IOException {
         List<Path> offenders;
         try (var paths = Files.walk(sourceRoot)) {
             offenders = paths
@@ -44,7 +54,7 @@ class ArchitectureBoundaryTest {
         }
 
         assertThat(offenders)
-            .as("Match profile application services should call named repository methods, not own SQL/query plumbing")
+            .as("Application services should call named repository methods, not own SQL/query plumbing")
             .isEmpty();
     }
 

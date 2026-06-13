@@ -138,17 +138,7 @@ public class WeaponPresetRuntimeChangeApplier {
             change.weaponSlotId(),
             change.weaponId()
         );
-        repository.update(
-            """
-                DELETE FROM player_weapon_preset_weapon_config_modules
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                  AND weapon_slot_id = ?
-                  AND weapon_id = ?
-                  AND mount_id = ?
-                """,
+        repository.deleteWeaponConfigModule(
             playerId,
             classTag,
             weaponPresetSlot,
@@ -177,20 +167,7 @@ public class WeaponPresetRuntimeChangeApplier {
         String weaponSlotId,
         String weaponId
     ) {
-        repository.update(
-            """
-                INSERT INTO player_weapon_preset_slots(
-                  player_id,
-                  class_tag,
-                  preset_slot,
-                  catalog_version,
-                  weapon_slot_id,
-                  selected_weapon_id
-                )
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT (player_id, class_tag, preset_slot, catalog_version, weapon_slot_id)
-                DO UPDATE SET selected_weapon_id = EXCLUDED.selected_weapon_id
-                """,
+        repository.upsertSelectedWeaponSlot(
             playerId,
             classTag,
             weaponPresetSlot,
@@ -209,24 +186,7 @@ public class WeaponPresetRuntimeChangeApplier {
         String weaponId,
         OffsetDateTime now
     ) {
-        repository.update(
-            """
-                INSERT INTO player_weapon_preset_weapon_configs(
-                  player_id,
-                  class_tag,
-                  preset_slot,
-                  catalog_version,
-                  weapon_slot_id,
-                  weapon_id,
-                  config_revision,
-                  last_used_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-                ON CONFLICT (player_id, class_tag, preset_slot, catalog_version, weapon_slot_id, weapon_id)
-                DO UPDATE SET
-                  config_revision = player_weapon_preset_weapon_configs.config_revision + 1,
-                  last_used_at = EXCLUDED.last_used_at
-                """,
+        repository.upsertWeaponConfig(
             playerId,
             classTag,
             weaponPresetSlot,
@@ -244,17 +204,7 @@ public class WeaponPresetRuntimeChangeApplier {
         long catalogVersion,
         RuntimePresetChangeStep change
     ) {
-        repository.update(
-            """
-                DELETE FROM player_weapon_preset_weapon_config_modules
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                  AND weapon_slot_id = ?
-                  AND weapon_id = ?
-                  AND mount_id = ?
-                """,
+        repository.deleteWeaponConfigModule(
             playerId,
             classTag,
             weaponPresetSlot,
@@ -264,20 +214,7 @@ public class WeaponPresetRuntimeChangeApplier {
             change.mountId()
         );
 
-        repository.update(
-            """
-                INSERT INTO player_weapon_preset_weapon_config_modules(
-                  player_id,
-                  class_tag,
-                  preset_slot,
-                  catalog_version,
-                  weapon_slot_id,
-                  weapon_id,
-                  mount_id,
-                  module_id
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+        repository.insertWeaponConfigModule(
             playerId,
             classTag,
             weaponPresetSlot,
