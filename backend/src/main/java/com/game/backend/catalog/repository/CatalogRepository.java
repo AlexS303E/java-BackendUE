@@ -22,6 +22,9 @@ public class CatalogRepository extends JdbcRepository {
     public record CatalogDeployment(long catalogVersion, boolean allowNewMatches, boolean allowExistingMatches) {
     }
 
+    public record MigrationEntry(String action, String newId) {
+    }
+
     public record LifecycleCatalogItem(String itemId, String itemType, boolean enabled) {
     }
 
@@ -608,5 +611,205 @@ public class CatalogRepository extends JdbcRepository {
             now,
             realmId
         );
+    }
+
+    public List<MigrationEntry> findMigrationEntries(long fromVersion, long toVersion, String idType, String oldId) {
+        return query(
+            """
+                SELECT migration_action, new_id
+                FROM catalog_id_migration_map
+                WHERE from_catalog_version = ?
+                  AND to_catalog_version = ?
+                  AND id_type = ?
+                  AND old_id = ?
+                """,
+            (rs, rowNum) -> new MigrationEntry(rs.getString("migration_action"), rs.getString("new_id")),
+            fromVersion,
+            toVersion,
+            idType,
+            oldId
+        );
+    }
+
+    public boolean mountExists(String mountId, long catalogVersion) {
+        Boolean exists = queryForObject(
+            """
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM weapon_module_mounts
+                  WHERE mount_id = ?
+                    AND catalog_version = ?
+                )
+                """,
+            Boolean.class,
+            mountId,
+            catalogVersion
+        );
+        return Boolean.TRUE.equals(exists);
+    }
+
+    public boolean catalogItemUsableForPreset(String itemId, long catalogVersion, String itemType, String classTag) {
+        Boolean usable = queryForObject(
+            """
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM catalog_items ci
+                  WHERE ci.item_id = ?
+                    AND ci.catalog_version = ?
+                    AND ci.item_type = ?
+                    AND ci.is_enabled = true
+                    AND NOT EXISTS (
+                      SELECT 1
+                      FROM item_class_rules icr
+                      WHERE icr.item_id = ci.item_id
+                        AND icr.catalog_version = ci.catalog_version
+                        AND icr.class_tag = ?
+                        AND icr.rule_effect = 'deny'
+                    )
+                    AND (
+                      NOT EXISTS (
+                        SELECT 1
+                        FROM item_class_rules icr
+                        WHERE icr.item_id = ci.item_id
+                          AND icr.catalog_version = ci.catalog_version
+                          AND icr.rule_effect = 'allow'
+                      )
+                      OR EXISTS (
+                        SELECT 1
+                        FROM item_class_rules icr
+                        WHERE icr.item_id = ci.item_id
+                          AND icr.catalog_version = ci.catalog_version
+                          AND icr.class_tag = ?
+                          AND icr.rule_effect = 'allow'
+                      )
+                    )
+                )
+                """,
+            Boolean.class,
+            itemId,
+            catalogVersion,
+            itemType,
+            classTag,
+            classTag
+        );
+        return Boolean.TRUE.equals(usable);
+    }
+
+    public boolean catalogItemUsableForOutfit(String itemId, long catalogVersion, String classTag) {
+        Boolean usable = queryForObject(
+            """
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM catalog_items ci
+                  WHERE ci.item_id = ?
+                    AND ci.catalog_version = ?
+                    AND ci.item_type = 'clothing'
+                    AND ci.is_enabled = true
+                    AND NOT EXISTS (
+                      SELECT 1
+                      FROM item_class_rules icr
+                      WHERE icr.item_id = ci.item_id
+                        AND icr.catalog_version = ci.catalog_version
+                        AND icr.class_tag = ?
+                        AND icr.rule_effect = 'deny'
+                    )
+                    AND (
+                      NOT EXISTS (
+                        SELECT 1
+                        FROM item_class_rules icr
+                        WHERE icr.item_id = ci.item_id
+                          AND icr.catalog_version = ci.catalog_version
+                          AND icr.rule_effect = 'allow'
+                      )
+                      OR EXISTS (
+                        SELECT 1
+                        FROM item_class_rules icr
+                        WHERE icr.item_id = ci.item_id
+                          AND icr.catalog_version = ci.catalog_version
+                          AND icr.class_tag = ?
+                          AND icr.rule_effect = 'allow'
+                      )
+                    )
+                )
+                """,
+            Boolean.class,
+            itemId,
+            catalogVersion,
+            classTag,
+            classTag
+        );
+        return Boolean.TRUE.equals(usable);
+    }
+
+    public boolean mountModuleAllowed(long catalogVersion, String weaponId, String mountId, String moduleId) {
+        Boolean allowed = queryForObject(
+            """
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM weapon_module_mounts wmm
+                  JOIN weapon_mount_allowed_modules wmam
+                    ON wmam.mount_id = wmm.mount_id
+                   AND wmam.catalog_version = wmm.catalog_version
+                  WHERE wmm.catalog_version = ?
+                    AND wmm.weapon_id = ?
+                    AND wmm.mount_id = ?
+                    AND wmam.module_id = ?
+                )
+                """,
+            Boolean.class,
+            catalogVersion,
+            weaponId,
+            mountId,
+            moduleId
+        );
+        return Boolean.TRUE.equals(allowed);
+    }
+
+    public boolean weaponSlotAllowed(String classTag, String weaponSlotId) {
+        Boolean allowed = queryForObject(
+            """
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM class_weapon_slot_rules
+                  WHERE class_tag = ?
+                    AND weapon_slot_id = ?
+                    AND is_allowed = true
+                )
+                """,
+            Boolean.class,
+            classTag,
+            weaponSlotId
+        );
+        return Boolean.TRUE.equals(allowed);
+    }
+
+    public List<String> findAllowedWeaponSlots(String classTag) {
+        return queryForList(
+            """
+                SELECT weapon_slot_id
+                FROM class_weapon_slot_rules
+                WHERE class_tag = ?
+                  AND is_allowed = true
+                ORDER BY weapon_slot_id
+                """,
+            String.class,
+            classTag
+        );
+    }
+
+    public boolean clothingSlotActive(String clothingSlotId) {
+        Boolean active = queryForObject(
+            """
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM clothing_slot_definitions
+                  WHERE clothing_slot_id = ?
+                    AND is_active = true
+                )
+                """,
+            Boolean.class,
+            clothingSlotId
+        );
+        return Boolean.TRUE.equals(active);
     }
 }
