@@ -5,6 +5,7 @@ import com.game.backend.serverauth.repository.ServerAuthRepository;
 import com.game.backend.serverauth.config.ServerMtlsProperties;
 import com.game.backend.serverauth.mtls.CertificateFingerprints;
 import com.game.backend.serverauth.mtls.ClientCertificateExtractor;
+import com.game.backend.serverauth.repository.ServerAuthRepository.ServerIdentityRecord;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,16 +18,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.security.cert.X509Certificate;
-import java.sql.Array;
-import java.sql.SQLException;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Аутентифицирует /server/* запросы по server_id и mTLS client certificate fingerprint.
@@ -92,7 +88,7 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        ServerIdentity identity = identityRecord.toPrincipal();
+        ServerIdentity identity = toPrincipal(identityRecord);
         if (!identity.hasScope(requiredScope)) {
             // Если identity валидна, но scope недостаточен, сохраняем denied audit event.
             serverAuditService.record(
@@ -220,23 +216,7 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
      * чтобы отказ можно было аудировать с конкретной причиной.
      */
     private ServerIdentityRecord loadServerIdentityRecord(UUID serverId) {
-        List<ServerIdentityRecord> identities = repository.query(
-                """
-                    SELECT server_id, realm_id, server_build_id, certificate_fingerprint, status, allowed_scopes, expires_at
-                    FROM server_identities
-                    WHERE server_id = ?
-                    """,
-                (rs, rowNum) -> new ServerIdentityRecord(
-                        rs.getObject("server_id", UUID.class),
-                        rs.getString("realm_id"),
-                        rs.getString("server_build_id"),
-                        CertificateFingerprints.normalizeSha256Fingerprint(rs.getString("certificate_fingerprint")),
-                        rs.getString("status"),
-                        scopes(rs.getArray("allowed_scopes")),
-                        rs.getObject("expires_at", OffsetDateTime.class)
-                ),
-                serverId
-        );
+        List<ServerIdentityRecord> identities = repository.findServerIdentities(serverId);
         return identities.isEmpty() ? null : identities.getFirst();
     }
 
@@ -259,7 +239,8 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
                     "Server identity is not active or certificate fingerprint does not match"
             );
         }
-        if (!identityRecord.certificateFingerprint().equals(resolvedFingerprint)) {
+        String storedFingerprint = CertificateFingerprints.normalizeSha256Fingerprint(identityRecord.certificateFingerprint());
+        if (storedFingerprint == null || !storedFingerprint.equals(resolvedFingerprint)) {
             return new ServerAuthenticationFailure(
                     "certificate_fingerprint_mismatch",
                     "Server identity is not active or certificate fingerprint does not match"
@@ -274,7 +255,7 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
             String requiredScope,
             ServerAuthenticationFailure failure
     ) {
-        if (!serverIdentityExists(serverId)) {
+        if (!repository.serverIdentityExists(serverId)) {
             return;
         }
         serverAuditService.recordAuthenticationFailure(
@@ -290,20 +271,13 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
         );
     }
 
-    private boolean serverIdentityExists(UUID serverId) {
-        Boolean exists = repository.queryForObject(
-                "SELECT EXISTS(SELECT 1 FROM server_identities WHERE server_id = ?)",
-                Boolean.class,
-                serverId
+    private ServerIdentity toPrincipal(ServerIdentityRecord identityRecord) {
+        return new ServerIdentity(
+                identityRecord.serverId(),
+                identityRecord.realmId(),
+                identityRecord.serverBuildId(),
+                identityRecord.allowedScopes()
         );
-        return Boolean.TRUE.equals(exists);
-    }
-
-    private Set<String> scopes(Array array) throws SQLException {
-        if (array == null) {
-            return Set.of();
-        }
-        return Arrays.stream((String[]) array.getArray()).collect(Collectors.toSet());
     }
 
     private void writeProblem(HttpServletResponse response, int status, String code, String detail) throws IOException {
@@ -312,20 +286,6 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
         response.getWriter().write(
                 "{\"title\":\"" + code + "\",\"status\":" + status + ",\"detail\":\"" + detail + "\",\"code\":\"" + code + "\"}"
         );
-    }
-
-    private record ServerIdentityRecord(
-            UUID serverId,
-            String realmId,
-            String serverBuildId,
-            String certificateFingerprint,
-            String status,
-            Set<String> allowedScopes,
-            OffsetDateTime expiresAt
-    ) {
-        private ServerIdentity toPrincipal() {
-            return new ServerIdentity(serverId, realmId, serverBuildId, allowedScopes);
-        }
     }
 
     private record ServerAuthenticationFailure(String reason, String userMessage) {

@@ -1,6 +1,7 @@
 package com.game.backend.serverauth.application;
 
 import com.game.backend.serverauth.repository.ServerAuthRepository;
+import com.game.backend.serverauth.repository.ServerAuthRepository.ServerMatch;
 
 import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
@@ -46,25 +47,7 @@ public class ServerMatchService {
     }
 
     private ServerMatch insertWithReturning(ServerIdentity identity, BuildMatchProfileRequest request) {
-        List<ServerMatch> matches = repository.query(
-            """
-                INSERT INTO server_matches(
-                  match_id,
-                  server_id,
-                  realm_id,
-                  status,
-                  created_at
-                )
-                VALUES (?, ?, ?, 'running', ?)
-                ON CONFLICT (match_id) DO NOTHING
-                RETURNING match_id, server_id, realm_id, status
-                """,
-            (rs, rowNum) -> new ServerMatch(
-                rs.getObject("match_id", UUID.class),
-                rs.getObject("server_id", UUID.class),
-                rs.getString("realm_id"),
-                rs.getString("status")
-            ),
+        List<ServerMatch> matches = repository.insertMatchIfAbsent(
             request.matchId(),
             identity.serverId(),
             request.realmId(),
@@ -100,20 +83,7 @@ public class ServerMatchService {
     }
 
     private ServerMatch loadMatch(UUID matchId) {
-        List<ServerMatch> matches = repository.query(
-            """
-                SELECT match_id, server_id, realm_id, status
-                FROM server_matches
-                WHERE match_id = ?
-                """,
-            (rs, rowNum) -> new ServerMatch(
-                rs.getObject("match_id", UUID.class),
-                rs.getObject("server_id", UUID.class),
-                rs.getString("realm_id"),
-                rs.getString("status")
-            ),
-            matchId
-        );
+        List<ServerMatch> matches = repository.findMatches(matchId);
         return matches.isEmpty() ? null : matches.getFirst();
     }
 
@@ -170,11 +140,4 @@ public class ServerMatchService {
         }
     }
 
-    private record ServerMatch(
-        UUID matchId,
-        UUID serverId,
-        String realmId,
-        String status
-    ) {
-    }
 }

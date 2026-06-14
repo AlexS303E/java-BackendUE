@@ -82,20 +82,7 @@ public class ServerAuditService {
         Map<String, Object> payload
     ) {
         try {
-            repository.update(
-                """
-                    INSERT INTO server_audit_events(
-                      event_id,
-                      server_id,
-                      match_id,
-                      action,
-                      scope,
-                      result,
-                      payload,
-                      created_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?)
-                    """,
+            repository.insertServerAuditEvent(
                 UUID.randomUUID(),
                 serverId,
                 matchId,
