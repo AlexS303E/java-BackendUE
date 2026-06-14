@@ -9,6 +9,8 @@ import com.game.backend.auth.api.RefreshRequest;
 import com.game.backend.auth.api.RegisterRequest;
 import com.game.backend.auth.api.RegisterResponse;
 import com.game.backend.common.api.ApiException;
+import com.game.backend.auth.repository.AuthRepository.Account;
+import com.game.backend.auth.repository.AuthRepository.RefreshSession;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
@@ -59,24 +61,7 @@ public class AuthService {
         String passwordHash = passwordEncoder.encode(request.password());
 
         try {
-            repository.update(
-                """
-                    INSERT INTO player_accounts(
-                      player_id,
-                      login_name,
-                      password_hash,
-                      status,
-                      created_at,
-                      updated_at
-                    )
-                    VALUES (?, ?, ?, 'active', ?, ?)
-                    """,
-                playerId,
-                request.loginName(),
-                passwordHash,
-                now,
-                now
-            );
+            repository.insertPlayerAccount(playerId, request.loginName(), passwordHash, now);
         } catch (DuplicateKeyException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "LOGIN_NAME_ALREADY_EXISTS", "Login name is already taken");
         }
@@ -104,29 +89,7 @@ public class AuthService {
     @Transactional
     public AuthTokenResponse refresh(RefreshRequest request) {
         String refreshTokenHash = refreshTokenService.hashRefreshToken(request.refreshToken());
-        List<RefreshSession> sessions = repository.query(
-            """
-                SELECT
-                  pas.session_id,
-                  pas.player_id,
-                  pa.login_name,
-                  pa.status AS account_status,
-                  pas.expires_at
-                FROM player_auth_sessions pas
-                JOIN player_accounts pa ON pa.player_id = pas.player_id
-                WHERE pas.refresh_token_hash = ?
-                  AND pas.status = 'active'
-                FOR UPDATE OF pas
-                """,
-            (rs, rowNum) -> new RefreshSession(
-                rs.getObject("session_id", UUID.class),
-                rs.getObject("player_id", UUID.class),
-                rs.getString("login_name"),
-                rs.getString("account_status"),
-                rs.getObject("expires_at", OffsetDateTime.class)
-            ),
-            refreshTokenHash
-        );
+        List<RefreshSession> sessions = repository.lockActiveRefreshSessions(refreshTokenHash);
         if (sessions.isEmpty()) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Refresh token is invalid");
         }
@@ -134,19 +97,12 @@ public class AuthService {
         RefreshSession session = sessions.getFirst();
         OffsetDateTime now = OffsetDateTime.now();
         if (!session.expiresAt().isAfter(now)) {
-            repository.update(
-                "UPDATE player_auth_sessions SET status = 'expired' WHERE session_id = ?",
-                session.sessionId()
-            );
+            repository.expireAuthSession(session.sessionId());
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Refresh token is expired");
         }
 
         ensureActive(session.accountStatus());
-        repository.update(
-            "UPDATE player_auth_sessions SET status = 'revoked', revoked_at = ? WHERE session_id = ?",
-            now,
-            session.sessionId()
-        );
+        repository.revokeAuthSession(session.sessionId(), now);
         return issueTokenPair(session.playerId(), session.loginName(), now);
     }
 
@@ -156,34 +112,11 @@ public class AuthService {
     @Transactional
     public void logout(LogoutRequest request) {
         String refreshTokenHash = refreshTokenService.hashRefreshToken(request.refreshToken());
-        repository.update(
-            """
-                UPDATE player_auth_sessions
-                SET status = 'revoked',
-                    revoked_at = ?
-                WHERE refresh_token_hash = ?
-                  AND status = 'active'
-                """,
-            OffsetDateTime.now(),
-            refreshTokenHash
-        );
+        repository.revokeActiveSessionByRefreshTokenHash(refreshTokenHash, OffsetDateTime.now());
     }
 
     private Account accountByLoginName(String loginName) {
-        List<Account> accounts = repository.query(
-            """
-                SELECT player_id, login_name, password_hash, status
-                FROM player_accounts
-                WHERE login_name = ?
-                """,
-            (rs, rowNum) -> new Account(
-                rs.getObject("player_id", UUID.class),
-                rs.getString("login_name"),
-                rs.getString("password_hash"),
-                rs.getString("status")
-            ),
-            loginName
-        );
+        List<Account> accounts = repository.findAccountsByLoginName(loginName);
         if (accounts.isEmpty()) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Invalid login name or password");
         }
@@ -205,18 +138,7 @@ public class AuthService {
         String refreshTokenHash = refreshTokenService.hashRefreshToken(refreshToken);
         OffsetDateTime refreshExpiresAt = now.plus(refreshTokenTtl);
 
-        repository.update(
-            """
-                INSERT INTO player_auth_sessions(
-                  session_id,
-                  player_id,
-                  refresh_token_hash,
-                  status,
-                  created_at,
-                  expires_at
-                )
-                VALUES (?, ?, ?, 'active', ?, ?)
-                """,
+        repository.insertAuthSession(
             UUID.randomUUID(),
             playerId,
             refreshTokenHash,
@@ -232,22 +154,5 @@ public class AuthService {
             refreshToken,
             refreshTokenTtl.toSeconds()
         );
-    }
-
-    private record Account(
-        UUID playerId,
-        String loginName,
-        String passwordHash,
-        String status
-    ) {
-    }
-
-    private record RefreshSession(
-        UUID sessionId,
-        UUID playerId,
-        String loginName,
-        String accountStatus,
-        OffsetDateTime expiresAt
-    ) {
     }
 }
