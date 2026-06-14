@@ -2,6 +2,7 @@ package com.game.backend.catalog.application;
 
 import com.game.backend.catalog.repository.CatalogRepository;
 import com.game.backend.catalog.repository.CatalogRepository.AccessFlags;
+import com.game.backend.catalog.repository.CatalogRepository.CatalogDeployment;
 import com.game.backend.catalog.repository.CatalogRepository.LifecycleCatalogItem;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -545,143 +546,23 @@ public class CatalogLifecycleService {
 
     private void activateCatalog(String realmId, long previousVersion, long targetVersion, int rolloutPercent, boolean allowExistingMatches, OffsetDateTime now) {
         if (previousVersion != 0L) {
-            repository.update(
-                """
-                    UPDATE catalog_deployments
-                    SET deployment_state = 'previous',
-                        rollout_percent = 0,
-                        allow_new_matches = false,
-                        allow_existing_matches = true,
-                        retired_at = ?
-                    WHERE realm_id = ?
-                      AND deployment_state = 'active'
-                      AND allow_new_matches = true
-                    """,
-                now,
-                realmId
-            );
-            repository.update(
-                """
-                    UPDATE catalog_versions
-                    SET state = 'previous',
-                        retired_at = ?
-                    WHERE catalog_version = ?
-                    """,
-                now,
-                previousVersion
-            );
+            repository.retireActiveDeployment(realmId, now);
+            repository.markCatalogVersionPrevious(previousVersion, now);
         }
 
-        repository.update(
-            """
-                INSERT INTO catalog_deployments(
-                  realm_id,
-                  catalog_version,
-                  deployment_state,
-                  rollout_percent,
-                  allow_new_matches,
-                  allow_existing_matches,
-                  activated_at,
-                  retired_at
-                )
-                VALUES (?, ?, 'active', ?, true, ?, ?, null)
-                ON CONFLICT (realm_id, catalog_version)
-                DO UPDATE SET
-                  deployment_state = 'active',
-                  rollout_percent = EXCLUDED.rollout_percent,
-                  allow_new_matches = true,
-                  allow_existing_matches = EXCLUDED.allow_existing_matches,
-                  activated_at = EXCLUDED.activated_at,
-                  retired_at = null
-                """,
-            realmId,
-            targetVersion,
-            rolloutPercent,
-            allowExistingMatches,
-            now
-        );
-        repository.update(
-            """
-                UPDATE catalog_versions
-                SET state = 'active',
-                    activated_at = ?,
-                    retired_at = null
-                WHERE catalog_version = ?
-                """,
-            now,
-            targetVersion
-        );
+        repository.upsertActiveDeployment(realmId, targetVersion, rolloutPercent, allowExistingMatches, now);
+        repository.markCatalogVersionActive(targetVersion, now);
     }
 
     private void rollbackDeployment(String realmId, long activeVersion, long targetVersion, OffsetDateTime now) {
-        repository.update(
-            """
-                UPDATE catalog_deployments
-                SET deployment_state = 'rolled_back',
-                    rollout_percent = 0,
-                    allow_new_matches = false,
-                    allow_existing_matches = true,
-                    retired_at = ?
-                WHERE realm_id = ?
-                  AND catalog_version = ?
-                """,
-            now,
-            realmId,
-            activeVersion
-        );
-        repository.update(
-            """
-                UPDATE catalog_versions
-                SET state = 'rolled_back',
-                    retired_at = ?
-                WHERE catalog_version = ?
-                """,
-            now,
-            activeVersion
-        );
-        repository.update(
-            """
-                UPDATE catalog_deployments
-                SET deployment_state = 'active',
-                    rollout_percent = 100,
-                    allow_new_matches = true,
-                    allow_existing_matches = true,
-                    activated_at = ?,
-                    retired_at = null
-                WHERE realm_id = ?
-                  AND catalog_version = ?
-                """,
-            now,
-            realmId,
-            targetVersion
-        );
-        repository.update(
-            """
-                UPDATE catalog_versions
-                SET state = 'active',
-                    activated_at = ?,
-                    retired_at = null
-                WHERE catalog_version = ?
-                """,
-            now,
-            targetVersion
-        );
+        repository.markDeploymentRolledBack(realmId, activeVersion, now);
+        repository.markCatalogVersionRolledBack(activeVersion, now);
+        repository.reactivateDeployment(realmId, targetVersion, now);
+        repository.markCatalogVersionActive(targetVersion, now);
     }
 
     private int invalidateRealmProfiles(String realmId, String reason, UUID operationId, OffsetDateTime now) {
-        return repository.update(
-            """
-                UPDATE player_match_profiles
-                SET is_stale = true,
-                    stale_reason = ?,
-                    stale_at = ?
-                WHERE realm_id = ?
-                  AND is_stale = false
-                """,
-            reason + ":" + operationId,
-            now,
-            realmId
-        );
+        return repository.markRealmProfilesStale(realmId, reason + ":" + operationId, now);
     }
 
     private void recordOutbox(
@@ -754,22 +635,13 @@ public class CatalogLifecycleService {
     }
 
     private void ensureRealmExists(String realmId) {
-        Boolean exists = repository.queryForObject(
-            "SELECT EXISTS(SELECT 1 FROM realms WHERE realm_id = ? AND is_active = true)",
-            Boolean.class,
-            realmId
-        );
-        if (!Boolean.TRUE.equals(exists)) {
+        if (!repository.realmExists(realmId)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "REALM_NOT_FOUND", "Realm was not found or is inactive");
         }
     }
 
     private void ensurePublishableCatalogVersion(long catalogVersion) {
-        List<String> states = repository.queryForList(
-            "SELECT state FROM catalog_versions WHERE catalog_version = ? FOR UPDATE",
-            String.class,
-            catalogVersion
-        );
+        List<String> states = repository.lockCatalogVersionStates(catalogVersion);
         if (states.isEmpty()) {
             throw new ApiException(HttpStatus.NOT_FOUND, "CATALOG_VERSION_NOT_FOUND", "Catalog version was not found");
         }
@@ -780,23 +652,7 @@ public class CatalogLifecycleService {
     }
 
     private void ensureRollbackTarget(String realmId, long catalogVersion) {
-        Boolean exists = repository.queryForObject(
-            """
-                SELECT EXISTS(
-                  SELECT 1
-                  FROM catalog_deployments cd
-                  JOIN catalog_versions cv ON cv.catalog_version = cd.catalog_version
-                  WHERE cd.realm_id = ?
-                    AND cd.catalog_version = ?
-                    AND cd.deployment_state IN ('previous', 'rolled_back', 'active')
-                    AND cv.state <> 'retired'
-                )
-                """,
-            Boolean.class,
-            realmId,
-            catalogVersion
-        );
-        if (!Boolean.TRUE.equals(exists)) {
+        if (!repository.rollbackTargetExists(realmId, catalogVersion)) {
             throw new ApiException(HttpStatus.CONFLICT, "ROLLBACK_TARGET_NOT_AVAILABLE", "Rollback target catalog version is not available for realm");
         }
     }
@@ -810,40 +666,12 @@ public class CatalogLifecycleService {
     }
 
     private CatalogDeployment activeDeployment(String realmId) {
-        List<CatalogDeployment> rows = repository.query(
-            """
-                SELECT catalog_version, allow_new_matches, allow_existing_matches
-                FROM catalog_deployments
-                WHERE realm_id = ?
-                  AND deployment_state = 'active'
-                  AND allow_new_matches = true
-                ORDER BY activated_at DESC NULLS LAST, catalog_version DESC
-                LIMIT 1
-                FOR UPDATE
-                """,
-            (rs, rowNum) -> new CatalogDeployment(
-                rs.getLong("catalog_version"),
-                rs.getBoolean("allow_new_matches"),
-                rs.getBoolean("allow_existing_matches")
-            ),
-            realmId
-        );
+        List<CatalogDeployment> rows = repository.lockActiveDeployments(realmId);
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
     private long latestPreviousDeploymentVersion(String realmId) {
-        List<Long> versions = repository.queryForList(
-            """
-                SELECT catalog_version
-                FROM catalog_deployments
-                WHERE realm_id = ?
-                  AND deployment_state = 'previous'
-                ORDER BY activated_at DESC NULLS LAST, catalog_version DESC
-                LIMIT 1
-                """,
-            Long.class,
-            realmId
-        );
+        List<Long> versions = repository.findLatestPreviousDeploymentVersions(realmId);
         if (versions.isEmpty()) {
             throw new ApiException(HttpStatus.CONFLICT, "PREVIOUS_CATALOG_NOT_FOUND", "No previous catalog deployment found for rollback");
         }
@@ -1301,9 +1129,6 @@ public class CatalogLifecycleService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", field + " is required");
         }
         return value.trim();
-    }
-
-    private record CatalogDeployment(long catalogVersion, boolean allowNewMatches, boolean allowExistingMatches) {
     }
 
     private record LifecycleMigrationResult(int weaponPresets, int outfitPresets, int accessPlayers) {

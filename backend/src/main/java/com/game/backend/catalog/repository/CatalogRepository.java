@@ -19,6 +19,9 @@ public class CatalogRepository extends JdbcRepository {
     public record MountAllowedModule(long catalogVersion, String mountId, String moduleId) {
     }
 
+    public record CatalogDeployment(long catalogVersion, boolean allowNewMatches, boolean allowExistingMatches) {
+    }
+
     public record LifecycleCatalogItem(String itemId, String itemType, boolean enabled) {
     }
 
@@ -372,5 +375,238 @@ public class CatalogRepository extends JdbcRepository {
             catalogVersion
         );
         return Boolean.TRUE.equals(exists);
+    }
+
+    public boolean realmExists(String realmId) {
+        Boolean exists = queryForObject(
+            """
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM realms
+                  WHERE realm_id = ?
+                    AND is_active = true
+                )
+                """,
+            Boolean.class,
+            realmId
+        );
+        return Boolean.TRUE.equals(exists);
+    }
+
+    public List<String> lockCatalogVersionStates(long catalogVersion) {
+        return queryForList(
+            """
+                SELECT state
+                FROM catalog_versions
+                WHERE catalog_version = ?
+                FOR UPDATE
+                """,
+            String.class,
+            catalogVersion
+        );
+    }
+
+    public boolean rollbackTargetExists(String realmId, long catalogVersion) {
+        Boolean exists = queryForObject(
+            """
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM catalog_deployments cd
+                  JOIN catalog_versions cv ON cv.catalog_version = cd.catalog_version
+                  WHERE cd.realm_id = ?
+                    AND cd.catalog_version = ?
+                    AND cd.deployment_state IN ('previous', 'rolled_back', 'active')
+                    AND cv.state <> 'retired'
+                )
+                """,
+            Boolean.class,
+            realmId,
+            catalogVersion
+        );
+        return Boolean.TRUE.equals(exists);
+    }
+
+    public List<CatalogDeployment> lockActiveDeployments(String realmId) {
+        return query(
+            """
+                SELECT catalog_version, allow_new_matches, allow_existing_matches
+                FROM catalog_deployments
+                WHERE realm_id = ?
+                  AND deployment_state = 'active'
+                  AND allow_new_matches = true
+                ORDER BY activated_at DESC NULLS LAST, catalog_version DESC
+                LIMIT 1
+                FOR UPDATE
+                """,
+            (rs, rowNum) -> new CatalogDeployment(
+                rs.getLong("catalog_version"),
+                rs.getBoolean("allow_new_matches"),
+                rs.getBoolean("allow_existing_matches")
+            ),
+            realmId
+        );
+    }
+
+    public List<Long> findLatestPreviousDeploymentVersions(String realmId) {
+        return queryForList(
+            """
+                SELECT catalog_version
+                FROM catalog_deployments
+                WHERE realm_id = ?
+                  AND deployment_state = 'previous'
+                ORDER BY activated_at DESC NULLS LAST, catalog_version DESC
+                LIMIT 1
+                """,
+            Long.class,
+            realmId
+        );
+    }
+
+    public void retireActiveDeployment(String realmId, OffsetDateTime now) {
+        update(
+            """
+                UPDATE catalog_deployments
+                SET deployment_state = 'previous',
+                    rollout_percent = 0,
+                    allow_new_matches = false,
+                    allow_existing_matches = true,
+                    retired_at = ?
+                WHERE realm_id = ?
+                  AND deployment_state = 'active'
+                  AND allow_new_matches = true
+                """,
+            now,
+            realmId
+        );
+    }
+
+    public void markCatalogVersionPrevious(long catalogVersion, OffsetDateTime now) {
+        update(
+            """
+                UPDATE catalog_versions
+                SET state = 'previous',
+                    retired_at = ?
+                WHERE catalog_version = ?
+                """,
+            now,
+            catalogVersion
+        );
+    }
+
+    public void upsertActiveDeployment(
+        String realmId,
+        long catalogVersion,
+        int rolloutPercent,
+        boolean allowExistingMatches,
+        OffsetDateTime now
+    ) {
+        update(
+            """
+                INSERT INTO catalog_deployments(
+                  realm_id,
+                  catalog_version,
+                  deployment_state,
+                  rollout_percent,
+                  allow_new_matches,
+                  allow_existing_matches,
+                  activated_at,
+                  retired_at
+                )
+                VALUES (?, ?, 'active', ?, true, ?, ?, null)
+                ON CONFLICT (realm_id, catalog_version)
+                DO UPDATE SET
+                  deployment_state = 'active',
+                  rollout_percent = EXCLUDED.rollout_percent,
+                  allow_new_matches = true,
+                  allow_existing_matches = EXCLUDED.allow_existing_matches,
+                  activated_at = EXCLUDED.activated_at,
+                  retired_at = null
+                """,
+            realmId,
+            catalogVersion,
+            rolloutPercent,
+            allowExistingMatches,
+            now
+        );
+    }
+
+    public void markCatalogVersionActive(long catalogVersion, OffsetDateTime now) {
+        update(
+            """
+                UPDATE catalog_versions
+                SET state = 'active',
+                    activated_at = ?,
+                    retired_at = null
+                WHERE catalog_version = ?
+                """,
+            now,
+            catalogVersion
+        );
+    }
+
+    public void markDeploymentRolledBack(String realmId, long catalogVersion, OffsetDateTime now) {
+        update(
+            """
+                UPDATE catalog_deployments
+                SET deployment_state = 'rolled_back',
+                    rollout_percent = 0,
+                    allow_new_matches = false,
+                    allow_existing_matches = true,
+                    retired_at = ?
+                WHERE realm_id = ?
+                  AND catalog_version = ?
+                """,
+            now,
+            realmId,
+            catalogVersion
+        );
+    }
+
+    public void markCatalogVersionRolledBack(long catalogVersion, OffsetDateTime now) {
+        update(
+            """
+                UPDATE catalog_versions
+                SET state = 'rolled_back',
+                    retired_at = ?
+                WHERE catalog_version = ?
+                """,
+            now,
+            catalogVersion
+        );
+    }
+
+    public void reactivateDeployment(String realmId, long catalogVersion, OffsetDateTime now) {
+        update(
+            """
+                UPDATE catalog_deployments
+                SET deployment_state = 'active',
+                    rollout_percent = 100,
+                    allow_new_matches = true,
+                    allow_existing_matches = true,
+                    activated_at = ?,
+                    retired_at = null
+                WHERE realm_id = ?
+                  AND catalog_version = ?
+                """,
+            now,
+            realmId,
+            catalogVersion
+        );
+    }
+
+    public int markRealmProfilesStale(String realmId, String staleReason, OffsetDateTime now) {
+        return update(
+            """
+                UPDATE player_match_profiles
+                SET is_stale = true,
+                    stale_reason = ?,
+                    stale_at = ?
+                WHERE realm_id = ?
+                  AND is_stale = false
+                """,
+            staleReason,
+            now,
+            realmId
+        );
     }
 }
