@@ -5,6 +5,12 @@ import com.game.backend.catalog.repository.CatalogRepository.AccessFlags;
 import com.game.backend.catalog.repository.CatalogRepository.CatalogDeployment;
 import com.game.backend.catalog.repository.CatalogRepository.LifecycleCatalogItem;
 import com.game.backend.catalog.repository.CatalogRepository.MigrationEntry;
+import com.game.backend.catalog.repository.CatalogRepository.ModuleSnapshot;
+import com.game.backend.catalog.repository.CatalogRepository.OutfitItemSnapshot;
+import com.game.backend.catalog.repository.CatalogRepository.OutfitPresetHeader;
+import com.game.backend.catalog.repository.CatalogRepository.WeaponConfigSnapshot;
+import com.game.backend.catalog.repository.CatalogRepository.WeaponPresetHeader;
+import com.game.backend.catalog.repository.CatalogRepository.WeaponSlotSnapshot;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -215,24 +221,7 @@ public class CatalogLifecycleService {
     }
 
     private int migrateWeaponPresets(long fromVersion, long toVersion, UUID operationId, OffsetDateTime now) {
-        List<WeaponPresetHeader> headers = repository.query(
-            """
-                SELECT player_id, class_tag, preset_slot, catalog_version, revision, sanitized
-                FROM player_weapon_presets
-                WHERE catalog_version = ?
-                ORDER BY player_id, class_tag, preset_slot
-                FOR UPDATE
-                """,
-            (rs, rowNum) -> new WeaponPresetHeader(
-                rs.getObject("player_id", UUID.class),
-                rs.getString("class_tag"),
-                rs.getInt("preset_slot"),
-                rs.getLong("catalog_version"),
-                rs.getLong("revision"),
-                rs.getBoolean("sanitized")
-            ),
-            fromVersion
-        );
+        List<WeaponPresetHeader> headers = repository.lockWeaponPresetHeaders(fromVersion);
 
         List<WeaponPresetSnapshot> presets = headers.stream()
             .map(header -> new WeaponPresetSnapshot(
@@ -249,30 +238,8 @@ public class CatalogLifecycleService {
 
         for (WeaponPresetSnapshot preset : presets) {
             MigratedWeaponPreset migrated = migrateWeaponPresetSnapshot(preset, fromVersion, toVersion);
-            repository.update(
-                """
-                    DELETE FROM player_weapon_presets
-                    WHERE player_id = ?
-                      AND class_tag = ?
-                      AND preset_slot = ?
-                    """,
-                preset.playerId(),
-                preset.classTag(),
-                preset.presetSlot()
-            );
-            repository.update(
-                """
-                    INSERT INTO player_weapon_presets(
-                      player_id,
-                      class_tag,
-                      preset_slot,
-                      catalog_version,
-                      revision,
-                      sanitized,
-                      updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
+            repository.deleteWeaponPreset(preset.playerId(), preset.classTag(), preset.presetSlot());
+            repository.insertWeaponPreset(
                 preset.playerId(),
                 preset.classTag(),
                 preset.presetSlot(),
@@ -282,18 +249,7 @@ public class CatalogLifecycleService {
                 now
             );
             for (MigratedWeaponSlot slot : migrated.slots()) {
-                repository.update(
-                    """
-                        INSERT INTO player_weapon_preset_slots(
-                          player_id,
-                          class_tag,
-                          preset_slot,
-                          catalog_version,
-                          weapon_slot_id,
-                          selected_weapon_id
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?)
-                        """,
+                repository.insertWeaponPresetSlot(
                     preset.playerId(),
                     preset.classTag(),
                     preset.presetSlot(),
@@ -303,20 +259,7 @@ public class CatalogLifecycleService {
                 );
             }
             for (MigratedWeaponConfig config : migrated.configs()) {
-                repository.update(
-                    """
-                        INSERT INTO player_weapon_preset_weapon_configs(
-                          player_id,
-                          class_tag,
-                          preset_slot,
-                          catalog_version,
-                          weapon_slot_id,
-                          weapon_id,
-                          config_revision,
-                          last_used_at
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
+                repository.insertWeaponConfig(
                     preset.playerId(),
                     preset.classTag(),
                     preset.presetSlot(),
@@ -327,20 +270,7 @@ public class CatalogLifecycleService {
                     now
                 );
                 for (MigratedModule module : config.modules()) {
-                    repository.update(
-                        """
-                            INSERT INTO player_weapon_preset_weapon_config_modules(
-                              player_id,
-                              class_tag,
-                              preset_slot,
-                              catalog_version,
-                              weapon_slot_id,
-                              weapon_id,
-                              mount_id,
-                              module_id
-                            )
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
+                    repository.insertWeaponConfigModule(
                         preset.playerId(),
                         preset.classTag(),
                         preset.presetSlot(),
@@ -426,25 +356,7 @@ public class CatalogLifecycleService {
     }
 
     private int migrateOutfitPresets(long fromVersion, long toVersion, OffsetDateTime now) {
-        List<OutfitPresetHeader> headers = repository.query(
-            """
-                SELECT player_id, team_tag, class_tag, outfit_preset_slot, catalog_version, revision, sanitized
-                FROM player_outfit_presets
-                WHERE catalog_version = ?
-                ORDER BY player_id, team_tag, class_tag, outfit_preset_slot
-                FOR UPDATE
-                """,
-            (rs, rowNum) -> new OutfitPresetHeader(
-                rs.getObject("player_id", UUID.class),
-                rs.getString("team_tag"),
-                rs.getString("class_tag"),
-                rs.getInt("outfit_preset_slot"),
-                rs.getLong("catalog_version"),
-                rs.getLong("revision"),
-                rs.getBoolean("sanitized")
-            ),
-            fromVersion
-        );
+        List<OutfitPresetHeader> headers = repository.lockOutfitPresetHeaders(fromVersion);
 
         List<OutfitPresetSnapshot> presets = headers.stream()
             .map(header -> new OutfitPresetSnapshot(
@@ -461,33 +373,8 @@ public class CatalogLifecycleService {
 
         for (OutfitPresetSnapshot preset : presets) {
             MigratedOutfitPreset migrated = migrateOutfitPresetSnapshot(preset, fromVersion, toVersion);
-            repository.update(
-                """
-                    DELETE FROM player_outfit_presets
-                    WHERE player_id = ?
-                      AND team_tag = ?
-                      AND class_tag = ?
-                      AND outfit_preset_slot = ?
-                    """,
-                preset.playerId(),
-                preset.teamTag(),
-                preset.classTag(),
-                preset.outfitPresetSlot()
-            );
-            repository.update(
-                """
-                    INSERT INTO player_outfit_presets(
-                      player_id,
-                      team_tag,
-                      class_tag,
-                      outfit_preset_slot,
-                      catalog_version,
-                      revision,
-                      sanitized,
-                      updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
+            repository.deleteOutfitPreset(preset.playerId(), preset.teamTag(), preset.classTag(), preset.outfitPresetSlot());
+            repository.insertOutfitPreset(
                 preset.playerId(),
                 preset.teamTag(),
                 preset.classTag(),
@@ -498,19 +385,7 @@ public class CatalogLifecycleService {
                 now
             );
             for (MigratedOutfitItem item : migrated.items()) {
-                repository.update(
-                    """
-                        INSERT INTO player_outfit_preset_items(
-                          player_id,
-                          team_tag,
-                          class_tag,
-                          outfit_preset_slot,
-                          catalog_version,
-                          clothing_slot_id,
-                          item_id
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """,
+                repository.insertOutfitPresetItem(
                     preset.playerId(),
                     preset.teamTag(),
                     preset.classTag(),
@@ -706,28 +581,9 @@ public class CatalogLifecycleService {
     ) {
         UUID changeId = UUID.randomUUID();
         long resultRevision = preset.revision() + 1;
-        repository.update(
-            """
-                INSERT INTO post_match_pending_changes(
-                  change_id,
-                  player_id,
-                  match_id,
-                  class_tag,
-                  weapon_preset_slot,
-                  base_weapon_preset_revision,
-                  current_conflicting_revision,
-                  reason_code,
-                  status,
-                  payload,
-                  payload_schema_version,
-                  created_at,
-                  expires_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'catalog_conflict', 'pending', ?::jsonb, 1, ?, ?)
-                """,
+        repository.insertPostMatchCatalogConflict(
             changeId,
             preset.playerId(),
-            null,
             preset.classTag(),
             preset.presetSlot(),
             preset.revision(),
@@ -885,90 +741,15 @@ public class CatalogLifecycleService {
     }
 
     private List<WeaponSlotSnapshot> weaponSlotsSnapshot(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
-        return repository.query(
-            """
-                SELECT weapon_slot_id, selected_weapon_id
-                FROM player_weapon_preset_slots
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                ORDER BY weapon_slot_id
-                """,
-            (rs, rowNum) -> new WeaponSlotSnapshot(rs.getString("weapon_slot_id"), rs.getString("selected_weapon_id")),
-            playerId,
-            classTag,
-            presetSlot,
-            catalogVersion
-        );
+        return repository.findWeaponSlotSnapshots(playerId, classTag, presetSlot, catalogVersion);
     }
 
     private List<WeaponConfigSnapshot> weaponConfigsSnapshot(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
-        return repository.query(
-            """
-                SELECT weapon_slot_id, weapon_id, config_revision
-                FROM player_weapon_preset_weapon_configs
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                ORDER BY weapon_slot_id, weapon_id
-                """,
-            (rs, rowNum) -> new WeaponConfigSnapshot(
-                rs.getString("weapon_slot_id"),
-                rs.getString("weapon_id"),
-                rs.getLong("config_revision"),
-                modulesSnapshot(playerId, classTag, presetSlot, catalogVersion, rs.getString("weapon_slot_id"), rs.getString("weapon_id"))
-            ),
-            playerId,
-            classTag,
-            presetSlot,
-            catalogVersion
-        );
-    }
-
-    private List<ModuleSnapshot> modulesSnapshot(UUID playerId, String classTag, int presetSlot, long catalogVersion, String weaponSlotId, String weaponId) {
-        return repository.query(
-            """
-                SELECT mount_id, module_id
-                FROM player_weapon_preset_weapon_config_modules
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                  AND weapon_slot_id = ?
-                  AND weapon_id = ?
-                ORDER BY mount_id
-                """,
-            (rs, rowNum) -> new ModuleSnapshot(rs.getString("mount_id"), rs.getString("module_id")),
-            playerId,
-            classTag,
-            presetSlot,
-            catalogVersion,
-            weaponSlotId,
-            weaponId
-        );
+        return repository.findWeaponConfigSnapshots(playerId, classTag, presetSlot, catalogVersion);
     }
 
     private List<OutfitItemSnapshot> outfitItemsSnapshot(UUID playerId, String teamTag, String classTag, int outfitPresetSlot, long catalogVersion) {
-        return repository.query(
-            """
-                SELECT clothing_slot_id, item_id
-                FROM player_outfit_preset_items
-                WHERE player_id = ?
-                  AND team_tag = ?
-                  AND class_tag = ?
-                  AND outfit_preset_slot = ?
-                  AND catalog_version = ?
-                ORDER BY clothing_slot_id
-                """,
-            (rs, rowNum) -> new OutfitItemSnapshot(rs.getString("clothing_slot_id"), rs.getString("item_id")),
-            playerId,
-            teamTag,
-            classTag,
-            outfitPresetSlot,
-            catalogVersion
-        );
+        return repository.findOutfitItemSnapshots(playerId, teamTag, classTag, outfitPresetSlot, catalogVersion);
     }
 
     private String normalize(String value, String field) {
@@ -984,16 +765,6 @@ public class CatalogLifecycleService {
         }
     }
 
-    private record WeaponPresetHeader(
-        UUID playerId,
-        String classTag,
-        int presetSlot,
-        long catalogVersion,
-        long revision,
-        boolean sanitized
-    ) {
-    }
-
     private record WeaponPresetSnapshot(
         UUID playerId,
         String classTag,
@@ -1004,15 +775,6 @@ public class CatalogLifecycleService {
         List<WeaponSlotSnapshot> slots,
         List<WeaponConfigSnapshot> configs
     ) {
-    }
-
-    private record WeaponSlotSnapshot(String weaponSlotId, String selectedWeaponId) {
-    }
-
-    private record WeaponConfigSnapshot(String weaponSlotId, String weaponId, long configRevision, List<ModuleSnapshot> modules) {
-    }
-
-    private record ModuleSnapshot(String mountId, String moduleId) {
     }
 
     private record MigratedWeaponPreset(
@@ -1035,17 +797,6 @@ public class CatalogLifecycleService {
     private record ManualMigrationConflict(String idType, String oldId, String newId) {
     }
 
-    private record OutfitPresetHeader(
-        UUID playerId,
-        String teamTag,
-        String classTag,
-        int outfitPresetSlot,
-        long catalogVersion,
-        long revision,
-        boolean sanitized
-    ) {
-    }
-
     private record OutfitPresetSnapshot(
         UUID playerId,
         String teamTag,
@@ -1056,9 +807,6 @@ public class CatalogLifecycleService {
         boolean sanitized,
         List<OutfitItemSnapshot> items
     ) {
-    }
-
-    private record OutfitItemSnapshot(String clothingSlotId, String itemId) {
     }
 
     private record MigratedOutfitPreset(List<MigratedOutfitItem> items, boolean sanitized) {

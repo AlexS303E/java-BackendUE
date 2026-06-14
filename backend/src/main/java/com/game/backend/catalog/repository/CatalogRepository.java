@@ -25,6 +25,39 @@ public class CatalogRepository extends JdbcRepository {
     public record MigrationEntry(String action, String newId) {
     }
 
+    public record WeaponPresetHeader(
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        long revision,
+        boolean sanitized
+    ) {
+    }
+
+    public record WeaponSlotSnapshot(String weaponSlotId, String selectedWeaponId) {
+    }
+
+    public record WeaponConfigSnapshot(String weaponSlotId, String weaponId, long configRevision, List<ModuleSnapshot> modules) {
+    }
+
+    public record ModuleSnapshot(String mountId, String moduleId) {
+    }
+
+    public record OutfitPresetHeader(
+        UUID playerId,
+        String teamTag,
+        String classTag,
+        int outfitPresetSlot,
+        long catalogVersion,
+        long revision,
+        boolean sanitized
+    ) {
+    }
+
+    public record OutfitItemSnapshot(String clothingSlotId, String itemId) {
+    }
+
     public record LifecycleCatalogItem(String itemId, String itemType, boolean enabled) {
     }
 
@@ -811,5 +844,436 @@ public class CatalogRepository extends JdbcRepository {
             clothingSlotId
         );
         return Boolean.TRUE.equals(active);
+    }
+
+    public List<WeaponPresetHeader> lockWeaponPresetHeaders(long catalogVersion) {
+        return query(
+            """
+                SELECT player_id, class_tag, preset_slot, catalog_version, revision, sanitized
+                FROM player_weapon_presets
+                WHERE catalog_version = ?
+                ORDER BY player_id, class_tag, preset_slot
+                FOR UPDATE
+                """,
+            (rs, rowNum) -> new WeaponPresetHeader(
+                rs.getObject("player_id", UUID.class),
+                rs.getString("class_tag"),
+                rs.getInt("preset_slot"),
+                rs.getLong("catalog_version"),
+                rs.getLong("revision"),
+                rs.getBoolean("sanitized")
+            ),
+            catalogVersion
+        );
+    }
+
+    public List<WeaponSlotSnapshot> findWeaponSlotSnapshots(
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion
+    ) {
+        return query(
+            """
+                SELECT weapon_slot_id, selected_weapon_id
+                FROM player_weapon_preset_slots
+                WHERE player_id = ?
+                  AND class_tag = ?
+                  AND preset_slot = ?
+                  AND catalog_version = ?
+                ORDER BY weapon_slot_id
+                """,
+            (rs, rowNum) -> new WeaponSlotSnapshot(rs.getString("weapon_slot_id"), rs.getString("selected_weapon_id")),
+            playerId,
+            classTag,
+            presetSlot,
+            catalogVersion
+        );
+    }
+
+    public List<WeaponConfigSnapshot> findWeaponConfigSnapshots(
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion
+    ) {
+        return query(
+            """
+                SELECT weapon_slot_id, weapon_id, config_revision
+                FROM player_weapon_preset_weapon_configs
+                WHERE player_id = ?
+                  AND class_tag = ?
+                  AND preset_slot = ?
+                  AND catalog_version = ?
+                ORDER BY weapon_slot_id, weapon_id
+                """,
+            (rs, rowNum) -> new WeaponConfigSnapshot(
+                rs.getString("weapon_slot_id"),
+                rs.getString("weapon_id"),
+                rs.getLong("config_revision"),
+                findModuleSnapshots(
+                    playerId,
+                    classTag,
+                    presetSlot,
+                    catalogVersion,
+                    rs.getString("weapon_slot_id"),
+                    rs.getString("weapon_id")
+                )
+            ),
+            playerId,
+            classTag,
+            presetSlot,
+            catalogVersion
+        );
+    }
+
+    public List<ModuleSnapshot> findModuleSnapshots(
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        String weaponSlotId,
+        String weaponId
+    ) {
+        return query(
+            """
+                SELECT mount_id, module_id
+                FROM player_weapon_preset_weapon_config_modules
+                WHERE player_id = ?
+                  AND class_tag = ?
+                  AND preset_slot = ?
+                  AND catalog_version = ?
+                  AND weapon_slot_id = ?
+                  AND weapon_id = ?
+                ORDER BY mount_id
+                """,
+            (rs, rowNum) -> new ModuleSnapshot(rs.getString("mount_id"), rs.getString("module_id")),
+            playerId,
+            classTag,
+            presetSlot,
+            catalogVersion,
+            weaponSlotId,
+            weaponId
+        );
+    }
+
+    public void deleteWeaponPreset(UUID playerId, String classTag, int presetSlot) {
+        update(
+            """
+                DELETE FROM player_weapon_presets
+                WHERE player_id = ?
+                  AND class_tag = ?
+                  AND preset_slot = ?
+                """,
+            playerId,
+            classTag,
+            presetSlot
+        );
+    }
+
+    public void insertWeaponPreset(
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        long revision,
+        boolean sanitized,
+        OffsetDateTime now
+    ) {
+        update(
+            """
+                INSERT INTO player_weapon_presets(
+                  player_id,
+                  class_tag,
+                  preset_slot,
+                  catalog_version,
+                  revision,
+                  sanitized,
+                  updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+            playerId,
+            classTag,
+            presetSlot,
+            catalogVersion,
+            revision,
+            sanitized,
+            now
+        );
+    }
+
+    public void insertWeaponPresetSlot(
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        String weaponSlotId,
+        String selectedWeaponId
+    ) {
+        update(
+            """
+                INSERT INTO player_weapon_preset_slots(
+                  player_id,
+                  class_tag,
+                  preset_slot,
+                  catalog_version,
+                  weapon_slot_id,
+                  selected_weapon_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+            playerId,
+            classTag,
+            presetSlot,
+            catalogVersion,
+            weaponSlotId,
+            selectedWeaponId
+        );
+    }
+
+    public void insertWeaponConfig(
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        String weaponSlotId,
+        String weaponId,
+        long configRevision,
+        OffsetDateTime now
+    ) {
+        update(
+            """
+                INSERT INTO player_weapon_preset_weapon_configs(
+                  player_id,
+                  class_tag,
+                  preset_slot,
+                  catalog_version,
+                  weapon_slot_id,
+                  weapon_id,
+                  config_revision,
+                  last_used_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+            playerId,
+            classTag,
+            presetSlot,
+            catalogVersion,
+            weaponSlotId,
+            weaponId,
+            configRevision,
+            now
+        );
+    }
+
+    public void insertWeaponConfigModule(
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        String weaponSlotId,
+        String weaponId,
+        String mountId,
+        String moduleId
+    ) {
+        update(
+            """
+                INSERT INTO player_weapon_preset_weapon_config_modules(
+                  player_id,
+                  class_tag,
+                  preset_slot,
+                  catalog_version,
+                  weapon_slot_id,
+                  weapon_id,
+                  mount_id,
+                  module_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+            playerId,
+            classTag,
+            presetSlot,
+            catalogVersion,
+            weaponSlotId,
+            weaponId,
+            mountId,
+            moduleId
+        );
+    }
+
+    public List<OutfitPresetHeader> lockOutfitPresetHeaders(long catalogVersion) {
+        return query(
+            """
+                SELECT player_id, team_tag, class_tag, outfit_preset_slot, catalog_version, revision, sanitized
+                FROM player_outfit_presets
+                WHERE catalog_version = ?
+                ORDER BY player_id, team_tag, class_tag, outfit_preset_slot
+                FOR UPDATE
+                """,
+            (rs, rowNum) -> new OutfitPresetHeader(
+                rs.getObject("player_id", UUID.class),
+                rs.getString("team_tag"),
+                rs.getString("class_tag"),
+                rs.getInt("outfit_preset_slot"),
+                rs.getLong("catalog_version"),
+                rs.getLong("revision"),
+                rs.getBoolean("sanitized")
+            ),
+            catalogVersion
+        );
+    }
+
+    public List<OutfitItemSnapshot> findOutfitItemSnapshots(
+        UUID playerId,
+        String teamTag,
+        String classTag,
+        int outfitPresetSlot,
+        long catalogVersion
+    ) {
+        return query(
+            """
+                SELECT clothing_slot_id, item_id
+                FROM player_outfit_preset_items
+                WHERE player_id = ?
+                  AND team_tag = ?
+                  AND class_tag = ?
+                  AND outfit_preset_slot = ?
+                  AND catalog_version = ?
+                ORDER BY clothing_slot_id
+                """,
+            (rs, rowNum) -> new OutfitItemSnapshot(rs.getString("clothing_slot_id"), rs.getString("item_id")),
+            playerId,
+            teamTag,
+            classTag,
+            outfitPresetSlot,
+            catalogVersion
+        );
+    }
+
+    public void deleteOutfitPreset(UUID playerId, String teamTag, String classTag, int outfitPresetSlot) {
+        update(
+            """
+                DELETE FROM player_outfit_presets
+                WHERE player_id = ?
+                  AND team_tag = ?
+                  AND class_tag = ?
+                  AND outfit_preset_slot = ?
+                """,
+            playerId,
+            teamTag,
+            classTag,
+            outfitPresetSlot
+        );
+    }
+
+    public void insertOutfitPreset(
+        UUID playerId,
+        String teamTag,
+        String classTag,
+        int outfitPresetSlot,
+        long catalogVersion,
+        long revision,
+        boolean sanitized,
+        OffsetDateTime now
+    ) {
+        update(
+            """
+                INSERT INTO player_outfit_presets(
+                  player_id,
+                  team_tag,
+                  class_tag,
+                  outfit_preset_slot,
+                  catalog_version,
+                  revision,
+                  sanitized,
+                  updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+            playerId,
+            teamTag,
+            classTag,
+            outfitPresetSlot,
+            catalogVersion,
+            revision,
+            sanitized,
+            now
+        );
+    }
+
+    public void insertOutfitPresetItem(
+        UUID playerId,
+        String teamTag,
+        String classTag,
+        int outfitPresetSlot,
+        long catalogVersion,
+        String clothingSlotId,
+        String itemId
+    ) {
+        update(
+            """
+                INSERT INTO player_outfit_preset_items(
+                  player_id,
+                  team_tag,
+                  class_tag,
+                  outfit_preset_slot,
+                  catalog_version,
+                  clothing_slot_id,
+                  item_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+            playerId,
+            teamTag,
+            classTag,
+            outfitPresetSlot,
+            catalogVersion,
+            clothingSlotId,
+            itemId
+        );
+    }
+
+    public void insertPostMatchCatalogConflict(
+        UUID changeId,
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long baseRevision,
+        long resultRevision,
+        String payloadJson,
+        OffsetDateTime now,
+        OffsetDateTime expiresAt
+    ) {
+        update(
+            """
+                INSERT INTO post_match_pending_changes(
+                  change_id,
+                  player_id,
+                  match_id,
+                  class_tag,
+                  weapon_preset_slot,
+                  base_weapon_preset_revision,
+                  current_conflicting_revision,
+                  reason_code,
+                  status,
+                  payload,
+                  payload_schema_version,
+                  created_at,
+                  expires_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'catalog_conflict', 'pending', ?::jsonb, 1, ?, ?)
+                """,
+            changeId,
+            playerId,
+            null,
+            classTag,
+            presetSlot,
+            baseRevision,
+            resultRevision,
+            payloadJson,
+            now,
+            expiresAt
+        );
     }
 }
