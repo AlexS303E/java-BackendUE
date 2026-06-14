@@ -1,6 +1,8 @@
 package com.game.backend.catalog.application;
 
 import com.game.backend.catalog.repository.CatalogRepository;
+import com.game.backend.catalog.repository.CatalogRepository.AccessFlags;
+import com.game.backend.catalog.repository.CatalogRepository.LifecycleCatalogItem;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -190,70 +192,20 @@ public class CatalogLifecycleService {
     }
 
     private int migratePlayerAccess(long fromVersion, long toVersion, OffsetDateTime now) {
-        List<UUID> playerIds = repository.queryForList(
-            "SELECT player_id FROM player_access_projection_state ORDER BY player_id",
-            UUID.class
-        );
-        List<CatalogItem> newItems = catalogItems(toVersion);
+        List<UUID> playerIds = repository.findAccessProjectionPlayerIds();
+        List<LifecycleCatalogItem> newItems = catalogItems(toVersion);
         int migratedPlayers = 0;
 
         for (UUID playerId : playerIds) {
             boolean changed = false;
-            for (CatalogItem item : newItems) {
+            for (LifecycleCatalogItem item : newItems) {
                 String oldItemId = oldItemIdForNewItem(item.itemId(), fromVersion, toVersion);
                 AccessFlags flags = oldItemId == null ? AccessFlags.defaultOpen(item.enabled()) : accessFlags(playerId, oldItemId, fromVersion, item.enabled());
-                int updated = repository.update(
-                    """
-                        INSERT INTO player_item_access(
-                          player_id,
-                          item_id,
-                          catalog_version,
-                          is_hidden,
-                          is_locked_in_shop,
-                          is_locked_by_quest,
-                          is_disabled,
-                          disabled_reason,
-                          unlock_hint_code,
-                          unlock_hint_payload,
-                          updated_at
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
-                        ON CONFLICT (player_id, item_id, catalog_version)
-                        DO UPDATE SET
-                          is_hidden = EXCLUDED.is_hidden,
-                          is_locked_in_shop = EXCLUDED.is_locked_in_shop,
-                          is_locked_by_quest = EXCLUDED.is_locked_by_quest,
-                          is_disabled = EXCLUDED.is_disabled,
-                          disabled_reason = EXCLUDED.disabled_reason,
-                          unlock_hint_code = EXCLUDED.unlock_hint_code,
-                          unlock_hint_payload = EXCLUDED.unlock_hint_payload,
-                          updated_at = EXCLUDED.updated_at
-                        """,
-                    playerId,
-                    item.itemId(),
-                    toVersion,
-                    flags.hidden(),
-                    flags.lockedInShop(),
-                    flags.lockedByQuest(),
-                    flags.disabled(),
-                    flags.disabledReason(),
-                    flags.unlockHintCode(),
-                    flags.unlockHintPayloadJson(),
-                    now
-                );
+                int updated = repository.upsertPlayerItemAccess(playerId, item.itemId(), toVersion, flags, now);
                 changed = changed || updated > 0;
             }
             if (changed) {
-                repository.update(
-                    """
-                        UPDATE player_access_projection_state
-                        SET access_revision = access_revision + 1,
-                            projection_rebuilt_at = ?
-                        WHERE player_id = ?
-                        """,
-                    now,
-                    playerId
-                );
+                repository.bumpAccessProjectionRevision(playerId, now);
                 migratedPlayers++;
             }
         }
@@ -898,52 +850,12 @@ public class CatalogLifecycleService {
         return versions.getFirst();
     }
 
-    private List<CatalogItem> catalogItems(long catalogVersion) {
-        return repository.query(
-            """
-                SELECT item_id, item_type, is_enabled
-                FROM catalog_items
-                WHERE catalog_version = ?
-                ORDER BY item_id
-                """,
-            (rs, rowNum) -> new CatalogItem(
-                rs.getString("item_id"),
-                rs.getString("item_type"),
-                rs.getBoolean("is_enabled")
-            ),
-            catalogVersion
-        );
+    private List<LifecycleCatalogItem> catalogItems(long catalogVersion) {
+        return repository.findLifecycleCatalogItems(catalogVersion);
     }
 
     private AccessFlags accessFlags(UUID playerId, String itemId, long catalogVersion, boolean targetCatalogEnabled) {
-        List<AccessFlags> rows = repository.query(
-            """
-                SELECT
-                  is_hidden,
-                  is_locked_in_shop,
-                  is_locked_by_quest,
-                  is_disabled,
-                  disabled_reason,
-                  unlock_hint_code,
-                  unlock_hint_payload::text AS unlock_hint_payload
-                FROM player_item_access
-                WHERE player_id = ?
-                  AND item_id = ?
-                  AND catalog_version = ?
-                """,
-            (rs, rowNum) -> new AccessFlags(
-                rs.getBoolean("is_hidden"),
-                rs.getBoolean("is_locked_in_shop"),
-                rs.getBoolean("is_locked_by_quest"),
-                rs.getBoolean("is_disabled") || !targetCatalogEnabled,
-                rs.getString("disabled_reason"),
-                rs.getString("unlock_hint_code"),
-                rs.getString("unlock_hint_payload")
-            ),
-            playerId,
-            itemId,
-            catalogVersion
-        );
+        List<AccessFlags> rows = repository.findAccessFlags(playerId, itemId, catalogVersion, targetCatalogEnabled);
         return rows.isEmpty() ? AccessFlags.defaultOpen(targetCatalogEnabled) : rows.getFirst();
     }
 
@@ -951,23 +863,7 @@ public class CatalogLifecycleService {
         if (catalogItemExists(newItemId, fromVersion)) {
             return newItemId;
         }
-        List<String> mapped = repository.queryForList(
-            """
-                SELECT old_id
-                FROM catalog_id_migration_map
-                WHERE from_catalog_version = ?
-                  AND to_catalog_version = ?
-                  AND id_type = 'item'
-                  AND migration_action = 'map'
-                  AND new_id = ?
-                ORDER BY old_id
-                LIMIT 1
-                """,
-            String.class,
-            fromVersion,
-            toVersion,
-            newItemId
-        );
+        List<String> mapped = repository.findMappedOldItemIdsForNewItem(newItemId, fromVersion, toVersion);
         return mapped.isEmpty() ? null : mapped.getFirst();
     }
 
@@ -1142,13 +1038,7 @@ public class CatalogLifecycleService {
     }
 
     private boolean catalogItemExists(String itemId, long catalogVersion) {
-        Boolean exists = repository.queryForObject(
-            "SELECT EXISTS(SELECT 1 FROM catalog_items WHERE item_id = ? AND catalog_version = ?)",
-            Boolean.class,
-            itemId,
-            catalogVersion
-        );
-        return Boolean.TRUE.equals(exists);
+        return repository.catalogItemExists(itemId, catalogVersion);
     }
 
     private boolean mountExists(String mountId, long catalogVersion) {
@@ -1419,23 +1309,6 @@ public class CatalogLifecycleService {
     private record LifecycleMigrationResult(int weaponPresets, int outfitPresets, int accessPlayers) {
         static LifecycleMigrationResult empty() {
             return new LifecycleMigrationResult(0, 0, 0);
-        }
-    }
-
-    private record CatalogItem(String itemId, String itemType, boolean enabled) {
-    }
-
-    private record AccessFlags(
-        boolean hidden,
-        boolean lockedInShop,
-        boolean lockedByQuest,
-        boolean disabled,
-        String disabledReason,
-        String unlockHintCode,
-        String unlockHintPayloadJson
-    ) {
-        static AccessFlags defaultOpen(boolean catalogEnabled) {
-            return new AccessFlags(false, false, false, !catalogEnabled, catalogEnabled ? null : "catalog_disabled", catalogEnabled ? null : "admin_disabled", null);
         }
     }
 

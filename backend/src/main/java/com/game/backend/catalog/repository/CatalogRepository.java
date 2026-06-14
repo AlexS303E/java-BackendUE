@@ -7,7 +7,9 @@ import com.game.backend.common.persistence.JdbcRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 public class CatalogRepository extends JdbcRepository {
@@ -15,6 +17,31 @@ public class CatalogRepository extends JdbcRepository {
     }
 
     public record MountAllowedModule(long catalogVersion, String mountId, String moduleId) {
+    }
+
+    public record LifecycleCatalogItem(String itemId, String itemType, boolean enabled) {
+    }
+
+    public record AccessFlags(
+        boolean hidden,
+        boolean lockedInShop,
+        boolean lockedByQuest,
+        boolean disabled,
+        String disabledReason,
+        String unlockHintCode,
+        String unlockHintPayloadJson
+    ) {
+        public static AccessFlags defaultOpen(boolean catalogEnabled) {
+            return new AccessFlags(
+                false,
+                false,
+                false,
+                !catalogEnabled,
+                catalogEnabled ? null : "catalog_disabled",
+                catalogEnabled ? null : "admin_disabled",
+                null
+            );
+        }
     }
 
     public CatalogRepository(JdbcTemplate jdbcTemplate) {
@@ -183,5 +210,167 @@ public class CatalogRepository extends JdbcRepository {
             ),
             catalogVersion
         );
+    }
+
+    public List<UUID> findAccessProjectionPlayerIds() {
+        return queryForList(
+            """
+                SELECT player_id
+                FROM player_access_projection_state
+                ORDER BY player_id
+                """,
+            UUID.class
+        );
+    }
+
+    public List<LifecycleCatalogItem> findLifecycleCatalogItems(long catalogVersion) {
+        return query(
+            """
+                SELECT item_id, item_type, is_enabled
+                FROM catalog_items
+                WHERE catalog_version = ?
+                ORDER BY item_id
+                """,
+            (rs, rowNum) -> new LifecycleCatalogItem(
+                rs.getString("item_id"),
+                rs.getString("item_type"),
+                rs.getBoolean("is_enabled")
+            ),
+            catalogVersion
+        );
+    }
+
+    public List<AccessFlags> findAccessFlags(
+        UUID playerId,
+        String itemId,
+        long catalogVersion,
+        boolean targetCatalogEnabled
+    ) {
+        return query(
+            """
+                SELECT
+                  is_hidden,
+                  is_locked_in_shop,
+                  is_locked_by_quest,
+                  is_disabled,
+                  disabled_reason,
+                  unlock_hint_code,
+                  unlock_hint_payload::text AS unlock_hint_payload
+                FROM player_item_access
+                WHERE player_id = ?
+                  AND item_id = ?
+                  AND catalog_version = ?
+                """,
+            (rs, rowNum) -> new AccessFlags(
+                rs.getBoolean("is_hidden"),
+                rs.getBoolean("is_locked_in_shop"),
+                rs.getBoolean("is_locked_by_quest"),
+                rs.getBoolean("is_disabled") || !targetCatalogEnabled,
+                rs.getString("disabled_reason"),
+                rs.getString("unlock_hint_code"),
+                rs.getString("unlock_hint_payload")
+            ),
+            playerId,
+            itemId,
+            catalogVersion
+        );
+    }
+
+    public int upsertPlayerItemAccess(
+        UUID playerId,
+        String itemId,
+        long catalogVersion,
+        AccessFlags flags,
+        OffsetDateTime now
+    ) {
+        return update(
+            """
+                INSERT INTO player_item_access(
+                  player_id,
+                  item_id,
+                  catalog_version,
+                  is_hidden,
+                  is_locked_in_shop,
+                  is_locked_by_quest,
+                  is_disabled,
+                  disabled_reason,
+                  unlock_hint_code,
+                  unlock_hint_payload,
+                  updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
+                ON CONFLICT (player_id, item_id, catalog_version)
+                DO UPDATE SET
+                  is_hidden = EXCLUDED.is_hidden,
+                  is_locked_in_shop = EXCLUDED.is_locked_in_shop,
+                  is_locked_by_quest = EXCLUDED.is_locked_by_quest,
+                  is_disabled = EXCLUDED.is_disabled,
+                  disabled_reason = EXCLUDED.disabled_reason,
+                  unlock_hint_code = EXCLUDED.unlock_hint_code,
+                  unlock_hint_payload = EXCLUDED.unlock_hint_payload,
+                  updated_at = EXCLUDED.updated_at
+                """,
+            playerId,
+            itemId,
+            catalogVersion,
+            flags.hidden(),
+            flags.lockedInShop(),
+            flags.lockedByQuest(),
+            flags.disabled(),
+            flags.disabledReason(),
+            flags.unlockHintCode(),
+            flags.unlockHintPayloadJson(),
+            now
+        );
+    }
+
+    public void bumpAccessProjectionRevision(UUID playerId, OffsetDateTime now) {
+        update(
+            """
+                UPDATE player_access_projection_state
+                SET access_revision = access_revision + 1,
+                    projection_rebuilt_at = ?
+                WHERE player_id = ?
+                """,
+            now,
+            playerId
+        );
+    }
+
+    public List<String> findMappedOldItemIdsForNewItem(String newItemId, long fromVersion, long toVersion) {
+        return queryForList(
+            """
+                SELECT old_id
+                FROM catalog_id_migration_map
+                WHERE from_catalog_version = ?
+                  AND to_catalog_version = ?
+                  AND id_type = 'item'
+                  AND migration_action = 'map'
+                  AND new_id = ?
+                ORDER BY old_id
+                LIMIT 1
+                """,
+            String.class,
+            fromVersion,
+            toVersion,
+            newItemId
+        );
+    }
+
+    public boolean catalogItemExists(String itemId, long catalogVersion) {
+        Boolean exists = queryForObject(
+            """
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM catalog_items
+                  WHERE item_id = ?
+                    AND catalog_version = ?
+                )
+                """,
+            Boolean.class,
+            itemId,
+            catalogVersion
+        );
+        return Boolean.TRUE.equals(exists);
     }
 }
