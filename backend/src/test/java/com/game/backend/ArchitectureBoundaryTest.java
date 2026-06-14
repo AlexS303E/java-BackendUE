@@ -106,6 +106,15 @@ class ArchitectureBoundaryTest {
             .isFalse();
     }
 
+    @Test
+    void playerBootstrapServiceShouldNotOwnSqlQueries() throws IOException {
+        Path sourceFile = Path.of("src/main/java/com/game/backend/auth/application/PlayerBootstrapService.java");
+
+        assertThat(ownsSqlOrGenericRepositoryCalls(sourceFile))
+            .as("PlayerBootstrapService should call named repository methods, not own SQL/query plumbing")
+            .isFalse();
+    }
+
     private static void assertApplicationPackageDoesNotOwnSqlQueries(Path sourceRoot) throws IOException {
         List<Path> offenders;
         try (var paths = Files.walk(sourceRoot)) {

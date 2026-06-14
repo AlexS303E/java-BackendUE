@@ -41,19 +41,7 @@ public class PlayerBootstrapService {
     }
 
     private long activeCatalogVersion() {
-        List<Long> versions = repository.queryForList(
-            """
-                SELECT catalog_version
-                FROM catalog_deployments
-                WHERE realm_id = ?
-                  AND deployment_state = 'active'
-                  AND allow_new_matches = true
-                ORDER BY activated_at DESC NULLS LAST, catalog_version DESC
-                LIMIT 1
-                """,
-            Long.class,
-            DEFAULT_REALM_ID
-        );
+        List<Long> versions = repository.findActiveCatalogVersionsForBootstrap(DEFAULT_REALM_ID);
         if (versions.isEmpty()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "ACTIVE_CATALOG_NOT_FOUND", "No active catalog deployment found");
         }
@@ -64,42 +52,12 @@ public class PlayerBootstrapService {
      * Открывает игроку все enabled items активного MVP-каталога и фиксирует это в ledger.
      */
     private void bootstrapAccess(UUID playerId, long catalogVersion, OffsetDateTime now) {
-        repository.update(
-            """
-                INSERT INTO player_access_projection_state(
-                  player_id,
-                  access_revision,
-                  projection_rebuilt_at
-                )
-                VALUES (?, 1, ?)
-                """,
-            playerId,
-            now
-        );
+        repository.insertAccessProjectionState(playerId, now);
 
-        List<String> itemIds = repository.queryForList(
-            "SELECT item_id FROM catalog_items WHERE catalog_version = ? AND is_enabled = true ORDER BY item_id",
-            String.class,
-            catalogVersion
-        );
+        List<String> itemIds = repository.findEnabledCatalogItemIds(catalogVersion);
 
         for (String itemId : itemIds) {
-            repository.update(
-                """
-                    INSERT INTO entitlement_ledger(
-                      ledger_event_id,
-                      player_id,
-                      item_id,
-                      catalog_version,
-                      event_type,
-                      source_type,
-                      actor_type,
-                      actor_id,
-                      idempotency_key,
-                      created_at
-                    )
-                    VALUES (?, ?, ?, ?, 'reveal_item', 'default', 'system', 'bootstrap', ?, ?)
-                    """,
+            repository.insertBootstrapEntitlementLedgerEvent(
                 UUID.randomUUID(),
                 playerId,
                 itemId,
@@ -109,105 +67,25 @@ public class PlayerBootstrapService {
             );
         }
 
-        repository.update(
-            """
-                INSERT INTO player_item_access(
-                  player_id,
-                  item_id,
-                  catalog_version,
-                  is_hidden,
-                  is_locked_in_shop,
-                  is_locked_by_quest,
-                  is_disabled,
-                  updated_at
-                )
-                SELECT
-                  ?,
-                  item_id,
-                  catalog_version,
-                  false,
-                  false,
-                  false,
-                  false,
-                  ?
-                FROM catalog_items
-                WHERE catalog_version = ?
-                  AND is_enabled = true
-                """,
-            playerId,
-            now,
-            catalogVersion
-        );
+        repository.insertEnabledCatalogAccess(playerId, catalogVersion, now);
     }
 
     /**
      * Создает дефолтный weapon preset для class.assault.
      */
     private void bootstrapWeaponPreset(UUID playerId, long catalogVersion, OffsetDateTime now) {
-        repository.update(
-            """
-                INSERT INTO player_weapon_presets(
-                  player_id,
-                  class_tag,
-                  preset_slot,
-                  catalog_version,
-                  revision,
-                  sanitized,
-                  updated_at
-                )
-                VALUES (?, ?, ?, ?, 1, false, ?)
-                """,
-            playerId,
-            DEFAULT_CLASS_TAG,
-            DEFAULT_PRESET_SLOT,
-            catalogVersion,
-            now
-        );
+        repository.insertDefaultWeaponPreset(playerId, DEFAULT_CLASS_TAG, DEFAULT_PRESET_SLOT, catalogVersion, now);
 
-        repository.update(
-            """
-                INSERT INTO player_weapon_preset_slots(
-                  player_id,
-                  class_tag,
-                  preset_slot,
-                  catalog_version,
-                  weapon_slot_id,
-                  selected_weapon_id
-                )
-                SELECT
-                  ?,
-                  ?,
-                  ?,
-                  ?,
-                  weapon_slot_id,
-                  CASE WHEN weapon_slot_id = ? THEN ? ELSE NULL END
-                FROM class_weapon_slot_rules
-                WHERE class_tag = ?
-                  AND is_allowed = true
-                """,
+        repository.insertDefaultWeaponPresetSlots(
             playerId,
             DEFAULT_CLASS_TAG,
             DEFAULT_PRESET_SLOT,
             catalogVersion,
             DEFAULT_WEAPON_SLOT_ID,
-            DEFAULT_WEAPON_ID,
-            DEFAULT_CLASS_TAG
+            DEFAULT_WEAPON_ID
         );
 
-        repository.update(
-            """
-                INSERT INTO player_weapon_preset_weapon_configs(
-                  player_id,
-                  class_tag,
-                  preset_slot,
-                  catalog_version,
-                  weapon_slot_id,
-                  weapon_id,
-                  config_revision,
-                  last_used_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-                """,
+        repository.insertDefaultWeaponConfig(
             playerId,
             DEFAULT_CLASS_TAG,
             DEFAULT_PRESET_SLOT,
@@ -217,20 +95,7 @@ public class PlayerBootstrapService {
             now
         );
 
-        repository.update(
-            """
-                INSERT INTO player_weapon_preset_weapon_config_modules(
-                  player_id,
-                  class_tag,
-                  preset_slot,
-                  catalog_version,
-                  weapon_slot_id,
-                  weapon_id,
-                  mount_id,
-                  module_id
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+        repository.insertDefaultWeaponConfigModule(
             playerId,
             DEFAULT_CLASS_TAG,
             DEFAULT_PRESET_SLOT,
@@ -246,27 +111,10 @@ public class PlayerBootstrapService {
      * Создает стартовые outfit presets для доступных команд.
      */
     private void bootstrapOutfitPresets(UUID playerId, long catalogVersion, OffsetDateTime now) {
-        List<String> teamTags = repository.queryForList(
-            "SELECT team_tag FROM outfit_preset_rules WHERE class_tag = ? ORDER BY team_tag",
-            String.class,
-            DEFAULT_CLASS_TAG
-        );
+        List<String> teamTags = repository.findOutfitPresetTeamTags(DEFAULT_CLASS_TAG);
 
         for (String teamTag : teamTags) {
-            repository.update(
-                """
-                    INSERT INTO player_outfit_presets(
-                      player_id,
-                      team_tag,
-                      class_tag,
-                      outfit_preset_slot,
-                      catalog_version,
-                      revision,
-                      sanitized,
-                      updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, 1, false, ?)
-                    """,
+            repository.insertDefaultOutfitPreset(
                 playerId,
                 teamTag,
                 DEFAULT_CLASS_TAG,
@@ -275,19 +123,7 @@ public class PlayerBootstrapService {
                 now
             );
 
-            repository.update(
-                """
-                    INSERT INTO player_outfit_preset_items(
-                      player_id,
-                      team_tag,
-                      class_tag,
-                      outfit_preset_slot,
-                      catalog_version,
-                      clothing_slot_id,
-                      item_id
-                    )
-                    VALUES (?, ?, ?, ?, ?, 'torso', ?)
-                    """,
+            repository.insertDefaultOutfitPresetItem(
                 playerId,
                 teamTag,
                 DEFAULT_CLASS_TAG,
