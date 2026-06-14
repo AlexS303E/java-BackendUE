@@ -1,6 +1,8 @@
 package com.game.backend.postmatch.application;
 
 import com.game.backend.postmatch.repository.PostMatchRepository;
+import com.game.backend.postmatch.repository.PostMatchRepository.PendingChange;
+import com.game.backend.postmatch.repository.PostMatchRepository.PresetHeader;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -70,43 +72,7 @@ public class PostMatchPendingChangesService {
         String normalizedStatus = normalizeStatus(status);
         expireOldPendingChanges(playerId, OffsetDateTime.now());
 
-        List<PostMatchPendingChangeDto> changes = repository.query(
-            """
-                SELECT
-                  change_id,
-                  match_id,
-                  class_tag,
-                  weapon_preset_slot,
-                  base_weapon_preset_revision,
-                  current_conflicting_revision,
-                  reason_code,
-                  status,
-                  payload::text AS payload,
-                  created_at,
-                  expires_at,
-                  resolved_at
-                FROM post_match_pending_changes
-                WHERE player_id = ?
-                  AND status = ?
-                ORDER BY created_at DESC
-                """,
-            (rs, rowNum) -> new PostMatchPendingChangeDto(
-                rs.getObject("change_id", UUID.class),
-                rs.getObject("match_id", UUID.class),
-                rs.getString("class_tag"),
-                rs.getInt("weapon_preset_slot"),
-                rs.getLong("base_weapon_preset_revision"),
-                rs.getObject("current_conflicting_revision", Long.class),
-                rs.getString("reason_code"),
-                rs.getString("status"),
-                parsePayloadMap(rs.getString("payload")),
-                rs.getObject("created_at", OffsetDateTime.class),
-                rs.getObject("expires_at", OffsetDateTime.class),
-                rs.getObject("resolved_at", OffsetDateTime.class)
-            ),
-            playerId,
-            normalizedStatus
-        );
+        List<PostMatchPendingChangeDto> changes = repository.findPendingChanges(playerId, normalizedStatus, this::parsePayloadMap);
         return new PostMatchPendingChangesResponse(playerId, changes);
     }
 
@@ -177,23 +143,13 @@ public class PostMatchPendingChangesService {
         );
 
         long resultRevision = preset.revision() + 1;
-        repository.update(
-            """
-                UPDATE player_weapon_presets
-                SET revision = ?,
-                    sanitized = false,
-                    updated_at = ?
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                  AND catalog_version = ?
-                """,
-            resultRevision,
-            now,
+        repository.updateWeaponPresetRevision(
             change.playerId(),
             change.classTag(),
             change.weaponPresetSlot(),
-            preset.catalogVersion()
+            preset.catalogVersion(),
+            resultRevision,
+            now
         );
         outboxService.record(
             "weapon_preset.post_match_applied",
@@ -259,19 +215,7 @@ public class PostMatchPendingChangesService {
     }
 
     private void expireOldPendingChanges(UUID playerId, OffsetDateTime now) {
-        repository.update(
-            """
-                UPDATE post_match_pending_changes
-                SET status = 'expired',
-                    resolved_at = ?
-                WHERE player_id = ?
-                  AND status = 'pending'
-                  AND expires_at <= ?
-                """,
-            now,
-            playerId,
-            now
-        );
+        repository.expireOldPendingChanges(playerId, now);
     }
 
     private String normalizeStatus(String status) {
@@ -287,60 +231,12 @@ public class PostMatchPendingChangesService {
     }
 
     private PendingChange lockPendingChange(UUID playerId, UUID changeId) {
-        List<PendingChange> changes = repository.query(
-            """
-                SELECT
-                  change_id,
-                  player_id,
-                  match_id,
-                  class_tag,
-                  weapon_preset_slot,
-                  base_weapon_preset_revision,
-                  current_conflicting_revision,
-                  status,
-                  payload::text AS payload,
-                  expires_at
-                FROM post_match_pending_changes
-                WHERE change_id = ?
-                  AND player_id = ?
-                FOR UPDATE
-                """,
-            (rs, rowNum) -> new PendingChange(
-                rs.getObject("change_id", UUID.class),
-                rs.getObject("player_id", UUID.class),
-                rs.getObject("match_id", UUID.class),
-                rs.getString("class_tag"),
-                rs.getInt("weapon_preset_slot"),
-                rs.getLong("base_weapon_preset_revision"),
-                rs.getObject("current_conflicting_revision", Long.class),
-                rs.getString("status"),
-                rs.getString("payload"),
-                rs.getObject("expires_at", OffsetDateTime.class)
-            ),
-            changeId,
-            playerId
-        );
+        List<PendingChange> changes = repository.lockPendingChanges(playerId, changeId);
         return changes.isEmpty() ? null : changes.getFirst();
     }
 
     private PresetHeader lockWeaponPreset(PendingChange change) {
-        List<PresetHeader> presets = repository.query(
-            """
-                SELECT catalog_version, revision
-                FROM player_weapon_presets
-                WHERE player_id = ?
-                  AND class_tag = ?
-                  AND preset_slot = ?
-                FOR UPDATE
-                """,
-            (rs, rowNum) -> new PresetHeader(
-                rs.getLong("catalog_version"),
-                rs.getLong("revision")
-            ),
-            change.playerId(),
-            change.classTag(),
-            change.weaponPresetSlot()
-        );
+        List<PresetHeader> presets = repository.lockWeaponPreset(change.playerId(), change.classTag(), change.weaponPresetSlot());
         if (presets.isEmpty()) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "WEAPON_PRESET_NOT_FOUND", "Weapon preset was not found");
         }
@@ -358,17 +254,7 @@ public class PostMatchPendingChangesService {
     }
 
     private void updateChangeStatus(UUID changeId, String status, OffsetDateTime resolvedAt) {
-        repository.update(
-            """
-                UPDATE post_match_pending_changes
-                SET status = ?,
-                    resolved_at = ?
-                WHERE change_id = ?
-                """,
-            status,
-            resolvedAt,
-            changeId
-        );
+        repository.updateChangeStatus(changeId, status, resolvedAt);
     }
 
     private Map<String, Object> parsePayloadMap(String payload) {
@@ -411,20 +297,4 @@ public class PostMatchPendingChangesService {
     ) {
     }
 
-    private record PendingChange(
-        UUID changeId,
-        UUID playerId,
-        UUID matchId,
-        String classTag,
-        int weaponPresetSlot,
-        long baseWeaponPresetRevision,
-        Long currentConflictingRevision,
-        String status,
-        String payloadJson,
-        OffsetDateTime expiresAt
-    ) {
-    }
-
-    private record PresetHeader(long catalogVersion, long revision) {
-    }
 }
