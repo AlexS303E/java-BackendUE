@@ -65,42 +65,7 @@ public class OutboxWorker {
     }
 
     private List<OutboxEvent> claimBatch(OffsetDateTime now) {
-        return transactionTemplate.execute(status -> repository.query(
-            """
-                WITH claimed AS (
-                  SELECT event_id
-                  FROM outbox_events
-                  WHERE status IN ('pending', 'failed')
-                    AND attempts < ?
-                    AND next_attempt_at <= ?
-                  ORDER BY created_at
-                  LIMIT ?
-                  FOR UPDATE SKIP LOCKED
-                )
-                UPDATE outbox_events oe
-                SET status = 'processing',
-                    attempts = oe.attempts + 1,
-                    next_attempt_at = ?
-                FROM claimed
-                WHERE oe.event_id = claimed.event_id
-                RETURNING
-                  oe.event_id,
-                  oe.event_type,
-                  oe.aggregate_type,
-                  oe.aggregate_id,
-                  oe.payload::text AS payload,
-                  oe.payload_schema_version,
-                  oe.attempts
-                """,
-            (rs, rowNum) -> new OutboxEvent(
-                rs.getObject("event_id", UUID.class),
-                rs.getString("event_type"),
-                rs.getString("aggregate_type"),
-                rs.getString("aggregate_id"),
-                rs.getString("payload"),
-                rs.getInt("payload_schema_version"),
-                rs.getInt("attempts")
-            ),
+        return transactionTemplate.execute(status -> repository.claimBatch(
             maxAttempts,
             now,
             batchSize,
@@ -119,66 +84,23 @@ public class OutboxWorker {
     }
 
     private void markProcessed(UUID eventId, OffsetDateTime now) {
-        repository.update(
-            """
-                UPDATE outbox_events
-                SET status = 'processed',
-                    processed_at = ?,
-                    last_error = null
-                WHERE event_id = ?
-                """,
-            now,
-            eventId
-        );
+        repository.markProcessed(eventId, now);
     }
 
     private void markFailed(OutboxEvent event, OffsetDateTime now, RuntimeException exception) {
         int newAttempts = event.attempts();
         if (newAttempts >= maxAttempts) {
-            repository.update(
-                """
-                    UPDATE outbox_events
-                    SET status = 'dead_letter',
-                        last_error = ?
-                    WHERE event_id = ?
-                    """,
-                exception.getMessage(),
-                event.eventId()
-            );
+            repository.markDeadLetter(event.eventId(), exception.getMessage());
         } else {
-            repository.update(
-                """
-                    UPDATE outbox_events
-                    SET status = 'failed',
-                        next_attempt_at = ?,
-                        last_error = ?
-                    WHERE event_id = ?
-                    """,
+            repository.markFailed(
+                event.eventId(),
                 now.plusSeconds(retryDelaySeconds * Math.max(1, newAttempts)),
-                exception.getMessage(),
-                event.eventId()
+                exception.getMessage()
             );
         }
     }
 
     private void requeueTimedOutProcessingEvents(OffsetDateTime now) {
-        repository.update(
-            """
-                UPDATE outbox_events
-                SET status = CASE
-                      WHEN attempts >= ? THEN 'dead_letter'
-                      ELSE 'failed'
-                    END,
-                    last_error = CASE
-                      WHEN attempts >= ? THEN 'processing timeout; moved to dead_letter'
-                      ELSE 'processing timeout'
-                    END
-                WHERE status = 'processing'
-                  AND next_attempt_at <= ?
-                """,
-            maxAttempts,
-            maxAttempts,
-            now
-        );
+        repository.requeueTimedOutProcessingEvents(maxAttempts, now);
     }
 }

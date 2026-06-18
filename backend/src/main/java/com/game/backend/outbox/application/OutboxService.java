@@ -36,29 +36,13 @@ public class OutboxService {
         Map<String, Object> payload,
         OffsetDateTime now
     ) {
-        repository.update(
-            """
-                INSERT INTO outbox_events(
-                  event_id,
-                  event_type,
-                  aggregate_type,
-                  aggregate_id,
-                  payload,
-                  payload_schema_version,
-                  status,
-                  attempts,
-                  next_attempt_at,
-                  created_at
-                )
-                VALUES (?, ?, ?, ?, ?::jsonb, ?, 'pending', 0, ?, ?)
-                """,
+        repository.insertPendingEvent(
             UUID.randomUUID(),
             eventType,
             aggregateType,
             aggregateId,
             toJson(payload),
             payloadSchemaVersion,
-            now,
             now
         );
     }
