@@ -95,6 +95,44 @@ public class AdminRepository extends JdbcRepository {
         );
     }
 
+    public void recordAdminAuditEvent(
+        UUID eventId,
+        String actorId,
+        String action,
+        String targetType,
+        String targetId,
+        String requestHash,
+        String payloadJson,
+        String result,
+        OffsetDateTime createdAt
+    ) {
+        update(
+            """
+                INSERT INTO admin_audit_events(
+                  event_id,
+                  actor_id,
+                  action,
+                  target_type,
+                  target_id,
+                  request_hash,
+                  payload,
+                  result,
+                  created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?)
+                """,
+            eventId,
+            actorId,
+            action,
+            targetType,
+            targetId,
+            requestHash,
+            payloadJson,
+            result,
+            createdAt
+        );
+    }
+
     public List<Map<String, Object>> findPlayer(UUID playerId) {
         return query(
             """

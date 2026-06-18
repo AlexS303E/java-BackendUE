@@ -43,21 +43,7 @@ public class AdminAuditService {
         Map<String, Object> payload
     ) {
         try {
-            repository.update(
-                """
-                    INSERT INTO admin_audit_events(
-                      event_id,
-                      actor_id,
-                      action,
-                      target_type,
-                      target_id,
-                      request_hash,
-                      payload,
-                      result,
-                      created_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?)
-                    """,
+            repository.recordAdminAuditEvent(
                 UUID.randomUUID(),
                 admin.actorId(),
                 action,
