@@ -23,6 +23,9 @@ public class AdminRepository extends JdbcRepository {
     ) {
     }
 
+    public record ExistingAdminIdempotencyRecord(String requestHash, String responseBody) {
+    }
+
     public AdminRepository(JdbcTemplate jdbcTemplate) {
         super(jdbcTemplate);
     }
@@ -168,6 +171,88 @@ public class AdminRepository extends JdbcRepository {
                 WHERE status = 'failed'
                 """,
             nextAttemptAt
+        );
+    }
+
+    public void deleteExpiredAdminIdempotencyRecord(
+        String operationScope,
+        String actorId,
+        String idempotencyKey,
+        OffsetDateTime now
+    ) {
+        update(
+            """
+                DELETE FROM api_idempotency_records
+                WHERE operation_scope = ?
+                  AND actor_id = ?
+                  AND idempotency_key = ?
+                  AND expires_at <= ?
+                """,
+            operationScope,
+            actorId,
+            idempotencyKey,
+            now
+        );
+    }
+
+    public List<ExistingAdminIdempotencyRecord> findAdminIdempotencyRecords(
+        String operationScope,
+        String actorId,
+        String idempotencyKey
+    ) {
+        return query(
+            """
+                SELECT request_hash, response_body::text AS response_body
+                FROM api_idempotency_records
+                WHERE operation_scope = ?
+                  AND actor_id = ?
+                  AND idempotency_key = ?
+                """,
+            (rs, rowNum) -> new ExistingAdminIdempotencyRecord(
+                rs.getString("request_hash"),
+                rs.getString("response_body")
+            ),
+            operationScope,
+            actorId,
+            idempotencyKey
+        );
+    }
+
+    public void insertAdminIdempotencyRecord(
+        String operationScope,
+        String actorId,
+        String routeFingerprint,
+        String idempotencyKey,
+        String requestHash,
+        int statusCode,
+        String responseBodyJson,
+        OffsetDateTime createdAt,
+        OffsetDateTime expiresAt
+    ) {
+        update(
+            """
+                INSERT INTO api_idempotency_records(
+                  operation_scope,
+                  actor_id,
+                  route_fingerprint,
+                  idempotency_key,
+                  request_hash,
+                  status_code,
+                  response_body,
+                  created_at,
+                  expires_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?)
+                """,
+            operationScope,
+            actorId,
+            routeFingerprint,
+            idempotencyKey,
+            requestHash,
+            statusCode,
+            responseBodyJson,
+            createdAt,
+            expiresAt
         );
     }
 

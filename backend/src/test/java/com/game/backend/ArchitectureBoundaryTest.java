@@ -181,6 +181,15 @@ class ArchitectureBoundaryTest {
             .isFalse();
     }
 
+    @Test
+    void adminMutationIdempotencyServiceShouldNotOwnSqlQueries() throws IOException {
+        Path sourceFile = Path.of("src/main/java/com/game/backend/admin/application/AdminMutationIdempotencyService.java");
+
+        assertThat(ownsSqlOrGenericRepositoryCalls(sourceFile))
+            .as("AdminMutationIdempotencyService should call named repository methods, not own SQL/query plumbing")
+            .isFalse();
+    }
+
     private static void assertApplicationPackageDoesNotOwnSqlQueries(Path sourceRoot) throws IOException {
         List<Path> offenders;
         try (var paths = Files.walk(sourceRoot)) {

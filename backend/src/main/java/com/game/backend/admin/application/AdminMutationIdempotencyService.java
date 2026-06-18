@@ -1,6 +1,7 @@
 package com.game.backend.admin.application;
 
 import com.game.backend.admin.repository.AdminRepository;
+import com.game.backend.admin.repository.AdminRepository.ExistingAdminIdempotencyRecord;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,7 +15,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -50,7 +50,7 @@ public class AdminMutationIdempotencyService {
         deleteExpiredRecord(operationScope, admin.actorId(), idempotencyKey, now);
         String requestHash = requestHash(operationScope, routeFingerprint, request);
 
-        ExistingRecord existing = existingRecord(operationScope, admin.actorId(), idempotencyKey);
+        ExistingAdminIdempotencyRecord existing = existingRecord(operationScope, admin.actorId(), idempotencyKey);
         if (existing != null) {
             if (!requestHash.equals(existing.requestHash())) {
                 throw new ApiException(
@@ -74,38 +74,11 @@ public class AdminMutationIdempotencyService {
     }
 
     private void deleteExpiredRecord(String operationScope, String actorId, String idempotencyKey, OffsetDateTime now) {
-        repository.update(
-            """
-                DELETE FROM api_idempotency_records
-                WHERE operation_scope = ?
-                  AND actor_id = ?
-                  AND idempotency_key = ?
-                  AND expires_at <= ?
-                """,
-            operationScope,
-            actorId,
-            idempotencyKey,
-            now
-        );
+        repository.deleteExpiredAdminIdempotencyRecord(operationScope, actorId, idempotencyKey, now);
     }
 
-    private ExistingRecord existingRecord(String operationScope, String actorId, String idempotencyKey) {
-        List<ExistingRecord> records = repository.query(
-            """
-                SELECT request_hash, response_body::text AS response_body
-                FROM api_idempotency_records
-                WHERE operation_scope = ?
-                  AND actor_id = ?
-                  AND idempotency_key = ?
-                """,
-            (rs, rowNum) -> new ExistingRecord(
-                rs.getString("request_hash"),
-                rs.getString("response_body")
-            ),
-            operationScope,
-            actorId,
-            idempotencyKey
-        );
+    private ExistingAdminIdempotencyRecord existingRecord(String operationScope, String actorId, String idempotencyKey) {
+        var records = repository.findAdminIdempotencyRecords(operationScope, actorId, idempotencyKey);
         return records.isEmpty() ? null : records.getFirst();
     }
 
@@ -119,21 +92,7 @@ public class AdminMutationIdempotencyService {
         OffsetDateTime now
     ) {
         try {
-            repository.update(
-                """
-                    INSERT INTO api_idempotency_records(
-                      operation_scope,
-                      actor_id,
-                      route_fingerprint,
-                      idempotency_key,
-                      request_hash,
-                      status_code,
-                      response_body,
-                      created_at,
-                      expires_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?)
-                    """,
+            repository.insertAdminIdempotencyRecord(
                 operationScope,
                 actorId,
                 routeFingerprint,
@@ -169,8 +128,5 @@ public class AdminMutationIdempotencyService {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Unable to deserialize admin idempotency response", exception);
         }
-    }
-
-    private record ExistingRecord(String requestHash, String responseBody) {
     }
 }
