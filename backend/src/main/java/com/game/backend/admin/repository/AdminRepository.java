@@ -133,6 +133,33 @@ public class AdminRepository extends JdbcRepository {
         );
     }
 
+    public int revokeServerIdentity(UUID serverId, OffsetDateTime revokedAt) {
+        return update(
+            """
+                UPDATE server_identities
+                SET status = 'revoked',
+                    revoked_at = ?
+                WHERE server_id = ?
+                  AND status <> 'revoked'
+                """,
+            revokedAt,
+            serverId
+        );
+    }
+
+    public int retryFailedOutboxEvents(OffsetDateTime nextAttemptAt) {
+        return update(
+            """
+                UPDATE outbox_events
+                SET status = 'pending',
+                    next_attempt_at = ?,
+                    last_error = null
+                WHERE status = 'failed'
+                """,
+            nextAttemptAt
+        );
+    }
+
     public List<Map<String, Object>> findPlayer(UUID playerId) {
         return query(
             """

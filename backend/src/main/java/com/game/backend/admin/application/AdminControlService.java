@@ -74,17 +74,7 @@ public class AdminControlService {
      */
     @Transactional
     public Map<String, Object> revokeServerIdentity(AdminIdentity admin, UUID serverId) {
-        int updated = repository.update(
-            """
-                UPDATE server_identities
-                SET status = 'revoked',
-                    revoked_at = ?
-                WHERE server_id = ?
-                  AND status <> 'revoked'
-                """,
-            OffsetDateTime.now(),
-            serverId
-        );
+        int updated = repository.revokeServerIdentity(serverId, OffsetDateTime.now());
         adminAuditService.record(
             admin,
             "server_identity.revoke",
@@ -109,16 +99,7 @@ public class AdminControlService {
     @Transactional
     public Map<String, Object> retryFailedOutbox(AdminIdentity admin) {
         OffsetDateTime now = OffsetDateTime.now();
-        int retried = repository.update(
-            """
-                UPDATE outbox_events
-                SET status = 'pending',
-                    next_attempt_at = ?,
-                    last_error = null
-                WHERE status = 'failed'
-                """,
-            now
-        );
+        int retried = repository.retryFailedOutboxEvents(now);
         adminAuditService.record(
             admin,
             "outbox.retry_failed",
