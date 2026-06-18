@@ -12,6 +12,17 @@ import java.util.UUID;
 
 @Repository
 public class AdminRepository extends JdbcRepository {
+    public record ItemAccessFlags(
+        boolean hidden,
+        boolean lockedInShop,
+        boolean lockedByQuest,
+        boolean disabled,
+        String disabledReason,
+        String unlockHintCode,
+        String unlockHintPayloadJson
+    ) {
+    }
+
     public AdminRepository(JdbcTemplate jdbcTemplate) {
         super(jdbcTemplate);
     }
@@ -237,6 +248,37 @@ public class AdminRepository extends JdbcRepository {
             ),
             playerId,
             weaponId,
+            catalogVersion
+        );
+    }
+
+    public List<ItemAccessFlags> findItemAccessFlags(UUID playerId, String itemId, long catalogVersion) {
+        return query(
+            """
+                SELECT
+                  is_hidden,
+                  is_locked_in_shop,
+                  is_locked_by_quest,
+                  is_disabled,
+                  disabled_reason,
+                  unlock_hint_code,
+                  unlock_hint_payload::text AS unlock_hint_payload
+                FROM player_item_access
+                WHERE player_id = ?
+                  AND item_id = ?
+                  AND catalog_version = ?
+                """,
+            (rs, rowNum) -> new ItemAccessFlags(
+                rs.getBoolean("is_hidden"),
+                rs.getBoolean("is_locked_in_shop"),
+                rs.getBoolean("is_locked_by_quest"),
+                rs.getBoolean("is_disabled"),
+                rs.getString("disabled_reason"),
+                rs.getString("unlock_hint_code"),
+                rs.getString("unlock_hint_payload")
+            ),
+            playerId,
+            itemId,
             catalogVersion
         );
     }

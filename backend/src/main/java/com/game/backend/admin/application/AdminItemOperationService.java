@@ -143,30 +143,7 @@ public class AdminItemOperationService {
     }
 
     private AccessFlags currentFlags(AdminItemOperationRequest request) {
-        List<AccessFlags> rows = repository.query(
-            """
-                SELECT
-                  is_hidden,
-                  is_locked_in_shop,
-                  is_locked_by_quest,
-                  is_disabled,
-                  disabled_reason,
-                  unlock_hint_code,
-                  unlock_hint_payload::text AS unlock_hint_payload
-                FROM player_item_access
-                WHERE player_id = ?
-                  AND item_id = ?
-                  AND catalog_version = ?
-                """,
-            (rs, rowNum) -> new AccessFlags(
-                rs.getBoolean("is_hidden"),
-                rs.getBoolean("is_locked_in_shop"),
-                rs.getBoolean("is_locked_by_quest"),
-                rs.getBoolean("is_disabled"),
-                rs.getString("disabled_reason"),
-                rs.getString("unlock_hint_code"),
-                parsePayload(rs.getString("unlock_hint_payload"))
-            ),
+        List<AdminRepository.ItemAccessFlags> rows = repository.findItemAccessFlags(
             request.playerId(),
             request.itemId(),
             request.catalogVersion()
@@ -174,7 +151,16 @@ public class AdminItemOperationService {
         if (rows.isEmpty()) {
             return AccessFlags.defaultAllow();
         }
-        return rows.getFirst();
+        AdminRepository.ItemAccessFlags row = rows.getFirst();
+        return new AccessFlags(
+            row.hidden(),
+            row.lockedInShop(),
+            row.lockedByQuest(),
+            row.disabled(),
+            row.disabledReason(),
+            row.unlockHintCode(),
+            parsePayload(row.unlockHintPayloadJson())
+        );
     }
 
     private String internalIdempotencyKey(ItemOperation operation, String externalIdempotencyKey) {
