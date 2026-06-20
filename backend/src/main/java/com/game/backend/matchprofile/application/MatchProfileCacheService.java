@@ -50,7 +50,14 @@ public class MatchProfileCacheService {
             outfitPresetRevision,
             accessRevision
         ).orElse(null);
-        if (cached != null) {
+        if (cached != null && matchesDependencyTuple(
+            request,
+            catalogVersion,
+            weaponPresetRevision,
+            outfitPresetRevision,
+            accessRevision,
+            cached
+        )) {
             return cached;
         }
 
@@ -71,8 +78,18 @@ public class MatchProfileCacheService {
         }
         try {
             MatchProfileResponse response = objectMapper.readValue(payloads.getFirst(), MatchProfileResponse.class);
-            cacheService.putMatchProfile(response);
-            return response;
+            if (matchesDependencyTuple(
+                request,
+                catalogVersion,
+                weaponPresetRevision,
+                outfitPresetRevision,
+                accessRevision,
+                response
+            )) {
+                cacheService.putMatchProfile(response);
+                return response;
+            }
+            return null;
         } catch (Exception exception) {
             return null;
         }
@@ -112,5 +129,27 @@ public class MatchProfileCacheService {
                 "Unable to serialize match profile"
             );
         }
+    }
+
+    private boolean matchesDependencyTuple(
+        BuildMatchProfileRequest request,
+        long catalogVersion,
+        long weaponPresetRevision,
+        long outfitPresetRevision,
+        long accessRevision,
+        MatchProfileResponse response
+    ) {
+        return response != null
+            && response.dependencyRevisions() != null
+            && request.playerId().equals(response.playerId())
+            && request.realmId().equals(response.realmId())
+            && request.classTag().equals(response.classTag())
+            && request.teamTag().equals(response.teamTag())
+            && request.weaponPresetSlot() == response.weaponPresetSlot()
+            && request.outfitPresetSlot() == response.outfitPresetSlot()
+            && catalogVersion == response.catalogVersion()
+            && weaponPresetRevision == response.dependencyRevisions().weaponPresetRevision()
+            && outfitPresetRevision == response.dependencyRevisions().outfitPresetRevision()
+            && accessRevision == response.dependencyRevisions().accessRevision();
     }
 }
