@@ -4,12 +4,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
 import com.game.backend.outbox.application.OutboxEvent;
+import com.game.backend.outbox.application.OutboxEventRouter;
 import com.game.backend.outbox.application.OutboxPayloadParser;
 import com.game.backend.outbox.application.handlers.CatalogPublishedHandler;
+import com.game.backend.outbox.application.handlers.OperationalEventRecordedHandler;
 import com.game.backend.outbox.application.handlers.PlayerAccessChangedHandler;
+import com.game.backend.outbox.application.handlers.PlayerCacheInvalidatedHandler;
 import com.game.backend.outbox.application.handlers.ServerIdentityRevokedHandler;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -46,6 +50,35 @@ class OutboxEventHandlersTest {
 
         verify(cacheService).evictCatalogSnapshots("global");
         verify(cacheService).evictCatalogAllowsNewMatches("global");
+    }
+
+    @Test
+    void playerCacheInvalidatedHandlerShouldEvictAccessCache() {
+        UUID playerId = UUID.randomUUID();
+        RedisCacheService cacheService = mock(RedisCacheService.class);
+        PlayerCacheInvalidatedHandler handler = new PlayerCacheInvalidatedHandler(parser, cacheService);
+
+        handler.handle(event("player_cache.invalidated", "{\"player_id\":\"" + playerId + "\"}"));
+
+        verify(cacheService).evictPlayerAccess(playerId);
+    }
+
+    @Test
+    void routerShouldRejectUnsupportedEventType() {
+        OutboxEventRouter router = new OutboxEventRouter(List.of());
+
+        assertThatThrownBy(() -> router.route(event("unknown.event", "{}")))
+            .isInstanceOf(RuntimeException.class)
+            .hasMessageContaining("Unsupported outbox event_type=unknown.event");
+    }
+
+    @Test
+    void operationalEventHandlerShouldAcceptKnownNotificationLikeEvents() {
+        OperationalEventRecordedHandler handler = new OperationalEventRecordedHandler(parser);
+
+        handler.handle(event("server_runtime_event.recorded", "{\"event_id\":\"" + UUID.randomUUID() + "\"}"));
+        handler.handle(event("post_match_pending_change.created", "{\"pending_change_id\":\"" + UUID.randomUUID() + "\"}"));
+        handler.handle(event("post_match_pending_change.resolved", "{\"pending_change_id\":\"" + UUID.randomUUID() + "\"}"));
     }
 
     @Test

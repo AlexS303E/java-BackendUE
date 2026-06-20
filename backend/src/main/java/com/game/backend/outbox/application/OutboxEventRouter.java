@@ -19,8 +19,7 @@ public class OutboxEventRouter {
     public void route(OutboxEvent event) {
         String eventType = event.eventType();
         if (eventType == null || eventType.isBlank()) {
-            log.info("Outbox event has no event_type event_id={}", event.eventId());
-            return;
+            throw new RuntimeException("Outbox event has no event_type event_id=" + event.eventId());
         }
 
         for (OutboxEventHandler handler : handlers) {
@@ -31,5 +30,6 @@ public class OutboxEventRouter {
         }
 
         log.info("Outbox event has no handler event_id={} event_type={}", event.eventId(), eventType);
+        throw new RuntimeException("Unsupported outbox event_type=" + eventType + " event_id=" + event.eventId());
     }
 }
