@@ -48,6 +48,15 @@ public class AdminRepository extends JdbcRepository {
     ) {
     }
 
+    public record MaintenanceLedgerRow(
+        UUID ledgerEventId,
+        String itemId,
+        long catalogVersion,
+        String eventType,
+        String payloadJson
+    ) {
+    }
+
     public AdminRepository(JdbcTemplate jdbcTemplate) {
         super(jdbcTemplate);
     }
@@ -574,6 +583,25 @@ public class AdminRepository extends JdbcRepository {
         );
     }
 
+    public void deletePlayerItemAccess(UUID playerId) {
+        update("DELETE FROM player_item_access WHERE player_id = ?", playerId);
+    }
+
+    public void insertAccessProjectionState(UUID playerId, OffsetDateTime rebuiltAt) {
+        update(
+            """
+                INSERT INTO player_access_projection_state(
+                  player_id,
+                  access_revision,
+                  projection_rebuilt_at
+                )
+                VALUES (?, 0, ?)
+                """,
+            playerId,
+            rebuiltAt
+        );
+    }
+
     public List<AccessProjectionRow> findAccessProjectionRows(UUID playerId, String itemId, long catalogVersion) {
         return query(
             """
@@ -606,6 +634,38 @@ public class AdminRepository extends JdbcRepository {
             playerId,
             itemId,
             catalogVersion
+        );
+    }
+
+    public List<MaintenanceLedgerRow> listEntitlementLedgerRows(UUID playerId) {
+        return query(
+            """
+                SELECT
+                  ledger_event_id,
+                  item_id,
+                  catalog_version,
+                  event_type,
+                  payload::text AS payload
+                FROM entitlement_ledger
+                WHERE player_id = ?
+                ORDER BY created_at ASC, ledger_event_id ASC
+                """,
+            (rs, rowNum) -> new MaintenanceLedgerRow(
+                rs.getObject("ledger_event_id", UUID.class),
+                rs.getString("item_id"),
+                rs.getLong("catalog_version"),
+                rs.getString("event_type"),
+                rs.getString("payload")
+            ),
+            playerId
+        );
+    }
+
+    public List<String> lockServerIdentityStatuses(UUID serverId) {
+        return queryForList(
+            "SELECT status FROM server_identities WHERE server_id = ? FOR UPDATE",
+            String.class,
+            serverId
         );
     }
 

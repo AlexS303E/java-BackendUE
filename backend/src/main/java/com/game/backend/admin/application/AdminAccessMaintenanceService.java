@@ -1,6 +1,7 @@
 package com.game.backend.admin.application;
 
 import com.game.backend.admin.repository.AdminRepository;
+import com.game.backend.admin.repository.AdminRepository.MaintenanceLedgerRow;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -126,23 +127,11 @@ public class AdminAccessMaintenanceService {
         UUID lastLedgerEventId = ledgerRows.isEmpty() ? null : ledgerRows.getLast().ledgerEventId();
         long nextRevision = currentRevision + 1;
 
-        repository.update("DELETE FROM player_item_access WHERE player_id = ?", request.playerId());
+        repository.deletePlayerItemAccess(request.playerId());
         for (Map.Entry<ProjectionKey, ProjectionFlags> entry : projection.entrySet()) {
             insertProjectionRow(request.playerId(), entry.getKey(), entry.getValue(), now);
         }
-        repository.update(
-            """
-                UPDATE player_access_projection_state
-                SET access_revision = ?,
-                    projection_rebuilt_at = ?,
-                    last_ledger_event_id = ?
-                WHERE player_id = ?
-                """,
-            nextRevision,
-            now,
-            lastLedgerEventId,
-            request.playerId()
-        );
+        repository.updateAccessProjectionRevision(request.playerId(), nextRevision, lastLedgerEventId, now);
         cacheService.evictPlayerAccess(request.playerId());
         UUID eventId = UUID.randomUUID();
         int staleProfiles = matchProfileInvalidationService.invalidateForPlayer(
@@ -231,25 +220,11 @@ public class AdminAccessMaintenanceService {
 
     @Transactional
     protected AdminServerIdentityRevokeResponse revokeServerIdentityOnce(AdminIdentity admin, AdminServerIdentityRevokeRequest request) {
-        List<String> statuses = repository.queryForList(
-            "SELECT status FROM server_identities WHERE server_id = ? FOR UPDATE",
-            String.class,
-            request.serverId()
-        );
+        List<String> statuses = repository.lockServerIdentityStatuses(request.serverId());
         if (statuses.isEmpty()) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SERVER_IDENTITY_NOT_FOUND", "Server identity was not found");
         }
-        boolean updated = repository.update(
-            """
-                UPDATE server_identities
-                SET status = 'revoked',
-                    revoked_at = ?
-                WHERE server_id = ?
-                  AND status <> 'revoked'
-                """,
-            OffsetDateTime.now(),
-            request.serverId()
-        ) > 0;
+        boolean updated = repository.revokeServerIdentity(request.serverId(), OffsetDateTime.now()) > 0;
         OffsetDateTime now = OffsetDateTime.now();
         outboxService.record(
             "server_identity.revoked",
@@ -277,62 +252,31 @@ public class AdminAccessMaintenanceService {
     }
 
     private void ensurePlayerExists(UUID playerId) {
-        Boolean exists = repository.queryForObject(
-            "SELECT EXISTS(SELECT 1 FROM player_accounts WHERE player_id = ?)",
-            Boolean.class,
-            playerId
-        );
-        if (!Boolean.TRUE.equals(exists)) {
+        if (!repository.playerExists(playerId)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "PLAYER_NOT_FOUND", "Player was not found");
         }
     }
 
     private long lockOrCreateProjectionState(UUID playerId, OffsetDateTime now) {
-        List<Long> revisions = repository.queryForList(
-            "SELECT access_revision FROM player_access_projection_state WHERE player_id = ? FOR UPDATE",
-            Long.class,
-            playerId
-        );
+        List<Long> revisions = repository.lockAccessProjectionRevision(playerId);
         if (!revisions.isEmpty()) {
             return revisions.getFirst();
         }
-        repository.update(
-            """
-                INSERT INTO player_access_projection_state(
-                  player_id,
-                  access_revision,
-                  projection_rebuilt_at
-                )
-                VALUES (?, 0, ?)
-                """,
-            playerId,
-            now
-        );
+        repository.insertAccessProjectionState(playerId, now);
         return 0L;
     }
 
     private List<LedgerRow> ledgerRows(UUID playerId) {
-        return repository.query(
-            """
-                SELECT
-                  ledger_event_id,
-                  item_id,
-                  catalog_version,
-                  event_type,
-                  payload::text AS payload
-                FROM entitlement_ledger
-                WHERE player_id = ?
-                ORDER BY created_at ASC, ledger_event_id ASC
-                """,
-            (rs, rowNum) -> new LedgerRow(
-                rs.getObject("ledger_event_id", UUID.class),
-                rs.getString("item_id"),
-                rs.getLong("catalog_version"),
-                rs.getString("event_type"),
-                parsePayload(rs.getString("payload"))
-            ),
-            playerId
-        );
+        return repository.listEntitlementLedgerRows(playerId)
+            .stream()
+            .map(row -> new LedgerRow(
+                row.ledgerEventId(),
+                row.itemId(),
+                row.catalogVersion(),
+                row.eventType(),
+                parsePayload(row.payloadJson())
+            ))
+            .toList();
     }
 
     private Map<ProjectionKey, ProjectionFlags> reduce(List<LedgerRow> rows) {
@@ -379,23 +323,7 @@ public class AdminAccessMaintenanceService {
     }
 
     private void insertProjectionRow(UUID playerId, ProjectionKey key, ProjectionFlags flags, OffsetDateTime now) {
-        repository.update(
-            """
-                INSERT INTO player_item_access(
-                  player_id,
-                  item_id,
-                  catalog_version,
-                  is_hidden,
-                  is_locked_in_shop,
-                  is_locked_by_quest,
-                  is_disabled,
-                  disabled_reason,
-                  unlock_hint_code,
-                  unlock_hint_payload,
-                  updated_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
-                """,
+        repository.upsertPlayerItemAccess(
             playerId,
             key.itemId(),
             key.catalogVersion(),
