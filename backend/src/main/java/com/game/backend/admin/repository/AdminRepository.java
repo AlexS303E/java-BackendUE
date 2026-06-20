@@ -26,6 +26,28 @@ public class AdminRepository extends JdbcRepository {
     public record ExistingAdminIdempotencyRecord(String requestHash, String responseBody) {
     }
 
+    public record ExistingAccessLedgerEvent(
+        UUID ledgerEventId,
+        String requestHash,
+        Long resultAccessRevision,
+        Integer sanitizedWeaponPresets,
+        Integer sanitizedOutfitPresets,
+        Integer staleMatchProfiles
+    ) {
+    }
+
+    public record AccessProjectionRow(
+        long accessRevision,
+        boolean hidden,
+        boolean lockedInShop,
+        boolean lockedByQuest,
+        boolean disabled,
+        String disabledReason,
+        String unlockHintCode,
+        String unlockHintPayloadJson
+    ) {
+    }
+
     public AdminRepository(JdbcTemplate jdbcTemplate) {
         super(jdbcTemplate);
     }
@@ -354,6 +376,225 @@ public class AdminRepository extends JdbcRepository {
                   AND catalog_version = ?
                 """,
             (rs, rowNum) -> new ItemAccessFlags(
+                rs.getBoolean("is_hidden"),
+                rs.getBoolean("is_locked_in_shop"),
+                rs.getBoolean("is_locked_by_quest"),
+                rs.getBoolean("is_disabled"),
+                rs.getString("disabled_reason"),
+                rs.getString("unlock_hint_code"),
+                rs.getString("unlock_hint_payload")
+            ),
+            playerId,
+            itemId,
+            catalogVersion
+        );
+    }
+
+    public List<ExistingAccessLedgerEvent> findExistingAccessLedgerEvents(UUID playerId, String idempotencyKey) {
+        return query(
+            """
+                SELECT
+                  ledger_event_id,
+                  payload->>'request_hash' AS request_hash,
+                  (payload->>'result_access_revision')::bigint AS result_access_revision,
+                  (payload->>'sanitized_weapon_presets')::int AS sanitized_weapon_presets,
+                  (payload->>'sanitized_outfit_presets')::int AS sanitized_outfit_presets,
+                  (payload->>'stale_match_profiles')::int AS stale_match_profiles
+                FROM entitlement_ledger
+                WHERE player_id = ?
+                  AND idempotency_key = ?
+                """,
+            (rs, rowNum) -> new ExistingAccessLedgerEvent(
+                rs.getObject("ledger_event_id", UUID.class),
+                rs.getString("request_hash"),
+                rs.getObject("result_access_revision", Long.class),
+                rs.getObject("sanitized_weapon_presets", Integer.class),
+                rs.getObject("sanitized_outfit_presets", Integer.class),
+                rs.getObject("stale_match_profiles", Integer.class)
+            ),
+            playerId,
+            idempotencyKey
+        );
+    }
+
+    public boolean playerExists(UUID playerId) {
+        Boolean exists = queryForObject(
+            "SELECT EXISTS(SELECT 1 FROM player_accounts WHERE player_id = ?)",
+            Boolean.class,
+            playerId
+        );
+        return Boolean.TRUE.equals(exists);
+    }
+
+    public boolean catalogItemExists(String itemId, long catalogVersion) {
+        Boolean exists = queryForObject(
+            """
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM catalog_items
+                  WHERE item_id = ?
+                    AND catalog_version = ?
+                )
+                """,
+            Boolean.class,
+            itemId,
+            catalogVersion
+        );
+        return Boolean.TRUE.equals(exists);
+    }
+
+    public List<Long> lockAccessProjectionRevision(UUID playerId) {
+        return queryForList(
+            """
+                SELECT access_revision
+                FROM player_access_projection_state
+                WHERE player_id = ?
+                FOR UPDATE
+                """,
+            Long.class,
+            playerId
+        );
+    }
+
+    public void insertEntitlementLedgerEvent(
+        UUID ledgerEventId,
+        UUID playerId,
+        String itemId,
+        long catalogVersion,
+        String eventType,
+        String sourceRef,
+        String actorId,
+        String idempotencyKey,
+        String payloadJson,
+        OffsetDateTime createdAt
+    ) {
+        update(
+            """
+                INSERT INTO entitlement_ledger(
+                  ledger_event_id,
+                  player_id,
+                  item_id,
+                  catalog_version,
+                  event_type,
+                  source_type,
+                  source_ref,
+                  actor_type,
+                  actor_id,
+                  idempotency_key,
+                  payload,
+                  created_at
+                )
+                VALUES (?, ?, ?, ?, ?, 'admin', ?, 'admin', ?, ?, ?::jsonb, ?)
+                """,
+            ledgerEventId,
+            playerId,
+            itemId,
+            catalogVersion,
+            eventType,
+            sourceRef,
+            actorId,
+            idempotencyKey,
+            payloadJson,
+            createdAt
+        );
+    }
+
+    public void upsertPlayerItemAccess(
+        UUID playerId,
+        String itemId,
+        long catalogVersion,
+        boolean hidden,
+        boolean lockedInShop,
+        boolean lockedByQuest,
+        boolean disabled,
+        String disabledReason,
+        String unlockHintCode,
+        String unlockHintPayloadJson,
+        OffsetDateTime updatedAt
+    ) {
+        update(
+            """
+                INSERT INTO player_item_access(
+                  player_id,
+                  item_id,
+                  catalog_version,
+                  is_hidden,
+                  is_locked_in_shop,
+                  is_locked_by_quest,
+                  is_disabled,
+                  disabled_reason,
+                  unlock_hint_code,
+                  unlock_hint_payload,
+                  updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
+                ON CONFLICT (player_id, item_id, catalog_version)
+                DO UPDATE SET
+                  is_hidden = EXCLUDED.is_hidden,
+                  is_locked_in_shop = EXCLUDED.is_locked_in_shop,
+                  is_locked_by_quest = EXCLUDED.is_locked_by_quest,
+                  is_disabled = EXCLUDED.is_disabled,
+                  disabled_reason = EXCLUDED.disabled_reason,
+                  unlock_hint_code = EXCLUDED.unlock_hint_code,
+                  unlock_hint_payload = EXCLUDED.unlock_hint_payload,
+                  updated_at = EXCLUDED.updated_at
+                """,
+            playerId,
+            itemId,
+            catalogVersion,
+            hidden,
+            lockedInShop,
+            lockedByQuest,
+            disabled,
+            disabledReason,
+            unlockHintCode,
+            unlockHintPayloadJson,
+            updatedAt
+        );
+    }
+
+    public void updateAccessProjectionRevision(
+        UUID playerId,
+        long accessRevision,
+        UUID ledgerEventId,
+        OffsetDateTime rebuiltAt
+    ) {
+        update(
+            """
+                UPDATE player_access_projection_state
+                SET access_revision = ?,
+                    projection_rebuilt_at = ?,
+                    last_ledger_event_id = ?
+                WHERE player_id = ?
+                """,
+            accessRevision,
+            rebuiltAt,
+            ledgerEventId,
+            playerId
+        );
+    }
+
+    public List<AccessProjectionRow> findAccessProjectionRows(UUID playerId, String itemId, long catalogVersion) {
+        return query(
+            """
+                SELECT
+                  ps.access_revision,
+                  pia.is_hidden,
+                  pia.is_locked_in_shop,
+                  pia.is_locked_by_quest,
+                  pia.is_disabled,
+                  pia.disabled_reason,
+                  pia.unlock_hint_code,
+                  pia.unlock_hint_payload::text AS unlock_hint_payload
+                FROM player_access_projection_state ps
+                JOIN player_item_access pia
+                  ON pia.player_id = ps.player_id
+                WHERE pia.player_id = ?
+                  AND pia.item_id = ?
+                  AND pia.catalog_version = ?
+                """,
+            (rs, rowNum) -> new AccessProjectionRow(
+                rs.getLong("access_revision"),
                 rs.getBoolean("is_hidden"),
                 rs.getBoolean("is_locked_in_shop"),
                 rs.getBoolean("is_locked_by_quest"),
