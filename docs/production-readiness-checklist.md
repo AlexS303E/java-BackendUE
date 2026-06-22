@@ -100,6 +100,12 @@
 
 ---
 
+## Operations
+
+- [x] **Incident runbooks** - `docs/runbooks.md` covers DB down, Redis down, outbox stuck, catalog rollback, DS revoke, and overload.
+
+---
+
 ## Load Testing Baselines
 
 ### k6 Endpoint Isolation (baseline)
