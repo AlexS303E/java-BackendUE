@@ -162,4 +162,28 @@ public class OutboxRepository extends JdbcRepository {
             now
         );
     }
+
+    public long countByStatus(String status) {
+        Long count = queryForObject(
+            "SELECT count(*) FROM outbox_events WHERE status = ?",
+            Long.class,
+            status
+        );
+        return count == null ? 0 : count;
+    }
+
+    public long pendingLagSeconds(OffsetDateTime now) {
+        Long lag = queryForObject(
+            """
+                SELECT COALESCE(EXTRACT(EPOCH FROM (? - MIN(created_at)))::bigint, 0)
+                FROM outbox_events
+                WHERE status IN ('pending', 'failed')
+                  AND next_attempt_at <= ?
+                """,
+            Long.class,
+            now,
+            now
+        );
+        return lag == null ? 0 : Math.max(0, lag);
+    }
 }
