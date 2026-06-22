@@ -1,8 +1,8 @@
-# OpenAPI contract test matrix
+﻿# OpenAPI contract test matrix
 
 ## Public API
 
-| Endpoint | Проверка |
+| Endpoint | Check |
 |---|---|
 | `POST /auth/register` | successful register, duplicate login, invalid payload |
 | `POST /auth/login` | successful login, wrong password, banned/disabled account |
@@ -19,7 +19,7 @@
 
 ## Server API
 
-| Endpoint | Проверка |
+| Endpoint | Check |
 |---|---|
 | `POST /server/match-profile/build` | requires server headers, unsupported catalog returns `409 CATALOG_VERSION_NOT_SUPPORTED`, success returns match profile |
 | `POST /server/runtime-preset-changes` | requires server headers, requires `Idempotency-Key`, mismatched key returns `400 IDEMPOTENCY_OPERATION_ID_MISMATCH`, stale revision returns `409 PRESET_REVISION_CONFLICT`, duplicate operation is idempotent |
@@ -27,7 +27,7 @@
 
 ## Admin API
 
-| Endpoint | Проверка |
+| Endpoint | Check |
 |---|---|
 | `GET /admin/status/overview` | requires `X-Admin-Token` |
 | `GET /admin/status/servers` | requires `X-Admin-Token` |
@@ -36,17 +36,30 @@
 | `GET /admin/status/players/search` | requires `X-Admin-Token`, supports query filter |
 | `GET /admin/status/players/{player_id}/weapon-access` | requires `X-Admin-Token`, unknown player |
 | `GET /admin/status/players/{player_id}/weapon-access/audit` | requires `X-Admin-Token`, returns audit events |
-| `POST /admin/players/{player_id}/access/items/{item_id}` | requires `X-Admin-Token`, requires `Idempotency-Key`, duplicate idempotency key returns same result or conflict for different request |
-| `POST /admin/control/players/{player_id}/invalidate-cache` | requires `X-Admin-Token` |
-| `POST /admin/control/server-identities/{server_id}/revoke` | requires `X-Admin-Token` |
-| `POST /admin/control/outbox/retry-failed` | requires `X-Admin-Token` |
-| `POST /admin/control/players/{player_id}/weapon-access` | requires `X-Admin-Token` |
+| `POST /admin/players/{player_id}/access/items/{item_id}` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`; duplicate idempotency key returns same result or conflict for different request |
+| `POST /admin/items/hide` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`, reason/comment audit context |
+| `POST /admin/items/reveal` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`, reason/comment audit context |
+| `POST /admin/items/shop-lock` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`, reason/comment audit context |
+| `POST /admin/items/shop-unlock` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`, reason/comment audit context |
+| `POST /admin/items/quest-lock` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`, reason/comment audit context |
+| `POST /admin/items/quest-unlock` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`, reason/comment audit context |
+| `POST /admin/items/disable` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`, reason/comment audit context |
+| `POST /admin/items/enable` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`, reason/comment audit context |
+| `POST /admin/access/rebuild-projection` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`; rebuilds from entitlement ledger |
+| `POST /admin/cache/invalidate-player` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`; records cache invalidation |
+| `POST /admin/server-identities/revoke` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`; revokes server identity |
+| `POST /admin/catalog/publish` | requires `X-Admin-Token`, `X-Admin-Confirm`; validates rollout and catalog lifecycle constraints |
+| `POST /admin/catalog/rollback` | requires `X-Admin-Token`, `X-Admin-Confirm`; validates rollback target and lifecycle constraints |
+| `POST /admin/control/players/{player_id}/invalidate-cache` | requires `X-Admin-Token`, `X-Admin-Confirm` |
+| `POST /admin/control/server-identities/{server_id}/revoke` | requires `X-Admin-Token`, `X-Admin-Confirm` |
+| `POST /admin/control/outbox/retry-failed` | requires `X-Admin-Token`, `X-Admin-Confirm` |
+| `POST /admin/control/players/{player_id}/weapon-access` | requires `X-Admin-Token`, `X-Admin-Confirm` |
 
 ## Error model
 
-Каждый endpoint должен возвращать ошибки в формате `ProblemDetails`.
+Every endpoint must return errors in `ProblemDetails` format.
 
-Минимально проверяемые коды:
+Minimum checked codes:
 
 - `400 VALIDATION_ERROR`
 - `401 UNAUTHENTICATED`
