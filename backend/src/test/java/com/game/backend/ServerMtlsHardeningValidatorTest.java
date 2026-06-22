@@ -4,10 +4,20 @@ import com.game.backend.serverauth.config.ServerMtlsHardeningValidator;
 import com.game.backend.serverauth.config.ServerMtlsProperties;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ServerMtlsHardeningValidatorTest {
+    @Test
+    void shouldExposeBoundedPrivateConnectorTimeoutDefault() {
+        ServerMtlsProperties properties = new ServerMtlsProperties();
+
+        assertThat(properties.getConnectionTimeout()).isEqualTo(Duration.ofSeconds(5));
+    }
+
     @Test
     void shouldRejectUnsafeProductionServerMtlsConfiguration() {
         ServerMtlsProperties mtlsDisabled = new ServerMtlsProperties();
@@ -51,6 +61,7 @@ class ServerMtlsHardeningValidatorTest {
         properties.setEnabled(true);
         properties.setRequirePrivatePort(true);
         properties.setAllowHeaderFingerprintFallback(false);
+        properties.setConnectionTimeout(Duration.ofSeconds(5));
         return properties;
     }
 }

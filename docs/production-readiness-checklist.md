@@ -22,7 +22,7 @@
 - [x] **Private port required in prod profile** — `application-prod.yml` defaults `require-private-port=true`; startup fail-fast enforces it.
 - [ ] **Certificate rotation plan** — no automation yet. Manual process defined in `tools/mtls/`.
 - [ ] **Revocation list** — server_identities.revoked_at is implemented. CLR/CRL distribution not tested.
-- [ ] **mTLS timeout** — handshake timeout not explicitly configured.
+- [x] **mTLS timeout** — private mTLS connector has explicit `SERVER_MTLS_CONNECTION_TIMEOUT` defaulting to 5s; covered by `ServerMtlsHardeningValidatorTest`.
 
 ### General
 - [x] **CORS** — prod profile requires `CORS_ALLOWED_ORIGINS`; Spring Security CORS allows only configured origins.

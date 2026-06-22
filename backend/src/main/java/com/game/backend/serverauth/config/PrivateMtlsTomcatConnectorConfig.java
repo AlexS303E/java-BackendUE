@@ -14,6 +14,7 @@ import org.springframework.util.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 
 /**
  * Добавляет отдельный HTTPS connector с обязательным client certificate для private /server/* трафика.
@@ -54,6 +55,7 @@ public class PrivateMtlsTomcatConnectorConfig {
 
         Http11NioProtocol protocol = (Http11NioProtocol) connector.getProtocolHandler();
         protocol.setSSLEnabled(true);
+        protocol.setConnectionTimeout(connectionTimeoutMillis());
 
         SSLHostConfig sslHostConfig = new SSLHostConfig();
         sslHostConfig.setHostName(DEFAULT_SSL_HOST_CONFIG_NAME);
@@ -82,6 +84,14 @@ public class PrivateMtlsTomcatConnectorConfig {
         protocol.addSslHostConfig(sslHostConfig);
 
         return connector;
+    }
+
+    private int connectionTimeoutMillis() {
+        Duration timeout = properties.getConnectionTimeout();
+        if (timeout == null || timeout.isZero() || timeout.isNegative()) {
+            throw new IllegalStateException("app.server-auth.mtls.connection-timeout must be positive");
+        }
+        return Math.toIntExact(timeout.toMillis());
     }
 
     private String resolveToFilePath(String location) {

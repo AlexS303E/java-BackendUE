@@ -31,6 +31,7 @@ SERVER_MTLS_KEY_ALIAS=backend
 SERVER_MTLS_TRUST_STORE=file:tools/mtls/out/backend-truststore.p12
 SERVER_MTLS_TRUST_STORE_PASSWORD=changeit
 SERVER_MTLS_TRUST_STORE_TYPE=PKCS12
+SERVER_MTLS_CONNECTION_TIMEOUT=5s
 ```
 
 ## Dev certificates
@@ -62,3 +63,8 @@ curl.exe -k `
 ```
 
 The request body above is intentionally incomplete; it should fail validation after mTLS/auth succeeds.
+
+## Timeout
+
+The private connector uses `app.server-auth.mtls.connection-timeout`, default
+`5s`, to bound private-port connection establishment and TLS handshakes.

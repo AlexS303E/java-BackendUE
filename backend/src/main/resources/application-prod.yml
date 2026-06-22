@@ -47,3 +47,4 @@ app:
       key-store-password: ${SERVER_MTLS_KEY_STORE_PASSWORD}
       trust-store: ${SERVER_MTLS_TRUST_STORE}
       trust-store-password: ${SERVER_MTLS_TRUST_STORE_PASSWORD}
+      connection-timeout: ${SERVER_MTLS_CONNECTION_TIMEOUT:5s}

@@ -2,6 +2,8 @@ package com.game.backend.serverauth.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
+
 /**
  * Настройки отдельного private mTLS connector для Dedicated Server API.
  */
@@ -38,6 +40,7 @@ public class ServerMtlsProperties {
 
     private String sslProtocol = "TLS";
     private String enabledProtocols = "TLSv1.3,TLSv1.2";
+    private Duration connectionTimeout = Duration.ofSeconds(5);
 
     public boolean isEnabled() {
         return enabled;
@@ -141,5 +144,13 @@ public class ServerMtlsProperties {
 
     public void setEnabledProtocols(String enabledProtocols) {
         this.enabledProtocols = enabledProtocols;
+    }
+
+    public Duration getConnectionTimeout() {
+        return connectionTimeout;
+    }
+
+    public void setConnectionTimeout(Duration connectionTimeout) {
+        this.connectionTimeout = connectionTimeout;
     }
 }

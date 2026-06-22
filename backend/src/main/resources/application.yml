@@ -88,3 +88,4 @@ app:
       trust-store-type: ${SERVER_MTLS_TRUST_STORE_TYPE:PKCS12}
       ssl-protocol: ${SERVER_MTLS_SSL_PROTOCOL:TLS}
       enabled-protocols: ${SERVER_MTLS_ENABLED_PROTOCOLS:TLSv1.3,TLSv1.2}
+      connection-timeout: ${SERVER_MTLS_CONNECTION_TIMEOUT:5s}
