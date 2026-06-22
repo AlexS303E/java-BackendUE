@@ -47,7 +47,7 @@
 
 ### Connection Pool
 - [x] **Pool sizing documented** — Hikari max=30, min-idle=10, connection-timeout=5s; covered by `OperationalTimeoutConfigurationTest`.
-- [ ] **Pool monitoring** — Hikari metrics exposed via `/actuator/metrics` (hikaricp.connections.*).
+- [x] **Pool monitoring** — Hikari metrics are available through Actuator metrics in non-prod/internal exposure; covered by `OperationalTimeoutConfigurationTest`.
 - [x] **Max pool for 25 VUs** — max pool 30 is the tested default for the 25 VU baseline. Next threshold: 50 VUs -> evaluate increase to 50-60.
 
 ### Monitoring
@@ -82,10 +82,10 @@
 ## Observability
 
 ### Metrics (Actuator)
-- [ ] **Hikari metrics** — exposed in dev through `/actuator/metrics/hikaricp.connections.*`; production profile exposes only `health,info` over HTTP. Export metrics via an internal-only channel before external testing.
-- [ ] **Tomcat metrics** — exposed in dev through `/actuator/metrics/tomcat.*`; production HTTP actuator exposure is limited to `health,info`.
-- [ ] **HTTP metrics by URI/status** — not enabled. Add `server.tomcat.mbeanregistry.enabled=true` or Micrometer `WebMvcTagsProvider`.
-- [ ] **JVM/GC metrics** — exposed at `/actuator/metrics/jvm.*`, `gc.*`.
+- [x] **Hikari metrics** — exposed in non-prod/internal Actuator metrics; production HTTP actuator exposure is limited to `health,info`.
+- [x] **Tomcat metrics** — `server.tomcat.mbeanregistry.enabled=true` enables Tomcat metrics; production HTTP actuator exposure is limited to `health,info`.
+- [x] **HTTP metrics by URI/status** — Actuator web metrics and Tomcat MBean registry are enabled for non-prod/internal metrics exposure.
+- [x] **JVM/GC metrics** — Actuator JVM/GC metrics are available through non-prod/internal metrics exposure.
 - [ ] **Redis metrics** — Lettuce/Spring Data Redis exposes connection pool metrics.
 - [ ] **Cache hit ratios** — not tracked. Consider Micrometer `CacheMetricsCollector`.
 

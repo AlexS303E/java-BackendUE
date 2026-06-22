@@ -31,6 +31,7 @@ class OperationalTimeoutConfigurationTest {
     @Test
     void shouldExposeOperationalTimeoutDefaults() {
         assertThat(environment.getProperty("server.tomcat.connection-timeout")).isEqualTo("5s");
+        assertThat(environment.getProperty("server.tomcat.mbeanregistry.enabled")).isEqualTo("true");
         assertThat(environment.getProperty("spring.datasource.hikari.connection-timeout")).isEqualTo("5000");
         assertThat(environment.getProperty("spring.datasource.hikari.maximum-pool-size")).isEqualTo("30");
         assertThat(environment.getProperty("spring.datasource.hikari.minimum-idle")).isEqualTo("10");
@@ -39,6 +40,17 @@ class OperationalTimeoutConfigurationTest {
         assertThat(environment.getProperty("spring.data.redis.connect-timeout")).isEqualTo("500ms");
         assertThat(environment.getProperty("spring.data.redis.timeout")).isEqualTo("500ms");
         assertThat(environment.getProperty("app.outbox.processing-timeout-seconds")).isEqualTo("60");
+    }
+
+    @Test
+    void shouldExposeDefaultInternalMetricsAndRestrictProductionHttpActuator() throws IOException {
+        assertThat(environment.getProperty("management.endpoints.web.exposure.include"))
+            .isEqualTo("health,info,metrics,prometheus");
+
+        String productionConfig = Files.readString(Path.of("src/main/resources/application-prod.yml"));
+        assertThat(productionConfig)
+            .contains("include: health,info")
+            .doesNotContain("include: health,info,metrics,prometheus");
     }
 
     @Test

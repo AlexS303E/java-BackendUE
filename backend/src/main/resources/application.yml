@@ -26,6 +26,8 @@ server:
   port: 8080
   tomcat:
     connection-timeout: ${HTTP_CONNECTION_TIMEOUT:5s}
+    mbeanregistry:
+      enabled: ${TOMCAT_MBEAN_REGISTRY_ENABLED:true}
 
 management:
   endpoint:
