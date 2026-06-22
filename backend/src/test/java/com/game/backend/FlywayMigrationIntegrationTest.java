@@ -6,8 +6,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -22,6 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @ActiveProfiles("local")
 class FlywayMigrationIntegrationTest {
+    private static final Pattern MIGRATION_VERSION = Pattern.compile("^V(\\d{3})__.*\\.sql$");
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -46,12 +52,8 @@ class FlywayMigrationIntegrationTest {
                 String.class
         );
 
-        assertThat(appliedVersions).contains(
-                "001", "002", "003", "004", "005", "006", "007", "008",
-                "009", "010", "011", "012", "013", "014", "015", "016",
-                "017", "018", "019", "020", "021", "022", "023", "024",
-                "025", "026", "027", "028", "029"
-        );
+        assertThat(appliedVersions)
+                .containsAll(migrationVersionsFromResources());
 
         String v021Script = jdbcTemplate.queryForObject(
                 """
@@ -377,6 +379,21 @@ class FlywayMigrationIntegrationTest {
             }
         }
         return true;
+    }
+
+    private List<String> migrationVersionsFromResources() {
+        try (var paths = Files.walk(Path.of("src/main/resources/db/migration"))) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .map(path -> path.getFileName().toString())
+                    .map(MIGRATION_VERSION::matcher)
+                    .filter(java.util.regex.Matcher::matches)
+                    .map(matcher -> matcher.group(1))
+                    .sorted()
+                    .toList();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read Flyway migration resources", exception);
+        }
     }
 
     private boolean tableExists(String tableName) {

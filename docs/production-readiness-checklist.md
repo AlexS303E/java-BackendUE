@@ -35,9 +35,9 @@
 ## Database
 
 ### Migrations
-- [ ] **All migrations verified** — `FlywayMigrationIntegrationTest` validates V1..V7 apply cleanly.
-- [ ] **Idempotent** — Flyway checksums prevent re-application. ✅
-- [ ] **Rollback plan** — no V*__undo scripts. Manual rollback via DB restore.
+- [x] **All migrations verified** — `FlywayMigrationIntegrationTest` validates every `src/main/resources/db/migration/V*.sql` version through V029.
+- [x] **Idempotent** — Flyway schema history and checksums prevent re-application; failed migration count is asserted by `FlywayMigrationIntegrationTest`.
+- [x] **Rollback plan** — no V*__undo scripts; rollback is manual DB restore/PITR per `docs/backup-restore.md`.
 
 ### Backups
 - [x] **Configured** — `tools/backup/backup-postgres.ps1` creates PostgreSQL custom-format dumps with local retention cleanup; Docker Postgres archives WAL into `postgres_wal_archive`.
