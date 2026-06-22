@@ -17,11 +17,15 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:500ms}
+      timeout: ${REDIS_COMMAND_TIMEOUT:500ms}
   jackson:
     property-naming-strategy: SNAKE_CASE
 
 server:
   port: 8080
+  tomcat:
+    connection-timeout: ${HTTP_CONNECTION_TIMEOUT:5s}
 
 management:
   endpoint:
