@@ -263,6 +263,7 @@ public class MatchProfileRepository extends JdbcRepository {
         if (itemIds.isEmpty()) {
             return Set.of();
         }
+        // item_team_rules is an allowlist: no rows means any team may use the item.
         String placeholders = String.join(",", itemIds.stream().map(id -> "?").toArray(String[]::new));
         Object[] params = new Object[2 + itemIds.size()];
         params[0] = catalogVersion;
@@ -308,6 +309,7 @@ public class MatchProfileRepository extends JdbcRepository {
         if (itemIds.isEmpty()) {
             return Set.of();
         }
+        // outfit_item_team_rules follows the same allowlist semantics as item_team_rules.
         String placeholders = String.join(",", itemIds.stream().map(id -> "?").toArray(String[]::new));
         Object[] params = new Object[2 + itemIds.size()];
         params[0] = catalogVersion;
