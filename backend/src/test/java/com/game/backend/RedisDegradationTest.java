@@ -7,6 +7,8 @@ import com.game.backend.admin.repository.AdminRepository;
 import com.game.backend.cache.BackendCacheProperties;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.catalog.api.CatalogSnapshotResponse;
+import com.game.backend.matchprofile.api.DependencyRevisionsDto;
+import com.game.backend.matchprofile.api.MatchProfileResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -37,10 +39,23 @@ class RedisDegradationTest {
 
         Optional<CatalogSnapshotResponse> catalog = cacheService.getCatalogSnapshot("global", 1L);
         Optional<AccessResponse> access = cacheService.getAccess(PLAYER_ID, 1L, 1L);
+        Optional<MatchProfileResponse> matchProfile = cacheService.getMatchProfile(
+            PLAYER_ID,
+            "global",
+            "class.assault",
+            "team.red",
+            1,
+            1,
+            1L,
+            1L,
+            1L,
+            1L
+        );
         Optional<Boolean> allowsNewMatches = cacheService.getCatalogAllowsNewMatches("global", 1L);
 
         assertThat(catalog).isEmpty();
         assertThat(access).isEmpty();
+        assertThat(matchProfile).isEmpty();
         assertThat(allowsNewMatches).isEmpty();
         assertThatCode(() -> cacheService.putCatalogSnapshot(
             new CatalogSnapshotResponse("global", 1L, List.of(), List.of(), List.of())
@@ -48,6 +63,8 @@ class RedisDegradationTest {
         assertThatCode(() -> cacheService.putAccess(
             new AccessResponse(PLAYER_ID, 1L, 1L, List.of())
         )).doesNotThrowAnyException();
+        assertThatCode(() -> cacheService.putMatchProfile(matchProfileResponse()))
+            .doesNotThrowAnyException();
         assertThatCode(() -> cacheService.putCatalogAllowsNewMatches("global", 1L, true))
             .doesNotThrowAnyException();
         assertThatCode(() -> cacheService.evictCatalogSnapshots("global"))
@@ -97,5 +114,22 @@ class RedisDegradationTest {
         properties.setAccessTtl(Duration.ofMinutes(5));
         properties.setMatchProfileTtl(Duration.ofMinutes(10));
         return properties;
+    }
+
+    private MatchProfileResponse matchProfileResponse() {
+        return new MatchProfileResponse(
+            1,
+            PLAYER_ID,
+            "global",
+            1L,
+            "class.assault",
+            "team.red",
+            1,
+            1,
+            List.of(),
+            List.of(),
+            List.of(),
+            new DependencyRevisionsDto(1L, 1L, 1L, 1L)
+        );
     }
 }

@@ -68,13 +68,13 @@
 | Catalog allows-new-matches | `ue:catalog:allows-new-matches:{realm}:{version}` | **5 min** | N/A |
 
 ### Degradation
-- [ ] **Graceful degradation verified** — `RedisCacheService` returns `Optional.empty()` on any Redis failure → falls back to DB. ✅
-- [ ] **No cascading failures** — Redis exceptions are caught at every call site. ✅
-- [ ] **Startup without Redis** — backend starts if Redis is down (cache is optional). Verify.
+- [x] **Graceful degradation verified** — `RedisCacheService` returns `Optional.empty()` on Redis failures across catalog, access, match-profile, and catalog lifecycle cache reads; covered by `RedisDegradationTest`.
+- [x] **No cascading failures** — Redis read/write/eviction exceptions are caught for cache-backed routes; covered by `RedisDegradationTest`.
+- [x] **Startup without Redis** — Redis is optional for app startup and route operation; cache-backed callers degrade to DB-backed misses.
 
 ### Invalidation
-- [ ] **Catalog snapshot eviction** — triggered on `catalog.publish` and `catalog.rollback`. ✅
-- [ ] **Player access eviction** — triggered on grant/revoke operations. ✅
+- [x] **Catalog snapshot eviction** — realm snapshot eviction is covered by `RedisCacheIntegrationTest`.
+- [x] **Player access eviction** — player access eviction is covered by `RedisCacheIntegrationTest`.
 - [x] **Catalog allows-new-matches eviction** — triggered on `catalog.publish` (TTL-based eviction, keys expire naturally). ✅
 
 ---
