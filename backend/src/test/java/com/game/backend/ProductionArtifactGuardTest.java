@@ -10,6 +10,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ProductionArtifactGuardTest {
+    private static final Path REPO_ROOT_GITIGNORE = Path.of("..", ".gitignore");
     private static final Path BUILD_FILE = Path.of("build.gradle.kts");
     private static final Path MAIN_RESOURCES = Path.of("src/main/resources");
     private static final Set<String> BOOT_JAR_EXCLUDES = Set.of(
@@ -41,5 +42,16 @@ class ProductionArtifactGuardTest {
                 .toList())
                 .isEmpty();
         }
+    }
+
+    @Test
+    void repositoryShouldIgnoreLocalSecretsAndGeneratedCertificateOutputs() throws IOException {
+        String gitignore = Files.readString(REPO_ROOT_GITIGNORE);
+
+        assertThat(gitignore)
+            .contains(".env")
+            .contains("tools/mtls/out*")
+            .contains("tools/mtls/work/")
+            .contains("tools/mtls/logs/");
     }
 }

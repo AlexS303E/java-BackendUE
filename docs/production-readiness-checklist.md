@@ -28,7 +28,7 @@
 - [x] **CORS** — prod profile requires `CORS_ALLOWED_ORIGINS`; Spring Security CORS allows only configured origins.
 - [x] **Rate limiting** — production profile enables fixed-window rate limits for `/auth/*`, `/server/*`, and `/admin/*`; local/dev profile keeps it disabled by default.
 - [ ] **SQL injection** — all queries use parameterized statements. ✅
-- [ ] **Secrets in repo** — `.env` in gitignore, `.env.example` committed without secrets. ✅
+- [x] **Secrets in repo** — `.env`, generated mTLS outputs, logs, and local mTLS work dirs are ignored; covered by `ProductionArtifactGuardTest`.
 
 ---
 
