@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.access.api.AccessResponse;
 import com.game.backend.catalog.api.CatalogSnapshotResponse;
 import com.game.backend.matchprofile.api.MatchProfileResponse;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -18,23 +20,30 @@ import java.util.UUID;
 public class RedisCacheService {
     private static final String PREFIX = "ue";
     private static final Duration INDEX_TTL_GRACE = Duration.ofDays(1);
+    private static final String CATALOG_SNAPSHOT_CACHE = "catalog_snapshot";
+    private static final String ACCESS_CACHE = "access";
+    private static final String MATCH_PROFILE_CACHE = "match_profile";
+    private static final String CATALOG_ALLOWS_NEW_MATCHES_CACHE = "catalog_allows_new_matches";
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final BackendCacheProperties properties;
+    private final MeterRegistry meterRegistry;
 
     public RedisCacheService(
         StringRedisTemplate redisTemplate,
         ObjectMapper objectMapper,
-        BackendCacheProperties properties
+        BackendCacheProperties properties,
+        MeterRegistry meterRegistry
     ) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.properties = properties;
+        this.meterRegistry = meterRegistry;
     }
 
     public Optional<CatalogSnapshotResponse> getCatalogSnapshot(String realmId, long catalogVersion) {
-        return read(catalogSnapshotKey(realmId, catalogVersion), CatalogSnapshotResponse.class);
+        return read(CATALOG_SNAPSHOT_CACHE, catalogSnapshotKey(realmId, catalogVersion), CatalogSnapshotResponse.class);
     }
 
     public void putCatalogSnapshot(CatalogSnapshotResponse response) {
@@ -48,7 +57,7 @@ public class RedisCacheService {
     }
 
     public Optional<AccessResponse> getAccess(UUID playerId, long catalogVersion, long accessRevision) {
-        return read(accessKey(playerId, catalogVersion, accessRevision), AccessResponse.class);
+        return read(ACCESS_CACHE, accessKey(playerId, catalogVersion, accessRevision), AccessResponse.class);
     }
 
     public void putAccess(AccessResponse response) {
@@ -73,7 +82,7 @@ public class RedisCacheService {
         long outfitPresetRevision,
         long accessRevision
     ) {
-        return read(matchProfileKey(
+        return read(MATCH_PROFILE_CACHE, matchProfileKey(
             playerId,
             realmId,
             classTag,
@@ -108,7 +117,7 @@ public class RedisCacheService {
 
     public Optional<Boolean> getCatalogAllowsNewMatches(String realmId, long catalogVersion) {
         if (!properties.isEnabled()) return Optional.empty();
-        String raw = readString(catalogAllowsNewMatchesKey(realmId, catalogVersion));
+        String raw = readString(CATALOG_ALLOWS_NEW_MATCHES_CACHE, catalogAllowsNewMatchesKey(realmId, catalogVersion));
         if (raw == null) return Optional.empty();
         return Optional.of(Boolean.parseBoolean(raw));
     }
@@ -171,27 +180,44 @@ public class RedisCacheService {
         return PREFIX + ":catalog:allows-new-matches:index:" + realmId;
     }
 
-    private String readString(String key) {
+    private String readString(String cacheName, String key) {
         try {
-            return redisTemplate.opsForValue().get(key);
+            String value = redisTemplate.opsForValue().get(key);
+            recordCacheRequest(cacheName, value == null ? "miss" : "hit");
+            return value;
         } catch (RuntimeException e) {
+            recordCacheRequest(cacheName, "error");
             return null;
         }
     }
 
-    private <T> Optional<T> read(String key, Class<T> valueType) {
+    private <T> Optional<T> read(String cacheName, String key, Class<T> valueType) {
         if (!properties.isEnabled()) {
+            recordCacheRequest(cacheName, "miss");
             return Optional.empty();
         }
         try {
             String value = redisTemplate.opsForValue().get(key);
             if (value == null || value.isBlank()) {
+                recordCacheRequest(cacheName, "miss");
                 return Optional.empty();
             }
-            return Optional.of(objectMapper.readValue(value, valueType));
+            T parsed = objectMapper.readValue(value, valueType);
+            recordCacheRequest(cacheName, "hit");
+            return Optional.of(parsed);
         } catch (JsonProcessingException | RuntimeException exception) {
+            recordCacheRequest(cacheName, "error");
             return Optional.empty();
         }
+    }
+
+    private void recordCacheRequest(String cacheName, String result) {
+        Counter.builder("backend.cache.requests")
+            .description("Backend Redis cache read requests by cache and result")
+            .tag("cache", cacheName)
+            .tag("result", result)
+            .register(meterRegistry)
+            .increment();
     }
 
     private void write(String key, String indexKey, Object value, Duration ttl) {

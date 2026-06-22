@@ -9,6 +9,7 @@ import com.game.backend.cache.RedisCacheService;
 import com.game.backend.catalog.api.CatalogSnapshotResponse;
 import com.game.backend.matchprofile.api.DependencyRevisionsDto;
 import com.game.backend.matchprofile.api.MatchProfileResponse;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -34,7 +35,8 @@ class RedisDegradationTest {
         RedisCacheService cacheService = new RedisCacheService(
             redisTemplate,
             new ObjectMapper(),
-            cacheProperties()
+            cacheProperties(),
+            new SimpleMeterRegistry()
         );
 
         Optional<CatalogSnapshotResponse> catalog = cacheService.getCatalogSnapshot("global", 1L);

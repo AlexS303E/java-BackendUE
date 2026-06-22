@@ -86,8 +86,8 @@
 - [x] **Tomcat metrics** — `server.tomcat.mbeanregistry.enabled=true` enables Tomcat metrics; production HTTP actuator exposure is limited to `health,info`.
 - [x] **HTTP metrics by URI/status** — Actuator web metrics and Tomcat MBean registry are enabled for non-prod/internal metrics exposure.
 - [x] **JVM/GC metrics** — Actuator JVM/GC metrics are available through non-prod/internal metrics exposure.
-- [ ] **Redis metrics** — Lettuce/Spring Data Redis exposes connection pool metrics.
-- [ ] **Cache hit ratios** — not tracked. Consider Micrometer `CacheMetricsCollector`.
+- [x] **Redis metrics** — cache-backed Redis reads emit `backend.cache.requests` counters by cache/result through Micrometer.
+- [x] **Cache hit ratios** — cache hit/miss/error counters are covered by `RedisCacheMetricsTest`.
 
 ### Logging
 - [x] **Audit logs retention** — prod profile enables scheduled TTL cleanup for `server_audit_events` and `admin_audit_events`; V028 adds `created_at` indexes for bounded deletes.
