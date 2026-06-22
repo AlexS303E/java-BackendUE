@@ -52,6 +52,7 @@ class AdminParityIntegrationTest {
 
         Map<String, Object> hideBody = itemOperationBody(playerId, catalogVersion, "hide weapon through explicit endpoint");
         String hideKey = UUID.randomUUID().toString();
+        long auditBefore = adminAccessAuditCount(playerId, catalogVersion, "hide weapon through explicit endpoint");
 
         mockMvc.perform(postJson("/admin/items/hide", hideBody)
                 .header("X-Admin-Token", ADMIN_TOKEN)
@@ -63,6 +64,10 @@ class AdminParityIntegrationTest {
             .andExpect(jsonPath("$.player_can_use").value(false));
 
         assertThat(accessFlag(playerId, catalogVersion, "is_hidden")).isTrue();
+        assertThat(adminAccessAuditCount(playerId, catalogVersion, "hide weapon through explicit endpoint"))
+            .isEqualTo(auditBefore + 1);
+        assertThat(adminAccessAuditHasRequestHash(playerId, catalogVersion, "hide weapon through explicit endpoint"))
+            .isTrue();
 
         mockMvc.perform(postJson("/admin/items/hide", hideBody)
                 .header("X-Admin-Token", ADMIN_TOKEN)
@@ -237,6 +242,52 @@ class AdminParityIntegrationTest {
             WEAPON_ID,
             catalogVersion
         );
+    }
+
+    private long adminAccessAuditCount(UUID playerId, long catalogVersion, String reason) {
+        Long count = jdbcTemplate.queryForObject(
+            """
+                SELECT count(*)
+                FROM admin_audit_events
+                WHERE action = 'player_access.item_update'
+                  AND target_type = 'player_item_access'
+                  AND target_id = ?
+                  AND result = 'success'
+                  AND request_hash IS NOT NULL
+                  AND request_hash <> ''
+                  AND payload->>'reason' = ?
+                  AND (payload->>'catalog_version')::bigint = ?
+                  AND jsonb_exists(payload, 'ledger_event_id')
+                """,
+            Long.class,
+            playerId + ":" + WEAPON_ID + ":" + catalogVersion,
+            reason,
+            catalogVersion
+        );
+        return count == null ? 0 : count;
+    }
+
+    private boolean adminAccessAuditHasRequestHash(UUID playerId, long catalogVersion, String reason) {
+        Boolean exists = jdbcTemplate.queryForObject(
+            """
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM admin_audit_events
+                  WHERE action = 'player_access.item_update'
+                    AND target_type = 'player_item_access'
+                    AND target_id = ?
+                    AND result = 'success'
+                    AND request_hash ~ '^[0-9a-f]{64}$'
+                    AND payload->>'reason' = ?
+                    AND (payload->>'catalog_version')::bigint = ?
+                )
+                """,
+            Boolean.class,
+            playerId + ":" + WEAPON_ID + ":" + catalogVersion,
+            reason,
+            catalogVersion
+        );
+        return Boolean.TRUE.equals(exists);
     }
 
     private void insertServerIdentity(UUID serverId) {
