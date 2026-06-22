@@ -46,14 +46,14 @@
 - [x] **Restore tested** — `tools/backup/verify-postgres-backup.ps1` restored the latest dump into an isolated temporary database.
 
 ### Connection Pool
-- [ ] **Pool sizing documented** — Hikari max=30, min-idle=10, connection-timeout=5s.
+- [x] **Pool sizing documented** — Hikari max=30, min-idle=10, connection-timeout=5s; covered by `OperationalTimeoutConfigurationTest`.
 - [ ] **Pool monitoring** — Hikari metrics exposed via `/actuator/metrics` (hikaricp.connections.*).
-- [ ] **Max pool for 25 VUs** — 30 sufficient. Next threshold: 50 VUs → evaluate increase to 50-60.
+- [x] **Max pool for 25 VUs** — max pool 30 is the tested default for the 25 VU baseline. Next threshold: 50 VUs -> evaluate increase to 50-60.
 
 ### Monitoring
 - [x] **pg_stat_statements** — enabled through Docker Postgres `shared_preload_libraries` and Flyway V027.
 - [x] **Slow query log** — Docker Postgres sets `log_min_duration_statement = 200ms`.
-- [ ] **Connection pooling** — HikariCP is embedded. PgBouncer not used (single-app architecture).
+- [x] **Connection pooling** — HikariCP is embedded with bounded defaults. PgBouncer not used (single-app architecture).
 - [ ] **Index coverage** — all WHERE clauses covered by indexes. Verify with `EXPLAIN ANALYZE` for heavy queries (validateCanUseBatch, findExistingProfile).
 
 ---
@@ -95,7 +95,7 @@
 - [ ] **Log levels** — root=INFO. DEBUG for `com.game.backend` only in dev.
 
 ### Health checks
-- [ ] **/actuator/health** — returns UP. Includes DB health (DataSourceHealthIndicator). ✅
+- [x] **/actuator/health** — health, readiness, and liveness endpoints are exposed; covered by `HealthEndpointsSecurityTest`.
 - [x] **Readiness/liveness probes** — `application-prod.yml` enables actuator health probes.
 
 ---
@@ -135,7 +135,7 @@
 
 ### Build
 - [x] **bootJar** — `gradlew bootJar` produces fat JAR; prod-profile smoke starts the JAR with production settings.
-- [ ] **Java version** — 21 (LTS). ✅
+- [x] **Java version** — Gradle toolchain is pinned to Java 21 (LTS); covered by `OperationalTimeoutConfigurationTest`.
 - [x] **Graceful shutdown** — `application-prod.yml` sets `server.shutdown=graceful` and configurable `spring.lifecycle.timeout-per-shutdown-phase`.
 - [ ] **Health check port** — separate management port not configured. Prod actuator HTTP exposure is limited to `health,info`.
 
