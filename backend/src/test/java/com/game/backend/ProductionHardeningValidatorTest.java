@@ -58,6 +58,17 @@ class ProductionHardeningValidatorTest {
         ))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("app.admin.allowed-cidrs");
+
+        assertThatThrownBy(() -> ProductionHardeningValidator.validateForStartup(
+            new String[]{"prod"},
+            ADMIN_TOKEN,
+            "-----BEGIN PRIVATE KEY-----\nsecret\n-----END PRIVATE KEY-----",
+            PUBLIC_KEY,
+            CORS,
+            ADMIN_CIDRS
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("external secret material");
     }
 
     @Test

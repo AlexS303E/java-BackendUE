@@ -86,6 +86,8 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         requireProductionSecret("app.admin.token", adminToken, UNSAFE_ADMIN_TOKENS);
         requireRequired("app.auth.jwt-private-key", jwtPrivateKey);
         requireRequired("app.auth.jwt-public-key", jwtPublicKey);
+        rejectInlinePem("app.auth.jwt-private-key", jwtPrivateKey);
+        rejectInlinePem("app.auth.jwt-public-key", jwtPublicKey);
         requireRequired("app.cors.allowed-origins", corsAllowedOrigins);
         requireRequired("app.admin.allowed-cidrs", adminAllowedCidrs);
     }
@@ -100,6 +102,12 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
     private static void requireRequired(String propertyName, String value) {
         if (value == null || value.isBlank()) {
             throw new IllegalStateException("Production profile requires " + propertyName);
+        }
+    }
+
+    private static void rejectInlinePem(String propertyName, String value) {
+        if (value != null && value.contains("-----BEGIN ")) {
+            throw new IllegalStateException("Production profile requires " + propertyName + " to reference external secret material, not inline PEM");
         }
     }
 

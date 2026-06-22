@@ -34,3 +34,9 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+    exclude("application-local.yml")
+    exclude("db/migration/V013__seed_dev_server_identity.sql")
+    exclude("db/migration/V014__seed_dev_limited_server_identity.sql")
+}
