@@ -103,6 +103,7 @@
 ## Operations
 
 - [x] **Incident runbooks** - `docs/runbooks.md` covers DB down, Redis down, outbox stuck, catalog rollback, DS revoke, and overload.
+- [x] **Security regression matrix** - `docs/security-regression-matrix.md` maps BOLA/IDOR, CSRF, XSS, replay, invalid loadout, and mTLS denied risks to executable tests.
 
 ---
 
