@@ -231,9 +231,13 @@ class LoadoutSanitizationIntegrationTest {
             String url,
             Object body
     ) throws Exception {
-        return post(url)
+        org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder builder = post(url)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(body));
+        if (url.startsWith("/admin/")) {
+            builder.header("X-Admin-Confirm", "true");
+        }
+        return builder;
     }
 
     private JsonNode json(MvcResult result) throws Exception {

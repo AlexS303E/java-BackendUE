@@ -9,7 +9,7 @@ import java.util.List;
 public class CorsProperties {
     private List<String> allowedOrigins = new ArrayList<>();
     private List<String> allowedMethods = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
-    private List<String> allowedHeaders = List.of("Authorization", "Content-Type", "If-Match", "Idempotency-Key");
+    private List<String> allowedHeaders = List.of("Authorization", "Content-Type", "If-Match", "Idempotency-Key", "X-Admin-Confirm");
     private List<String> exposedHeaders = List.of("ETag", "Retry-After");
 
     public List<String> getAllowedOrigins() {

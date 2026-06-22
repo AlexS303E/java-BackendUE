@@ -21,7 +21,7 @@ class CorsConfigurationSourceTest {
         assertThat(configuration).isNotNull();
         assertThat(configuration.getAllowedOrigins()).containsExactly("https://game.example", "https://admin.example");
         assertThat(configuration.getAllowedMethods()).contains("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
-        assertThat(configuration.getAllowedHeaders()).contains("Authorization", "Content-Type", "If-Match", "Idempotency-Key");
+        assertThat(configuration.getAllowedHeaders()).contains("Authorization", "Content-Type", "If-Match", "Idempotency-Key", "X-Admin-Confirm");
         assertThat(configuration.getExposedHeaders()).contains("ETag", "Retry-After");
         assertThat(configuration.getAllowCredentials()).isFalse();
     }

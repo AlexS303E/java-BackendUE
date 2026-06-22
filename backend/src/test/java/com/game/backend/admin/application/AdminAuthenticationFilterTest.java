@@ -33,6 +33,7 @@ class AdminAuthenticationFilterTest {
         AdminAuthenticationFilter filter = filter(List.of("10.10.0.0/16"), List.of("status"));
         MockHttpServletRequest request = request("POST", "/admin/control/outbox/retry-failed", "192.168.1.10");
         request.addHeader("X-Admin-Token", "token");
+        request.addHeader("X-Admin-Confirm", "true");
 
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, new CountingChain());
@@ -43,12 +44,37 @@ class AdminAuthenticationFilterTest {
         AdminAuthenticationFilter roleFilter = filter(List.of(), List.of("status"));
         MockHttpServletRequest roleRequest = request("POST", "/admin/control/outbox/retry-failed", "127.0.0.1");
         roleRequest.addHeader("X-Admin-Token", "token");
+        roleRequest.addHeader("X-Admin-Confirm", "true");
 
         MockHttpServletResponse roleResponse = new MockHttpServletResponse();
         roleFilter.doFilter(roleRequest, roleResponse, new CountingChain());
 
         assertThat(roleResponse.getStatus()).isEqualTo(403);
         assertThat(roleResponse.getContentAsString()).contains("ADMIN_ROLE_FORBIDDEN");
+    }
+
+    @Test
+    void shouldRequireConfirmationForAdminWriteActions() throws Exception {
+        AdminAuthenticationFilter filter = filter(List.of(), List.of("ops"));
+        MockHttpServletRequest request = request("POST", "/admin/control/outbox/retry-failed", "127.0.0.1");
+        request.addHeader("X-Admin-Token", "token");
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new CountingChain());
+
+        assertThat(response.getStatus()).isEqualTo(428);
+        assertThat(response.getContentAsString()).contains("ADMIN_CONFIRMATION_REQUIRED");
+
+        MockHttpServletRequest confirmed = request("POST", "/admin/control/outbox/retry-failed", "127.0.0.1");
+        confirmed.addHeader("X-Admin-Token", "token");
+        confirmed.addHeader("X-Admin-Confirm", "true");
+        CountingChain chain = new CountingChain();
+        MockHttpServletResponse confirmedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(confirmed, confirmedResponse, chain);
+
+        assertThat(confirmedResponse.getStatus()).isEqualTo(200);
+        assertThat(chain.count()).isEqualTo(1);
     }
 
     private AdminAuthenticationFilter filter(List<String> cidrs, List<String> roles) {

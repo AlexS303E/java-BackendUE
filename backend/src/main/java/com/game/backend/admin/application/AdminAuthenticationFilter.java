@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 public class AdminAuthenticationFilter extends OncePerRequestFilter {
     private static final String ADMIN_TOKEN_HEADER = "X-Admin-Token";
     private static final String ADMIN_ID_HEADER = "X-Admin-Id";
+    private static final String ADMIN_CONFIRM_HEADER = "X-Admin-Confirm";
     private static final String DEFAULT_ADMIN_ID = "dev-admin";
 
     private final AdminSecurityProperties properties;
@@ -61,6 +62,10 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
             writeProblem(response, HttpServletResponse.SC_FORBIDDEN, "ADMIN_ROLE_FORBIDDEN", "Admin role is required: " + requiredRole);
             return;
         }
+        if (requiresConfirmation(request) && !isConfirmed(request)) {
+            writeProblem(response, 428, "ADMIN_CONFIRMATION_REQUIRED", "Admin write action requires X-Admin-Confirm: true");
+            return;
+        }
 
         AdminIdentity identity = new AdminIdentity(actorId.trim(), roles);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
@@ -97,6 +102,16 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
             return "access";
         }
         return "security";
+    }
+
+    private boolean requiresConfirmation(HttpServletRequest request) {
+        String method = request.getMethod();
+        return "POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method) || "DELETE".equals(method);
+    }
+
+    private boolean isConfirmed(HttpServletRequest request) {
+        String value = request.getHeader(ADMIN_CONFIRM_HEADER);
+        return value != null && "true".equals(value.trim().toLowerCase(Locale.ROOT));
     }
 
     private boolean isAllowedIp(HttpServletRequest request) {
