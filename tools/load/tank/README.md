@@ -1,8 +1,9 @@
-# Yandex.Tank load testing layer
+# Yandex.Tank diagnostic load testing
 
 This directory contains the second-level load testing setup for the UE backend.
 
-It complements the fast local k6/smoke checks with a self-hosted Yandex.Tank run in Docker.
+It provides an optional self-hosted Yandex.Tank run in Docker for RPS-shaping experiments.
+It is not a Stage 1 release gate; use the native k6 profiles and `docs/load-test-policy.md` for release evidence.
 The script generates Phantom request-style ammo with real JWTs and runs a mixed backend profile.
 
 ## What is tested

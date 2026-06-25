@@ -1,12 +1,15 @@
-# Yandex.Tank second-level load testing
+# Yandex.Tank diagnostic load testing
 
-This project keeps the quick smoke tests and adds a second-level self-hosted Yandex.Tank profile.
+> Yandex.Tank is diagnostic only for Stage 1. The authoritative release gate is native k6 as defined in
+> `docs/load-test-policy.md`.
+
+This project keeps a self-hosted Yandex.Tank profile for optional RPS-shaping experiments.
 
 ## Why this layer exists
 
 The fast smoke tests answer: "does the vertical flow work?"
 
-Yandex.Tank answers: "does the backend stay stable under a reproducible RPS profile?"
+Yandex.Tank can help answer: "does the backend stay stable under a reproducible RPS profile?"
 
 The first target profile is intentionally conservative:
 
@@ -34,9 +37,10 @@ The default script generates real accounts and JWTs, then builds Phantom request
 The server endpoint is tested through the development header-fingerprint fallback because this load layer is focused on backend throughput.
 Real mTLS handshake is covered separately by `tools/mtls/run-mtls-smoke.ps1`.
 
-## Pass/fail rules
+## Diagnostic rules
 
 The script fails if Yandex.Tank exits with a non-zero code or if the parsed phout error rate is at least 1%.
+Passing this script is not release evidence because Docker Desktop networking distorted the recorded baseline.
 
 Inspect:
 

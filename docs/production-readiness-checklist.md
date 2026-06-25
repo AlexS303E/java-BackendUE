@@ -127,7 +127,7 @@
 - [x] **mTLS smoke test** — `tools/mtls/run-mtls-smoke.ps1` passed with mTLS enabled, header fallback disabled, and private port required.
 
 ### Yandex.Tank
-- [ ] **Yandex.Tank baseline** — previously 95.73% HTTP 200, 4.27% connection timeouts (Docker networking overhead). Not a production-grade baseline. Recommend k6-only for load testing.
+- [x] **Load-tool decision** — native k6 is the authoritative Stage 1 gate with centralized p95 thresholds; Yandex.Tank is retained as diagnostic-only because its Docker baseline had 4.27% connection timeouts. Covered by `LoadTestPolicyTest`.
 
 ---
 

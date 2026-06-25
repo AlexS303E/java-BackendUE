@@ -1,5 +1,6 @@
 import http from "k6/http";
 import { check } from "k6";
+import { PERFORMANCE_GATES } from "./performance-gates.js";
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:8080";
 const PASSWORD = "password123";
@@ -10,10 +11,8 @@ const SERVER_BUILD_ID = __ENV.SERVER_BUILD_ID || "ds-dev-smoke";
 export const options = {
   vus: 25,
   duration: "3m",
-  thresholds: {
-    // 409 CONFLICT is expected (revision mismatch after first applied change)
-    http_req_failed: ["rate<1.00"],
-  },
+  // 409 CONFLICT is expected after the first applied revision.
+  thresholds: PERFORMANCE_GATES.runtimeChanges,
 };
 
 export function setup() {

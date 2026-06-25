@@ -1,5 +1,6 @@
 import http from "k6/http";
 import { check } from "k6";
+import { PERFORMANCE_GATES } from "./performance-gates.js";
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:8080";
 const PASSWORD = "password123";
@@ -10,9 +11,7 @@ const SERVER_BUILD_ID = __ENV.SERVER_BUILD_ID || "ds-dev-smoke";
 export const options = {
   vus: 25,
   duration: "3m",
-  thresholds: {
-    http_req_failed: ["rate<0.05"],
-  },
+  thresholds: PERFORMANCE_GATES.matchProfile,
 };
 
 export function setup() {
