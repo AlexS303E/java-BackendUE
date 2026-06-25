@@ -158,6 +158,19 @@ class FlywayMigrationIntegrationTest {
                 String.class
         );
         assertThat(v029Script).isEqualTo("V029__match_profile_lookup_index.sql");
+
+        String v030Script = jdbcTemplate.queryForObject(
+                """
+                    SELECT script
+                    FROM flyway_schema_history
+                    WHERE version = '030'
+                      AND success = true
+                    ORDER BY installed_rank DESC
+                    LIMIT 1
+                    """,
+                String.class
+        );
+        assertThat(v030Script).isEqualTo("V030__outfit_team_rule_lookup_index.sql");
     }
 
     @Test
@@ -225,6 +238,7 @@ class FlywayMigrationIntegrationTest {
         assertThat(indexExists("idx_admin_audit_events_created_at")).isTrue();
         assertThat(indexExists("idx_server_audit_events_created_at")).isTrue();
         assertThat(indexExists("idx_match_profiles_fresh_dependency_lookup")).isTrue();
+        assertThat(indexExists("idx_outfit_item_team_rules_lookup")).isTrue();
 
         Map<String, Object> activeCatalogIndex = uniquePartialIndex("uq_catalog_active_new_matches");
         assertThat(activeCatalogIndex.get("is_unique")).isEqualTo(true);
