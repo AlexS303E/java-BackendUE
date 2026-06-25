@@ -140,7 +140,7 @@
 - [x] **Health check port** — prod uses dedicated `MANAGEMENT_SERVER_PORT` (default 8081); fail-fast validation prevents collision with public and mTLS ports, and prod smoke verifies Actuator is absent from the public connector.
 
 ### Infrastructure
-- [ ] **CPU/Memory sizing** — not determined. Need load test on target hardware.
+- [x] **CPU/Memory sizing** — Stage 1 backend envelope is 2/4 vCPU request/limit and 1536/2048 MiB memory with a 60% heap cap; preflight, prod smoke, and re-sizing triggers are documented and covered by `ResourceEnvelopeTest`.
 - [x] **Disk** — audit tables have TTL cleanup in prod profile; monitor retained window growth and tune `AUDIT_*_RETENTION`.
 - [ ] **Network** — mTLS adds ~5-10ms per handshake. Reuse connections (keep-alive).
 

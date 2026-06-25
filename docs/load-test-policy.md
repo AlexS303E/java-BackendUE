@@ -12,6 +12,7 @@ Required profile:
 - Endpoint isolation runs for health, catalog, auth, access, presets, match-profile, and runtime changes.
 - Mixed smoke run after isolation runs.
 - Results must identify the backend commit, host specification, database state, and test date.
+- Results must record the effective CPU/memory limits and `JAVA_TOOL_OPTIONS` from the production resource envelope.
 
 The match-profile release target is p95 below 300 ms. A result above that target is evidence for optimization,
 not a passing baseline.

@@ -53,6 +53,8 @@ $root = Resolve-RepoRoot -ProvidedRepoRoot $RepoRoot
 $backendDir = Join-Path $root "backend"
 $gradleWrapper = Join-Path $backendDir "gradlew.bat"
 $generateCertsScript = Join-Path $root "tools\mtls\generate-dev-certs.ps1"
+$resourceEnvelope = Join-Path $root "config\production-resource-envelope.env"
+$resourcePreflight = Join-Path $root "tools\deploy\validate-resource-envelope.ps1"
 $certDir = Join-Path $root "tools\mtls\out-prod-smoke"
 $password = "changeit"
 $backendP12 = Join-Path $certDir "backend.p12"
@@ -69,6 +71,12 @@ if (-not (Test-Path -LiteralPath $gradleWrapper)) {
 }
 if (-not (Test-Path -LiteralPath $generateCertsScript)) {
     throw "mTLS certificate generator not found: $generateCertsScript"
+}
+if (-not (Test-Path -LiteralPath $resourceEnvelope)) {
+    throw "Production resource envelope not found: $resourceEnvelope"
+}
+if (-not (Test-Path -LiteralPath $resourcePreflight)) {
+    throw "Resource preflight not found: $resourcePreflight"
 }
 
 Push-Location $root
@@ -110,6 +118,7 @@ try {
     $envKeys = @(
         "SPRING_PROFILES_ACTIVE",
         "SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS",
+        "JAVA_TOOL_OPTIONS",
         "SERVER_PORT",
         "MANAGEMENT_SERVER_PORT",
         "MANAGEMENT_SERVER_ADDRESS",
@@ -135,6 +144,22 @@ try {
 
     $env:SPRING_PROFILES_ACTIVE = "prod"
     $env:SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS = "*:missing"
+    $resourceValues = @{}
+    foreach ($line in Get-Content -LiteralPath $resourceEnvelope) {
+        if (-not [string]::IsNullOrWhiteSpace($line) -and -not $line.TrimStart().StartsWith("#")) {
+            $parts = $line.Split("=", 2)
+            $resourceValues[$parts[0].Trim()] = $parts[1].Trim()
+        }
+    }
+    $env:JAVA_TOOL_OPTIONS = $resourceValues["JAVA_TOOL_OPTIONS"]
+    & $resourcePreflight `
+        -EnvelopePath $resourceEnvelope `
+        -CpuLimit ([double]$resourceValues["APP_CPU_LIMIT"]) `
+        -MemoryLimitMiB ([int]$resourceValues["APP_MEMORY_LIMIT_MIB"]) `
+        -JavaToolOptions $env:JAVA_TOOL_OPTIONS | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Resource envelope preflight failed with exit code $LASTEXITCODE"
+    }
     $env:SERVER_PORT = [string]$PublicPort
     $env:MANAGEMENT_SERVER_PORT = [string]$ManagementPort
     $env:MANAGEMENT_SERVER_ADDRESS = "127.0.0.1"
@@ -226,6 +251,7 @@ try {
         cors_origin = $CorsOrigin
         metrics_status = $metricsStatus
         public_health_status = $publicHealthStatus
+        java_tool_options = $env:JAVA_TOOL_OPTIONS
         jar = $jar.FullName
     }
 } finally {
