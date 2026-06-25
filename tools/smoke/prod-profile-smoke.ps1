@@ -1,6 +1,7 @@
 param(
     [string]$RepoRoot = "",
     [int]$PublicPort = 18080,
+    [int]$ManagementPort = 18081,
     [int]$PrivateMtlsPort = 19443,
     [int]$StartupTimeoutSeconds = 120,
     [string]$CorsOrigin = "https://game.example",
@@ -108,7 +109,10 @@ try {
     $previousEnv = @{}
     $envKeys = @(
         "SPRING_PROFILES_ACTIVE",
+        "SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS",
         "SERVER_PORT",
+        "MANAGEMENT_SERVER_PORT",
+        "MANAGEMENT_SERVER_ADDRESS",
         "ADMIN_TOKEN",
         "JWT_PRIVATE_KEY",
         "JWT_PUBLIC_KEY",
@@ -130,7 +134,10 @@ try {
     }
 
     $env:SPRING_PROFILES_ACTIVE = "prod"
+    $env:SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS = "*:missing"
     $env:SERVER_PORT = [string]$PublicPort
+    $env:MANAGEMENT_SERVER_PORT = [string]$ManagementPort
+    $env:MANAGEMENT_SERVER_ADDRESS = "127.0.0.1"
     $env:ADMIN_TOKEN = "prod-smoke-admin-token"
     & openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out $jwtPrivateKey | Out-Null
     if ($LASTEXITCODE -ne 0) {
@@ -165,16 +172,16 @@ try {
         -WindowStyle Hidden `
         -PassThru
 
-    Wait-HttpOk -Url "http://localhost:$PublicPort/actuator/health" -TimeoutSeconds $StartupTimeoutSeconds
+    Wait-HttpOk -Url "http://localhost:$ManagementPort/actuator/health/readiness" -TimeoutSeconds $StartupTimeoutSeconds
 
-    $info = Invoke-WebRequest -Uri "http://localhost:$PublicPort/actuator/info" -UseBasicParsing -TimeoutSec 5
+    $info = Invoke-WebRequest -Uri "http://localhost:$ManagementPort/actuator/info" -UseBasicParsing -TimeoutSec 5
     if ($info.StatusCode -ne 200) {
         throw "Expected /actuator/info to return 200, got $($info.StatusCode)"
     }
 
     $metricsStatus = $null
     try {
-        Invoke-WebRequest -Uri "http://localhost:$PublicPort/actuator/metrics" -UseBasicParsing -TimeoutSec 5 | Out-Null
+        Invoke-WebRequest -Uri "http://localhost:$ManagementPort/actuator/metrics" -UseBasicParsing -TimeoutSec 5 | Out-Null
         $metricsStatus = 200
     } catch {
         if ($null -ne $_.Exception.Response) {
@@ -183,6 +190,19 @@ try {
     }
     if ($metricsStatus -eq 200) {
         throw "Expected /actuator/metrics to be unavailable over prod HTTP exposure."
+    }
+
+    $publicHealthStatus = $null
+    try {
+        Invoke-WebRequest -Uri "http://localhost:$PublicPort/actuator/health" -UseBasicParsing -TimeoutSec 5 | Out-Null
+        $publicHealthStatus = 200
+    } catch {
+        if ($null -ne $_.Exception.Response) {
+            $publicHealthStatus = [int]$_.Exception.Response.StatusCode
+        }
+    }
+    if ($publicHealthStatus -eq 200) {
+        throw "Expected Actuator health to be unavailable over the public connector."
     }
 
     $corsAllowed = Invoke-WebRequest `
@@ -201,9 +221,11 @@ try {
     [PSCustomObject]@{
         status = "PROD_PROFILE_SMOKE_OK"
         public_port = $PublicPort
+        management_port = $ManagementPort
         private_mtls_port = $PrivateMtlsPort
         cors_origin = $CorsOrigin
         metrics_status = $metricsStatus
+        public_health_status = $publicHealthStatus
         jar = $jar.FullName
     }
 } finally {

@@ -137,7 +137,7 @@
 - [x] **bootJar** — `gradlew bootJar` produces fat JAR; prod-profile smoke starts the JAR with production settings.
 - [x] **Java version** — Gradle toolchain is pinned to Java 21 (LTS); covered by `OperationalTimeoutConfigurationTest`.
 - [x] **Graceful shutdown** — `application-prod.yml` sets `server.shutdown=graceful` and configurable `spring.lifecycle.timeout-per-shutdown-phase`.
-- [ ] **Health check port** — separate management port not configured. Prod actuator HTTP exposure is limited to `health,info`.
+- [x] **Health check port** — prod uses dedicated `MANAGEMENT_SERVER_PORT` (default 8081); fail-fast validation prevents collision with public and mTLS ports, and prod smoke verifies Actuator is absent from the public connector.
 
 ### Infrastructure
 - [ ] **CPU/Memory sizing** — not determined. Need load test on target hardware.

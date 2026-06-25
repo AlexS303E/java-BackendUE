@@ -2,12 +2,14 @@
 
 ## Intent
 
-The public backend connector stays on `server.port` and serves `/auth`, `/catalog`, `/me`, `/admin` and health endpoints.
+The public backend connector stays on `server.port` and serves `/auth`, `/catalog`, `/me`, and `/admin`.
+Production health endpoints use the separate `management.server.port`.
 Dedicated Server endpoints under `/server/*` use a separate private HTTPS connector with mandatory client certificate authentication.
 
 ## Runtime model
 
 - Public connector: `server.port`, default `8080`.
+- Management connector: `management.server.port`, production default `8081`.
 - Private mTLS connector: `app.server-auth.mtls.port`, default `9443`.
 - Private connector TLS mode: `client-auth=need`.
 - `/server/*` requests are rejected unless they arrive on the private mTLS port when `app.server-auth.mtls.enabled=true`.

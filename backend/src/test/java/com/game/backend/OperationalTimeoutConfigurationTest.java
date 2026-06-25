@@ -49,6 +49,8 @@ class OperationalTimeoutConfigurationTest {
 
         String productionConfig = Files.readString(Path.of("src/main/resources/application-prod.yml"));
         assertThat(productionConfig)
+            .contains("port: ${MANAGEMENT_SERVER_PORT:8081}")
+            .contains("address: ${MANAGEMENT_SERVER_ADDRESS:0.0.0.0}")
             .contains("include: health,info")
             .doesNotContain("include: health,info,metrics,prometheus");
     }

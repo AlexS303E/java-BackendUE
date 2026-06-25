@@ -48,7 +48,9 @@ class JwtTokenServiceTest {
         );
 
         String token = service.issueAccessToken(UUID.randomUUID(), "player");
-        String tampered = token.substring(0, token.length() - 2) + "xx";
+        String[] segments = token.split("\\.");
+        char replacement = segments[2].charAt(0) == 'A' ? 'B' : 'A';
+        String tampered = segments[0] + "." + segments[1] + "." + replacement + segments[2].substring(1);
 
         assertThat(service.validate(tampered)).isEmpty();
     }
