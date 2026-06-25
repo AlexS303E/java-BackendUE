@@ -15,15 +15,23 @@
   </appender>
 
   <springProfile name="prod,production">
-    <root level="${LOG_LEVEL_ROOT:-INFO}">
+    <root level="INFO">
       <appender-ref ref="CONSOLE_JSON"/>
     </root>
+    <logger name="com.game.backend" level="INFO"/>
   </springProfile>
 
-  <springProfile name="!prod &amp; !production">
-    <root level="${LOG_LEVEL_ROOT:-INFO}">
+  <springProfile name="local,dev">
+    <root level="INFO">
       <appender-ref ref="CONSOLE_TEXT"/>
     </root>
-    <logger name="com.game.backend" level="${LOG_LEVEL_APP:-DEBUG}"/>
+    <logger name="com.game.backend" level="DEBUG"/>
+  </springProfile>
+
+  <springProfile name="!prod &amp; !production &amp; !local &amp; !dev">
+    <root level="INFO">
+      <appender-ref ref="CONSOLE_TEXT"/>
+    </root>
+    <logger name="com.game.backend" level="INFO"/>
   </springProfile>
 </configuration>

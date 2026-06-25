@@ -92,7 +92,7 @@
 ### Logging
 - [x] **Audit logs retention** — prod profile enables scheduled TTL cleanup for `server_audit_events` and `admin_audit_events`; V028 adds `created_at` indexes for bounded deletes.
 - [x] **Structured logging** — prod/production profile emits JSON console logs via `logback-spring.xml`.
-- [ ] **Log levels** — root=INFO. DEBUG for `com.game.backend` only in dev.
+- [x] **Log levels** — root is fixed at INFO; `com.game.backend` uses DEBUG only in `local`/`dev` and INFO in production/default profiles; covered by `LoggingConfigurationTest`.
 
 ### Health checks
 - [x] **/actuator/health** — health, readiness, and liveness endpoints are exposed; covered by `HealthEndpointsSecurityTest`.
