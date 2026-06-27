@@ -171,6 +171,19 @@ class FlywayMigrationIntegrationTest {
                 String.class
         );
         assertThat(v030Script).isEqualTo("V030__outfit_team_rule_lookup_index.sql");
+
+        String v031Script = jdbcTemplate.queryForObject(
+                """
+                    SELECT script
+                    FROM flyway_schema_history
+                    WHERE version = '031'
+                      AND success = true
+                    ORDER BY installed_rank DESC
+                    LIMIT 1
+                    """,
+                String.class
+        );
+        assertThat(v031Script).isEqualTo("V031__server_identity_certificate_rotation.sql");
     }
 
     @Test
@@ -214,6 +227,7 @@ class FlywayMigrationIntegrationTest {
                 "api_idempotency_records",
                 "outbox_events",
                 "server_identities",
+                "server_identity_certificates",
                 "server_matches",
                 "admin_audit_events",
                 "server_audit_events",
@@ -239,6 +253,7 @@ class FlywayMigrationIntegrationTest {
         assertThat(indexExists("idx_server_audit_events_created_at")).isTrue();
         assertThat(indexExists("idx_match_profiles_fresh_dependency_lookup")).isTrue();
         assertThat(indexExists("idx_outfit_item_team_rules_lookup")).isTrue();
+        assertThat(indexExists("idx_server_identity_certificates_usable")).isTrue();
 
         Map<String, Object> activeCatalogIndex = uniquePartialIndex("uq_catalog_active_new_matches");
         assertThat(activeCatalogIndex.get("is_unique")).isEqualTo(true);
@@ -262,6 +277,7 @@ class FlywayMigrationIntegrationTest {
         assertThat(columnType("player_match_profiles", "payload")).isEqualTo("jsonb");
         assertThat(columnType("outbox_events", "payload")).isEqualTo("jsonb");
         assertThat(columnType("server_identities", "allowed_scopes")).isEqualTo("_text");
+        assertThat(columnType("server_identity_certificates", "certificate_fingerprint")).isEqualTo("text");
     }
 
     @Test
@@ -332,6 +348,13 @@ class FlywayMigrationIntegrationTest {
                   AND 'match_profile:read' = ANY(allowed_scopes)
                   AND 'runtime_preset_change:write' = ANY(allowed_scopes)
                   AND 'runtime_event:write' = ANY(allowed_scopes)
+                """)).isTrue();
+        assertThat(rowExists("""
+                SELECT 1
+                FROM server_identity_certificates
+                WHERE server_id = '10000000-0000-0000-0000-000000000001'
+                  AND certificate_fingerprint = 'dev-ds-fingerprint'
+                  AND status = 'active'
                 """)).isTrue();
         assertThat(rowExists("""
                 SELECT 1

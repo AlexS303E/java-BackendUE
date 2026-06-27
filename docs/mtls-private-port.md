@@ -13,7 +13,7 @@ Dedicated Server endpoints under `/server/*` use a separate private HTTPS connec
 - Private mTLS connector: `app.server-auth.mtls.port`, default `9443`.
 - Private connector TLS mode: `client-auth=need`.
 - `/server/*` requests are rejected unless they arrive on the private mTLS port when `app.server-auth.mtls.enabled=true`.
-- Backend computes the SHA-256 fingerprint from the TLS client certificate and compares it with `server_identities.certificate_fingerprint`.
+- Backend computes the SHA-256 fingerprint from the TLS client certificate and compares it with the current `server_identities.certificate_fingerprint` plus usable rows in `server_identity_certificates`.
 - `X-Server-Id` remains required to select the expected server identity.
 - `X-Server-Certificate-Fingerprint` is dev-only fallback and is ignored when mTLS is enabled.
 

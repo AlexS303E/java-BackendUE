@@ -25,6 +25,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -249,14 +251,21 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
                     "Server identity is not active or certificate fingerprint does not match"
             );
         }
-        String storedFingerprint = CertificateFingerprints.normalizeSha256Fingerprint(identityRecord.certificateFingerprint());
-        if (storedFingerprint == null || !storedFingerprint.equals(resolvedFingerprint)) {
+        if (!certificateMatches(identityRecord, resolvedFingerprint)) {
             return new ServerAuthenticationFailure(
                     "certificate_fingerprint_mismatch",
                     "Server identity is not active or certificate fingerprint does not match"
             );
         }
         return null;
+    }
+
+    private boolean certificateMatches(ServerIdentityRecord identityRecord, String resolvedFingerprint) {
+        Set<String> acceptedFingerprints = new HashSet<>(identityRecord.acceptedCertificateFingerprints());
+        acceptedFingerprints.add(identityRecord.certificateFingerprint());
+        return acceptedFingerprints.stream()
+                .map(CertificateFingerprints::normalizeSha256Fingerprint)
+                .anyMatch(resolvedFingerprint::equals);
     }
 
     private void recordAuthenticationFailure(

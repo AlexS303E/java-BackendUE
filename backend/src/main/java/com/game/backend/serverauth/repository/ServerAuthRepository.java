@@ -28,6 +28,7 @@ public class ServerAuthRepository extends JdbcRepository {
         String realmId,
         String serverBuildId,
         String certificateFingerprint,
+        Set<String> acceptedCertificateFingerprints,
         String status,
         Set<String> allowedScopes,
         OffsetDateTime expiresAt
@@ -90,17 +91,43 @@ public class ServerAuthRepository extends JdbcRepository {
     public List<ServerIdentityRecord> findServerIdentities(UUID serverId) {
         return query(
             """
-                SELECT server_id, realm_id, server_build_id, certificate_fingerprint, status, allowed_scopes, expires_at
-                FROM server_identities
-                WHERE server_id = ?
+                SELECT
+                  si.server_id,
+                  si.realm_id,
+                  si.server_build_id,
+                  si.certificate_fingerprint,
+                  ARRAY(
+                    SELECT sic.certificate_fingerprint
+                    FROM server_identity_certificates sic
+                    WHERE sic.server_id = si.server_id
+                      AND sic.revoked_at IS NULL
+                      AND (
+                        (
+                          sic.status = 'active'
+                          AND sic.valid_from <= NOW()
+                          AND sic.expires_at > NOW()
+                        )
+                        OR (
+                          sic.status = 'retiring'
+                          AND sic.grace_until IS NOT NULL
+                          AND sic.grace_until > NOW()
+                        )
+                      )
+                  ) AS accepted_certificate_fingerprints,
+                  si.status,
+                  si.allowed_scopes,
+                  si.expires_at
+                FROM server_identities si
+                WHERE si.server_id = ?
                 """,
             (rs, rowNum) -> new ServerIdentityRecord(
                 rs.getObject("server_id", UUID.class),
                 rs.getString("realm_id"),
                 rs.getString("server_build_id"),
                 rs.getString("certificate_fingerprint"),
+                textArray(rs.getArray("accepted_certificate_fingerprints")),
                 rs.getString("status"),
-                scopes(rs.getArray("allowed_scopes")),
+                textArray(rs.getArray("allowed_scopes")),
                 rs.getObject("expires_at", OffsetDateTime.class)
             ),
             serverId
@@ -157,7 +184,7 @@ public class ServerAuthRepository extends JdbcRepository {
         );
     }
 
-    private static Set<String> scopes(Array array) throws SQLException {
+    private static Set<String> textArray(Array array) throws SQLException {
         if (array == null) {
             return Set.of();
         }

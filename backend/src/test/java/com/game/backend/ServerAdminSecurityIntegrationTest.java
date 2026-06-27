@@ -93,6 +93,20 @@ class ServerAdminSecurityIntegrationTest {
     }
 
     @Test
+    void shouldAcceptActiveRotationCertificateFingerprint() throws Exception {
+        UUID playerId = registerPlayer();
+        UUID matchId = UUID.randomUUID();
+        String rotatingFingerprint = "rotation-" + UUID.randomUUID();
+        insertServerCertificate(DEV_SERVER_ID, rotatingFingerprint, "active", OffsetDateTime.now().minusMinutes(1), OffsetDateTime.now().plusDays(7), null);
+
+        mockMvc.perform(postJson("/server/match-profile/build", matchProfileBuildBody(matchId, playerId, "global", devServerBuildId()))
+                        .header("X-Server-Id", DEV_SERVER_ID.toString())
+                        .header("X-Server-Certificate-Fingerprint", rotatingFingerprint))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.player_id").value(playerId.toString()));
+    }
+
+    @Test
     void shouldRejectServerScopeRealmBuildAndMatchOwnershipViolations() throws Exception {
         UUID playerId = registerPlayer();
 
@@ -236,6 +250,37 @@ class ServerAdminSecurityIntegrationTest {
                 status,
                 OffsetDateTime.now(),
                 expiresAt
+        );
+    }
+
+    private void insertServerCertificate(
+            UUID serverId,
+            String fingerprint,
+            String status,
+            OffsetDateTime validFrom,
+            OffsetDateTime expiresAt,
+            OffsetDateTime graceUntil
+    ) {
+        jdbcTemplate.update(
+                """
+                    INSERT INTO server_identity_certificates(
+                      server_id,
+                      certificate_fingerprint,
+                      status,
+                      valid_from,
+                      expires_at,
+                      grace_until,
+                      created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                serverId,
+                fingerprint,
+                status,
+                validFrom,
+                expiresAt,
+                graceUntil,
+                OffsetDateTime.now()
         );
     }
 

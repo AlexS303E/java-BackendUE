@@ -150,7 +150,7 @@ components:
       type: apiKey
       in: header
       name: X-Server-Id
-      description: Server identity id. It is bound to the mTLS client certificate fingerprint stored in server_identities.certificate_fingerprint.
+      description: Server identity id. It is bound to the mTLS client certificate fingerprint stored in server_identities.certificate_fingerprint or server_identity_certificates during rotation/grace windows.
 
   parameters:
     server_id_header:

@@ -1,8 +1,9 @@
 # mTLS Operations
 
-Stage 1 uses a single active certificate fingerprint per `server_identities`
-row. Full overlapping multi-fingerprint rotation is intentionally deferred to
-Stage 2 hardening.
+Server identity rotation supports multiple accepted certificate fingerprints per
+`server_id` through `server_identity_certificates`. The legacy
+`server_identities.certificate_fingerprint` remains the current/primary
+fingerprint for compatibility with existing admin views and local scripts.
 
 ## Certificate Rotation Plan
 
@@ -17,27 +18,35 @@ Stage 2 hardening.
 
 ### Apply
 
-- Drain or pause new match assignment for the server identity being rotated.
-- Update `server_identities.certificate_fingerprint` for the target `server_id`
-  in the same maintenance window as DS certificate deployment.
-- Keep `status = 'active'` and preserve `allowed_scopes`, `realm_id`, and
-  `server_build_id` unless the rotation is part of a scope/build change.
-- Restart or reload the DS process so it uses the new private key/certificate.
+- Insert the new fingerprint into `server_identity_certificates` with
+  `status = 'active'`, `valid_from <= now()`, and its certificate `expires_at`.
+- Keep `server_identities.status = 'active'` and preserve `allowed_scopes`,
+  `realm_id`, and `server_build_id` unless the rotation is part of a
+  scope/build change.
+- Roll Dedicated Server instances so they start using the new private
+  key/certificate.
+- After rollout, update `server_identities.certificate_fingerprint` to the new
+  current fingerprint for compatibility surfaces.
+- Move the old row in `server_identity_certificates` to `status = 'retiring'`
+  and set `grace_until` to the end of the overlap window.
 
 ### Verify
 
 - Run `tools/mtls/run-mtls-smoke.ps1` against the private mTLS connector.
 - Confirm `/server/*` requests with the new certificate authenticate and reach
   request validation or business handling.
-- Confirm requests with the old certificate fail with
-  `certificate_fingerprint_mismatch` after the cutover.
+- During grace, confirm both old and new certificates authenticate.
+- After `grace_until`, confirm requests with the old certificate fail with
+  `certificate_fingerprint_mismatch`.
 - Check `server_audit_events` for denied attempts and successful server actions.
 
 ### Rollback
 
-- Reapply the previous known-good `certificate_fingerprint` for the same
-  `server_id`.
-- Restart or reload the DS process with the previous certificate material.
+- Set the previous known-good row in `server_identity_certificates` back to
+  `status = 'active'` and clear `revoked_at`.
+- Reapply the previous known-good `server_identities.certificate_fingerprint`
+  for the same `server_id` if the compatibility current pointer was advanced.
+- Roll the DS process back to the previous certificate material.
 - Re-run the mTLS smoke and record the rollback reason in the incident timeline.
 
 ## Revocation List
@@ -73,7 +82,6 @@ WHERE server_id = '<server-id>'
 
 ### Stage 2 Follow-Up
 
-- Add multi-fingerprint overlap and grace-period rotation.
 - Add CRL/OCSP or managed CA revocation distribution if infrastructure requires
   TLS-layer revocation before the application receives the request.
 - Add expiry/revocation metrics and alerts for server identities.

@@ -17,7 +17,10 @@ All `/server/*` endpoints still require:
 - `X-Server-Id`
 - a resolved client certificate fingerprint from the mTLS request, or dev/test header fallback only when explicitly enabled
 - active, non-expired `server_identities` row
-- exact certificate fingerprint match
+- certificate fingerprint match against either the compatibility current
+  `server_identities.certificate_fingerprint` or a usable
+  `server_identity_certificates` row (`active`, or `retiring` before
+  `grace_until`)
 - required endpoint scope
 - match assignment / realm / build validation in the server operation services
 
