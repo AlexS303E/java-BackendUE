@@ -16,6 +16,7 @@ Dedicated Server endpoints under `/server/*` use a separate private HTTPS connec
 - Backend computes the SHA-256 fingerprint from the TLS client certificate and compares it with the current `server_identities.certificate_fingerprint` plus usable rows in `server_identity_certificates`.
 - `X-Server-Id` remains required to select the expected server identity.
 - `X-Server-Certificate-Fingerprint` is dev-only fallback and is ignored when mTLS is enabled.
+- Production deployment rules for internal routing, ingress/proxy mTLS termination, and secret-backed keystore/truststore handling are tracked in `docs/production-deployment.md`.
 
 ## Configuration
 

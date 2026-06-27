@@ -62,7 +62,7 @@ Goal: prepare server identity management for real operations.
 Goal: remove local-only shortcuts and document the production deployment shape.
 
 - Remove the header fingerprint fallback from production profiles and later from the final API contract.
-- Document internal-network/private-port deployment expectations.
-- Document ingress/proxy mTLS termination rules if used.
-- Move keystore/truststore handling to secret management such as Vault/KMS.
+- [x] Document internal-network/private-port deployment expectations.
+- [x] Document ingress/proxy mTLS termination rules if used.
+- [x] Document keystore/truststore secret management requirements such as Vault/KMS.
 - Finalize OpenAPI after deprecated fallback removal.
