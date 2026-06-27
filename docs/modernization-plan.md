@@ -52,7 +52,7 @@ Evidence: `ServerAdminSecurityIntegrationTest`, `MatchProfileBuildIntegrationTes
 Goal: prepare server identity management for real operations.
 
 - Add certificate rotation model with multiple active fingerprints and a grace period.
-- Add explicit certificate expiry/revocation checks in tests and admin status surfaces.
+- [x] Add explicit certificate expiry/revocation checks in tests and admin status surfaces.
 - [x] Add auth failure metrics for missing certificate, fingerprint mismatch, expired identity, revoked identity, wrong port, and scope denial.
 - [x] Add structured logs for missing certificate, fingerprint mismatch, expired identity, revoked identity, wrong port, and scope denial.
 - [x] Add rate limiting by `server_id`.

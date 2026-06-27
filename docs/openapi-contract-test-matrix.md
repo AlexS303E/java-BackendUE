@@ -30,7 +30,7 @@
 | Endpoint | Check |
 |---|---|
 | `GET /admin/status/overview` | requires `X-Admin-Token` |
-| `GET /admin/status/servers` | requires `X-Admin-Token` |
+| `GET /admin/status/servers` | requires `X-Admin-Token`, exposes server identity expiry/revocation status |
 | `GET /admin/status/matches` | requires `X-Admin-Token` |
 | `GET /admin/status/recent-audit` | requires `X-Admin-Token` |
 | `GET /admin/status/players/search` | requires `X-Admin-Token`, supports query filter |

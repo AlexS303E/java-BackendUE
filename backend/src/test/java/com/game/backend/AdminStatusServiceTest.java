@@ -7,8 +7,11 @@ import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -56,11 +59,46 @@ class AdminStatusServiceTest {
         verify(repository, never()).searchPlayersByLogin(org.mockito.ArgumentMatchers.anyString());
     }
 
+    @Test
+    void serversShouldExposeCertificateExpiryAndRevocationState() {
+        OffsetDateTime now = OffsetDateTime.now();
+        when(repository.listServers()).thenReturn(List.of(
+            serverRow("active", now.plusDays(30), null),
+            serverRow("active", now.plusDays(2), null),
+            serverRow("active", now.minusMinutes(1), null),
+            serverRow("revoked", now.plusDays(30), now.minusMinutes(1))
+        ));
+
+        List<Map<String, Object>> servers = service.servers();
+
+        assertThat(servers).extracting(row -> row.get("effectiveAuthState"))
+            .containsExactly("active", "expiring_soon", "expired", "revoked");
+        assertThat(servers).extracting(row -> row.get("certificateExpired"))
+            .containsExactly(false, false, true, false);
+        assertThat(servers).extracting(row -> row.get("certificateExpiresSoon"))
+            .containsExactly(false, true, false, false);
+        assertThat(servers).extracting(row -> row.get("revoked"))
+            .containsExactly(false, false, false, true);
+    }
+
     private StringRedisTemplate redisDownTemplate() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         RedisConnectionFactory connectionFactory = mock(RedisConnectionFactory.class);
         when(redisTemplate.getConnectionFactory()).thenReturn(connectionFactory);
         when(connectionFactory.getConnection()).thenThrow(new RedisConnectionFailureException("redis down"));
         return redisTemplate;
+    }
+
+    private Map<String, Object> serverRow(String status, OffsetDateTime expiresAt, OffsetDateTime revokedAt) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("serverId", UUID.randomUUID());
+        row.put("realmId", "global");
+        row.put("serverBuildId", "dev-build");
+        row.put("status", status);
+        row.put("allowedScopes", List.of("runtime_event:write"));
+        row.put("createdAt", OffsetDateTime.now().minusDays(1));
+        row.put("expiresAt", expiresAt);
+        row.put("revokedAt", revokedAt);
+        return row;
     }
 }

@@ -21,6 +21,8 @@ import java.util.UUID;
  */
 @Service
 public class AdminStatusService {
+    private static final Duration CERTIFICATE_EXPIRY_WARNING_WINDOW = Duration.ofDays(14);
+
     private final AdminRepository repository;
     private final StringRedisTemplate redisTemplate;
     private final OffsetDateTime startedAt;
@@ -54,7 +56,11 @@ public class AdminStatusService {
     }
 
     public List<Map<String, Object>> servers() {
-        return repository.listServers();
+        OffsetDateTime now = OffsetDateTime.now();
+        return repository.listServers()
+            .stream()
+            .map(row -> serverStatusRow(row, now))
+            .toList();
     }
 
     public List<Map<String, Object>> matches() {
@@ -141,5 +147,35 @@ public class AdminStatusService {
             return minutes + "m " + remainingSeconds + "s";
         }
         return remainingSeconds + "s";
+    }
+
+    private Map<String, Object> serverStatusRow(Map<String, Object> source, OffsetDateTime now) {
+        Map<String, Object> row = new LinkedHashMap<>(source);
+        OffsetDateTime expiresAt = (OffsetDateTime) row.get("expiresAt");
+        OffsetDateTime revokedAt = (OffsetDateTime) row.get("revokedAt");
+        String status = (String) row.get("status");
+
+        boolean revoked = revokedAt != null || "revoked".equals(status);
+        boolean expired = expiresAt == null || !expiresAt.isAfter(now) || "expired".equals(status);
+        boolean expiresSoon = !expired && Duration.between(now, expiresAt).compareTo(CERTIFICATE_EXPIRY_WARNING_WINDOW) <= 0;
+
+        row.put("revoked", revoked);
+        row.put("certificateExpired", expired);
+        row.put("certificateExpiresSoon", expiresSoon);
+        row.put("effectiveAuthState", effectiveAuthState(status, revoked, expired, expiresSoon));
+        return row;
+    }
+
+    private String effectiveAuthState(String status, boolean revoked, boolean expired, boolean expiresSoon) {
+        if (revoked) {
+            return "revoked";
+        }
+        if (expired) {
+            return "expired";
+        }
+        if (!"active".equals(status)) {
+            return "inactive";
+        }
+        return expiresSoon ? "expiring_soon" : "active";
     }
 }

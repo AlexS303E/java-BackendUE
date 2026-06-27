@@ -22,6 +22,7 @@
 - [x] **Private port required in prod profile** — `application-prod.yml` defaults `require-private-port=true`; startup fail-fast enforces it.
 - [x] **Certificate rotation plan** — Stage 1 single-fingerprint rotation procedure is documented in `docs/mtls-operations.md`; multi-fingerprint grace rotation is deferred to Stage 2.
 - [x] **Revocation list** — application-level revocation uses `server_identities.status/revoked_at` and admin revoke flow; covered by `ServerAdminSecurityIntegrationTest`, `AdminParityIntegrationTest`, and `docs/mtls-operations.md`.
+- [x] **Certificate expiry/revocation status** — admin server status exposes effective auth state and derived expiry/revocation flags; covered by `AdminStatusServiceTest`.
 - [x] **mTLS timeout** — private mTLS connector has explicit `SERVER_MTLS_CONNECTION_TIMEOUT` defaulting to 5s; covered by `ServerMtlsHardeningValidatorTest`.
 
 ### General

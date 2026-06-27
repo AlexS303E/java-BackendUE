@@ -790,6 +790,15 @@ components:
           type: string
           format: date-time
           nullable: true
+        revoked:
+          type: boolean
+        certificate_expired:
+          type: boolean
+        certificate_expires_soon:
+          type: boolean
+        effective_auth_state:
+          type: string
+          enum: [active, expiring_soon, expired, revoked, inactive]
 
     AdminMatchesResponse:
       type: object
