@@ -55,7 +55,15 @@ public class PrivateMtlsTomcatConnectorConfig {
 
         Http11NioProtocol protocol = (Http11NioProtocol) connector.getProtocolHandler();
         protocol.setSSLEnabled(true);
-        protocol.setConnectionTimeout(connectionTimeoutMillis());
+        protocol.setConnectionTimeout(timeoutMillis(
+                properties.getConnectionTimeout(),
+                "app.server-auth.mtls.connection-timeout"
+        ));
+        protocol.setKeepAliveTimeout(timeoutMillis(
+                properties.getKeepAliveTimeout(),
+                "app.server-auth.mtls.keep-alive-timeout"
+        ));
+        protocol.setMaxKeepAliveRequests(maxKeepAliveRequests());
 
         SSLHostConfig sslHostConfig = new SSLHostConfig();
         sslHostConfig.setHostName(DEFAULT_SSL_HOST_CONFIG_NAME);
@@ -86,12 +94,18 @@ public class PrivateMtlsTomcatConnectorConfig {
         return connector;
     }
 
-    private int connectionTimeoutMillis() {
-        Duration timeout = properties.getConnectionTimeout();
+    private int timeoutMillis(Duration timeout, String propertyName) {
         if (timeout == null || timeout.isZero() || timeout.isNegative()) {
-            throw new IllegalStateException("app.server-auth.mtls.connection-timeout must be positive");
+            throw new IllegalStateException(propertyName + " must be positive");
         }
         return Math.toIntExact(timeout.toMillis());
+    }
+
+    private int maxKeepAliveRequests() {
+        if (properties.getMaxKeepAliveRequests() <= 0) {
+            throw new IllegalStateException("app.server-auth.mtls.max-keep-alive-requests must be positive");
+        }
+        return properties.getMaxKeepAliveRequests();
     }
 
     private String resolveToFilePath(String location) {

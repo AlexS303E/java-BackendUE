@@ -41,6 +41,8 @@ public class ServerMtlsProperties {
     private String sslProtocol = "TLS";
     private String enabledProtocols = "TLSv1.3,TLSv1.2";
     private Duration connectionTimeout = Duration.ofSeconds(5);
+    private Duration keepAliveTimeout = Duration.ofSeconds(30);
+    private int maxKeepAliveRequests = 100;
 
     public boolean isEnabled() {
         return enabled;
@@ -152,5 +154,21 @@ public class ServerMtlsProperties {
 
     public void setConnectionTimeout(Duration connectionTimeout) {
         this.connectionTimeout = connectionTimeout;
+    }
+
+    public Duration getKeepAliveTimeout() {
+        return keepAliveTimeout;
+    }
+
+    public void setKeepAliveTimeout(Duration keepAliveTimeout) {
+        this.keepAliveTimeout = keepAliveTimeout;
+    }
+
+    public int getMaxKeepAliveRequests() {
+        return maxKeepAliveRequests;
+    }
+
+    public void setMaxKeepAliveRequests(int maxKeepAliveRequests) {
+        this.maxKeepAliveRequests = maxKeepAliveRequests;
     }
 }

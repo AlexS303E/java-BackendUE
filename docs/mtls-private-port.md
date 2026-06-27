@@ -34,6 +34,8 @@ SERVER_MTLS_TRUST_STORE=file:tools/mtls/out/backend-truststore.p12
 SERVER_MTLS_TRUST_STORE_PASSWORD=changeit
 SERVER_MTLS_TRUST_STORE_TYPE=PKCS12
 SERVER_MTLS_CONNECTION_TIMEOUT=5s
+SERVER_MTLS_KEEP_ALIVE_TIMEOUT=30s
+SERVER_MTLS_MAX_KEEP_ALIVE_REQUESTS=100
 ```
 
 ## Dev certificates
@@ -66,7 +68,11 @@ curl.exe -k `
 
 The request body above is intentionally incomplete; it should fail validation after mTLS/auth succeeds.
 
-## Timeout
+## Timeouts and keep-alive
 
 The private connector uses `app.server-auth.mtls.connection-timeout`, default
 `5s`, to bound private-port connection establishment and TLS handshakes.
+It also sets `app.server-auth.mtls.keep-alive-timeout`, default `30s`, and
+`app.server-auth.mtls.max-keep-alive-requests`, default `100`, so Dedicated
+Server clients can reuse TLS connections instead of paying a handshake on every
+`/server/*` request.

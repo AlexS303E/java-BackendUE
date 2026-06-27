@@ -13,6 +13,7 @@ Required profile:
 - Mixed smoke run after isolation runs.
 - Results must identify the backend commit, host specification, database state, and test date.
 - Results must record the effective CPU/memory limits and `JAVA_TOOL_OPTIONS` from the production resource envelope.
+- Results must record whether Dedicated Server clients reuse HTTP keep-alive connections for mTLS `/server/*` traffic.
 
 The match-profile release target is p95 below 300 ms. A result above that target is evidence for optimization,
 not a passing baseline.

@@ -31,6 +31,8 @@ class OperationalTimeoutConfigurationTest {
     @Test
     void shouldExposeOperationalTimeoutDefaults() {
         assertThat(environment.getProperty("server.tomcat.connection-timeout")).isEqualTo("5s");
+        assertThat(environment.getProperty("server.tomcat.keep-alive-timeout")).isEqualTo("30s");
+        assertThat(environment.getProperty("server.tomcat.max-keep-alive-requests")).isEqualTo("100");
         assertThat(environment.getProperty("server.tomcat.mbeanregistry.enabled")).isEqualTo("true");
         assertThat(environment.getProperty("spring.datasource.hikari.connection-timeout")).isEqualTo("5000");
         assertThat(environment.getProperty("spring.datasource.hikari.maximum-pool-size")).isEqualTo("30");
@@ -51,6 +53,8 @@ class OperationalTimeoutConfigurationTest {
         assertThat(productionConfig)
             .contains("port: ${MANAGEMENT_SERVER_PORT:8081}")
             .contains("address: ${MANAGEMENT_SERVER_ADDRESS:0.0.0.0}")
+            .contains("keep-alive-timeout: ${HTTP_KEEP_ALIVE_TIMEOUT:30s}")
+            .contains("max-keep-alive-requests: ${HTTP_MAX_KEEP_ALIVE_REQUESTS:100}")
             .contains("include: health,info")
             .doesNotContain("include: health,info,metrics,prometheus");
     }

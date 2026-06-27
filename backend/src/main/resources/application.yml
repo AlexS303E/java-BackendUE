@@ -26,6 +26,8 @@ server:
   port: 8080
   tomcat:
     connection-timeout: ${HTTP_CONNECTION_TIMEOUT:5s}
+    keep-alive-timeout: ${HTTP_KEEP_ALIVE_TIMEOUT:30s}
+    max-keep-alive-requests: ${HTTP_MAX_KEEP_ALIVE_REQUESTS:100}
     mbeanregistry:
       enabled: ${TOMCAT_MBEAN_REGISTRY_ENABLED:true}
 
@@ -91,3 +93,5 @@ app:
       ssl-protocol: ${SERVER_MTLS_SSL_PROTOCOL:TLS}
       enabled-protocols: ${SERVER_MTLS_ENABLED_PROTOCOLS:TLSv1.3,TLSv1.2}
       connection-timeout: ${SERVER_MTLS_CONNECTION_TIMEOUT:5s}
+      keep-alive-timeout: ${SERVER_MTLS_KEEP_ALIVE_TIMEOUT:30s}
+      max-keep-alive-requests: ${SERVER_MTLS_MAX_KEEP_ALIVE_REQUESTS:100}

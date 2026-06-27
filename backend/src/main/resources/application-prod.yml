@@ -1,5 +1,8 @@
 server:
   shutdown: graceful
+  tomcat:
+    keep-alive-timeout: ${HTTP_KEEP_ALIVE_TIMEOUT:30s}
+    max-keep-alive-requests: ${HTTP_MAX_KEEP_ALIVE_REQUESTS:100}
 
 management:
   server:
@@ -51,3 +54,5 @@ app:
       trust-store: ${SERVER_MTLS_TRUST_STORE}
       trust-store-password: ${SERVER_MTLS_TRUST_STORE_PASSWORD}
       connection-timeout: ${SERVER_MTLS_CONNECTION_TIMEOUT:5s}
+      keep-alive-timeout: ${SERVER_MTLS_KEEP_ALIVE_TIMEOUT:30s}
+      max-keep-alive-requests: ${SERVER_MTLS_MAX_KEEP_ALIVE_REQUESTS:100}

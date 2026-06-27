@@ -16,6 +16,8 @@ class ServerMtlsHardeningValidatorTest {
         ServerMtlsProperties properties = new ServerMtlsProperties();
 
         assertThat(properties.getConnectionTimeout()).isEqualTo(Duration.ofSeconds(5));
+        assertThat(properties.getKeepAliveTimeout()).isEqualTo(Duration.ofSeconds(30));
+        assertThat(properties.getMaxKeepAliveRequests()).isEqualTo(100);
     }
 
     @Test
@@ -62,6 +64,8 @@ class ServerMtlsHardeningValidatorTest {
         properties.setRequirePrivatePort(true);
         properties.setAllowHeaderFingerprintFallback(false);
         properties.setConnectionTimeout(Duration.ofSeconds(5));
+        properties.setKeepAliveTimeout(Duration.ofSeconds(30));
+        properties.setMaxKeepAliveRequests(100);
         return properties;
     }
 }

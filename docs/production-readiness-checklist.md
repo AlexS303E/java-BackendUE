@@ -142,7 +142,7 @@
 ### Infrastructure
 - [x] **CPU/Memory sizing** — Stage 1 backend envelope is 2/4 vCPU request/limit and 1536/2048 MiB memory with a 60% heap cap; preflight, prod smoke, and re-sizing triggers are documented and covered by `ResourceEnvelopeTest`.
 - [x] **Disk** — audit tables have TTL cleanup in prod profile; monitor retained window growth and tune `AUDIT_*_RETENTION`.
-- [ ] **Network** — mTLS adds ~5-10ms per handshake. Reuse connections (keep-alive).
+- [x] **Network** — HTTP and private mTLS connectors use explicit keep-alive defaults (`30s`, `100` requests) so DS clients can reuse TLS connections; covered by `OperationalTimeoutConfigurationTest` and `PrivateMtlsTomcatConnectorConfigTest`.
 
 ### Environment
 - [x] **application-prod.yml** — created. It externalizes JWT/admin secrets and forces mTLS private-port settings. Datasource/Redis still use environment-backed placeholders from base config.
