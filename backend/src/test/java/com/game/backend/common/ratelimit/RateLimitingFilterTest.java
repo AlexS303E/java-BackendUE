@@ -36,6 +36,10 @@ class RateLimitingFilterTest {
         assertThat(doRequest(filter, "/server/runtime-events", "10.0.0.1", "server-b", null).status()).isEqualTo(200);
 
         assertThat(doRequest(filter, "/server/runtime-events", "10.0.0.1", "server-a", null).status()).isEqualTo(429);
+
+        RateLimitingFilter anotherFilter = filter(true, 10, 1, 10);
+        assertThat(doRequest(anotherFilter, "/server/runtime-events", "10.0.0.1", "server-c", null).status()).isEqualTo(200);
+        assertThat(doRequest(anotherFilter, "/server/runtime-events", "10.0.0.2", "server-c", null).status()).isEqualTo(429);
     }
 
     @Test
