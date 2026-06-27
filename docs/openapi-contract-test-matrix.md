@@ -48,12 +48,12 @@
 | `POST /admin/access/rebuild-projection` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`; rebuilds from entitlement ledger |
 | `POST /admin/cache/invalidate-player` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`; records cache invalidation |
 | `POST /admin/server-identities/revoke` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`; revokes server identity |
-| `POST /admin/catalog/publish` | requires `X-Admin-Token`, `X-Admin-Confirm`; validates rollout and catalog lifecycle constraints |
-| `POST /admin/catalog/rollback` | requires `X-Admin-Token`, `X-Admin-Confirm`; validates rollback target and lifecycle constraints |
-| `POST /admin/control/players/{player_id}/invalidate-cache` | requires `X-Admin-Token`, `X-Admin-Confirm` |
-| `POST /admin/control/server-identities/{server_id}/revoke` | requires `X-Admin-Token`, `X-Admin-Confirm` |
-| `POST /admin/control/outbox/retry-failed` | requires `X-Admin-Token`, `X-Admin-Confirm` |
-| `POST /admin/control/players/{player_id}/weapon-access` | requires `X-Admin-Token`, `X-Admin-Confirm` |
+| `POST /admin/catalog/publish` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`; validates rollout and catalog lifecycle constraints |
+| `POST /admin/catalog/rollback` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`; validates rollback target and lifecycle constraints |
+| `POST /admin/control/players/{player_id}/invalidate-cache` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key` |
+| `POST /admin/control/server-identities/{server_id}/revoke` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key` |
+| `POST /admin/control/outbox/retry-failed` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key` |
+| `POST /admin/control/players/{player_id}/weapon-access` | requires `X-Admin-Token`, `X-Admin-Confirm`, `Idempotency-Key`, reason/comment audit context |
 
 ## Error model
 

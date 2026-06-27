@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -25,9 +26,10 @@ public class AdminCatalogController {
     @PostMapping("/admin/catalog/publish")
     CatalogLifecycleResponse publish(
         Authentication authentication,
+        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody CatalogPublishRequest request
     ) {
-        return catalogLifecycleService.publish(CurrentAdmin.require(authentication), request);
+        return catalogLifecycleService.publish(CurrentAdmin.require(authentication), idempotencyKey, request);
     }
 
     /**
@@ -36,8 +38,9 @@ public class AdminCatalogController {
     @PostMapping("/admin/catalog/rollback")
     CatalogLifecycleResponse rollback(
         Authentication authentication,
+        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody CatalogRollbackRequest request
     ) {
-        return catalogLifecycleService.rollback(CurrentAdmin.require(authentication), request);
+        return catalogLifecycleService.rollback(CurrentAdmin.require(authentication), idempotencyKey, request);
     }
 }

@@ -23,6 +23,7 @@ import java.util.UUID;
 public class AdminControlService {
     private final AdminRepository repository;
     private final AdminPlayerAccessService adminPlayerAccessService;
+    private final AdminMutationIdempotencyService idempotencyService;
     private final AdminStatusService adminStatusService;
     private final AdminAuditService adminAuditService;
     private final MatchProfileInvalidationService matchProfileInvalidationService;
@@ -30,12 +31,14 @@ public class AdminControlService {
     public AdminControlService(
         AdminRepository repository,
         AdminPlayerAccessService adminPlayerAccessService,
+        AdminMutationIdempotencyService idempotencyService,
         AdminStatusService adminStatusService,
         AdminAuditService adminAuditService,
         MatchProfileInvalidationService matchProfileInvalidationService
     ) {
         this.repository = repository;
         this.adminPlayerAccessService = adminPlayerAccessService;
+        this.idempotencyService = idempotencyService;
         this.adminStatusService = adminStatusService;
         this.adminAuditService = adminAuditService;
         this.matchProfileInvalidationService = matchProfileInvalidationService;
@@ -44,8 +47,20 @@ public class AdminControlService {
     /**
      * Ручная инвалидация profile snapshots игрока из dashboard.
      */
+    public Map<String, Object> invalidatePlayerCache(AdminIdentity admin, String idempotencyKey, UUID playerId) {
+        return idempotencyService.execute(
+            admin,
+            "admin.control.player_cache.invalidate",
+            "/admin/control/players/{player_id}/invalidate-cache",
+            idempotencyKey,
+            Map.of("player_id", playerId),
+            Map.class,
+            () -> invalidatePlayerCacheOnce(admin, playerId)
+        );
+    }
+
     @Transactional
-    public Map<String, Object> invalidatePlayerCache(AdminIdentity admin, UUID playerId) {
+    protected Map<String, Object> invalidatePlayerCacheOnce(AdminIdentity admin, UUID playerId) {
         OffsetDateTime now = OffsetDateTime.now();
         UUID eventId = UUID.randomUUID();
         int staleProfiles = matchProfileInvalidationService.invalidateForPlayer(
@@ -72,8 +87,20 @@ public class AdminControlService {
     /**
      * Отзывает active/expired server identity и фиксирует admin audit.
      */
+    public Map<String, Object> revokeServerIdentity(AdminIdentity admin, String idempotencyKey, UUID serverId) {
+        return idempotencyService.execute(
+            admin,
+            "admin.control.server_identity.revoke",
+            "/admin/control/server-identities/{server_id}/revoke",
+            idempotencyKey,
+            Map.of("server_id", serverId),
+            Map.class,
+            () -> revokeServerIdentityOnce(admin, serverId)
+        );
+    }
+
     @Transactional
-    public Map<String, Object> revokeServerIdentity(AdminIdentity admin, UUID serverId) {
+    protected Map<String, Object> revokeServerIdentityOnce(AdminIdentity admin, UUID serverId) {
         int updated = repository.revokeServerIdentity(serverId, OffsetDateTime.now());
         adminAuditService.record(
             admin,
@@ -96,8 +123,20 @@ public class AdminControlService {
     /**
      * Возвращает failed outbox events в pending для повторной обработки worker-ом.
      */
+    public Map<String, Object> retryFailedOutbox(AdminIdentity admin, String idempotencyKey) {
+        return idempotencyService.execute(
+            admin,
+            "admin.control.outbox.retry_failed",
+            "/admin/control/outbox/retry-failed",
+            idempotencyKey,
+            Map.of("action", "retry_failed"),
+            Map.class,
+            () -> retryFailedOutboxOnce(admin)
+        );
+    }
+
     @Transactional
-    public Map<String, Object> retryFailedOutbox(AdminIdentity admin) {
+    protected Map<String, Object> retryFailedOutboxOnce(AdminIdentity admin) {
         OffsetDateTime now = OffsetDateTime.now();
         int retried = repository.retryFailedOutboxEvents(now);
         adminAuditService.record(
@@ -117,13 +156,13 @@ public class AdminControlService {
      */
     public AdminItemAccessUpdateResponse changeWeaponAccess(
         AdminIdentity admin,
+        String idempotencyKey,
         UUID playerId,
         AdminWeaponAccessControlRequest request
     ) {
         Map<String, Object> current = adminStatusService.weaponAccess(playerId, request.weaponId(), request.catalogVersion());
         AccessFlags flags = AccessFlags.from(current);
         AccessFlags updated = flags.apply(request.action(), request);
-        String idempotencyKey = "dashboard:" + UUID.randomUUID();
 
         AdminItemAccessUpdateRequest updateRequest = new AdminItemAccessUpdateRequest(
             request.catalogVersion(),

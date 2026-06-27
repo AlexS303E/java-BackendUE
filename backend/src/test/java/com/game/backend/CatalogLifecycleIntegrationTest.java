@@ -175,6 +175,17 @@ class CatalogLifecycleIntegrationTest {
                 .isEqualTo("manual");
     }
 
+    @Test
+    void shouldRequireIdempotencyKeyForCatalogWriteActions() throws Exception {
+        mockMvc.perform(post("/admin/catalog/publish")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(publishBody(1L, "missing idempotency key")))
+                        .header("X-Admin-Token", ADMIN_TOKEN)
+                        .header("X-Admin-Confirm", "true"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REQUIRED"));
+    }
+
     private UUID registerPlayer() throws Exception {
         String loginName = "catalog_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         JsonNode registered = json(
@@ -676,6 +687,7 @@ class CatalogLifecycleIntegrationTest {
                 .content(objectMapper.writeValueAsString(body));
         if (url.startsWith("/admin/")) {
             builder.header("X-Admin-Confirm", "true");
+            builder.header("Idempotency-Key", UUID.randomUUID().toString());
         }
         return builder;
     }

@@ -16,6 +16,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.admin.application.AdminAuditService;
 import com.game.backend.admin.application.AdminIdentity;
+import com.game.backend.admin.application.AdminMutationIdempotencyService;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.catalog.api.CatalogLifecycleResponse;
 import com.game.backend.catalog.api.CatalogPublishRequest;
@@ -50,6 +51,7 @@ public class CatalogLifecycleService {
 
     private final CatalogRepository repository;
     private final ObjectMapper objectMapper;
+    private final AdminMutationIdempotencyService idempotencyService;
     private final AdminAuditService adminAuditService;
     private final OutboxService outboxService;
     private final RedisCacheService cacheService;
@@ -58,6 +60,7 @@ public class CatalogLifecycleService {
     public CatalogLifecycleService(
         CatalogRepository repository,
         ObjectMapper objectMapper,
+        AdminMutationIdempotencyService idempotencyService,
         AdminAuditService adminAuditService,
         OutboxService outboxService,
         RedisCacheService cacheService,
@@ -65,6 +68,7 @@ public class CatalogLifecycleService {
     ) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.idempotencyService = idempotencyService;
         this.adminAuditService = adminAuditService;
         this.outboxService = outboxService;
         this.cacheService = cacheService;
@@ -74,8 +78,20 @@ public class CatalogLifecycleService {
     /**
      * Публикует validated/canary catalog_version как единственную active для новых матчей realm.
      */
+    public CatalogLifecycleResponse publish(AdminIdentity admin, String idempotencyKey, CatalogPublishRequest request) {
+        return idempotencyService.execute(
+            admin,
+            "admin.catalog.publish",
+            "/admin/catalog/publish",
+            idempotencyKey,
+            request,
+            CatalogLifecycleResponse.class,
+            () -> publishOnce(admin, request)
+        );
+    }
+
     @Transactional
-    public CatalogLifecycleResponse publish(AdminIdentity admin, CatalogPublishRequest request) {
+    protected CatalogLifecycleResponse publishOnce(AdminIdentity admin, CatalogPublishRequest request) {
         UUID operationId = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now();
         String realmId = normalize(request.realmId(), "realm_id");
@@ -137,8 +153,20 @@ public class CatalogLifecycleService {
     /**
      * Откатывает realm к previous deployment или к явно указанной версии каталога.
      */
+    public CatalogLifecycleResponse rollback(AdminIdentity admin, String idempotencyKey, CatalogRollbackRequest request) {
+        return idempotencyService.execute(
+            admin,
+            "admin.catalog.rollback",
+            "/admin/catalog/rollback",
+            idempotencyKey,
+            request,
+            CatalogLifecycleResponse.class,
+            () -> rollbackOnce(admin, request)
+        );
+    }
+
     @Transactional
-    public CatalogLifecycleResponse rollback(AdminIdentity admin, CatalogRollbackRequest request) {
+    protected CatalogLifecycleResponse rollbackOnce(AdminIdentity admin, CatalogRollbackRequest request) {
         UUID operationId = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now();
         String realmId = normalize(request.realmId(), "realm_id");

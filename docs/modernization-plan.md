@@ -66,3 +66,12 @@ Goal: remove local-only shortcuts and document the production deployment shape.
 - [x] Document ingress/proxy mTLS termination rules if used.
 - [x] Document keystore/truststore secret management requirements such as Vault/KMS.
 - [x] Finalize OpenAPI after deprecated fallback removal.
+
+## Block 6 - Admin write hardening
+
+Goal: make all admin write-actions replay-safe and contract-visible before dashboard write expansion.
+
+- [x] Require `Idempotency-Key` for every `POST /admin/*` operation.
+- [x] Cover admin POST idempotency in OpenAPI and the contract matrix.
+- [ ] Require explicit reason/comment bodies for legacy `/admin/control/*` write-actions.
+- [ ] Add audit request hash coverage for legacy `/admin/control/*` write-actions.

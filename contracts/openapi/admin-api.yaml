@@ -466,6 +466,7 @@ paths:
       summary: Publish a validated/canary catalog version for new matches in a realm.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
         content:
@@ -495,6 +496,7 @@ paths:
       summary: Roll a realm back to the previous or explicitly selected catalog deployment.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
         content:
@@ -524,6 +526,7 @@ paths:
       summary: Invalidate player cache.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
         - $ref: '#/components/parameters/player_id_path'
       responses:
         '200':
@@ -542,6 +545,7 @@ paths:
       summary: Revoke a server identity.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
         - $ref: '#/components/parameters/server_id_path'
       responses:
         '200':
@@ -562,6 +566,7 @@ paths:
       summary: Retry failed outbox events.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
       responses:
         '200':
           description: Failed outbox events scheduled for retry.
@@ -579,6 +584,7 @@ paths:
       summary: Rebuild player weapon access projection.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/idempotency_key_header'
         - $ref: '#/components/parameters/player_id_path'
       requestBody:
         required: true

@@ -16,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class OpenApiContractMatrixTest {
     private static final Path OPENAPI_ROOT = Path.of("..", "contracts", "openapi");
+    private static final Path ADMIN_API = OPENAPI_ROOT.resolve("admin-api.yaml");
     private static final Path MATRIX = Path.of("..", "docs", "openapi-contract-test-matrix.md");
     private static final Pattern OPENAPI_PATH = Pattern.compile("^  (/[^:]+):\\s*$");
     private static final Pattern OPENAPI_METHOD = Pattern.compile("^    (get|post|put|patch|delete):\\s*$");
@@ -61,6 +62,55 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void adminWriteOperationsDocumentIdempotencyKey() throws IOException {
+        Set<String> missingIdempotency = new LinkedHashSet<>();
+
+        for (String line : Files.readAllLines(MATRIX)) {
+            Matcher matcher = MATRIX_ENDPOINT.matcher(line);
+            if (!matcher.find()) {
+                continue;
+            }
+
+            String method = matcher.group(1);
+            String endpoint = matcher.group(2);
+            if ("POST".equals(method) && endpoint.startsWith("/admin/") && !line.contains("Idempotency-Key")) {
+                missingIdempotency.add(method + " " + endpoint);
+            }
+        }
+
+        assertThat(missingIdempotency)
+            .as("Admin write actions must document the Idempotency-Key contract")
+            .isEmpty();
+    }
+
+    @Test
+    void adminOpenApiPostOperationsRequireIdempotencyKey() throws IOException {
+        Set<String> missingIdempotency = new LinkedHashSet<>();
+        List<String> lines = Files.readAllLines(ADMIN_API);
+
+        for (int index = 0; index < lines.size(); index++) {
+            Matcher pathMatcher = OPENAPI_PATH.matcher(lines.get(index));
+            if (!pathMatcher.matches() || !pathMatcher.group(1).startsWith("/admin/")) {
+                continue;
+            }
+
+            String path = pathMatcher.group(1);
+            if (index + 1 >= lines.size() || !lines.get(index + 1).trim().equals("post:")) {
+                continue;
+            }
+
+            String block = operationBlock(lines, index + 1);
+            if (!block.contains("#/components/parameters/idempotency_key_header")) {
+                missingIdempotency.add("POST " + path);
+            }
+        }
+
+        assertThat(missingIdempotency)
+            .as("Admin POST operations in OpenAPI must require Idempotency-Key")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -93,5 +143,17 @@ class OpenApiContractMatrixTest {
         }
 
         return operations;
+    }
+
+    private static String operationBlock(List<String> lines, int methodLineIndex) {
+        StringBuilder block = new StringBuilder();
+        for (int index = methodLineIndex; index < lines.size(); index++) {
+            String line = lines.get(index);
+            if (index > methodLineIndex && (OPENAPI_PATH.matcher(line).matches() || OPENAPI_METHOD.matcher(line).matches())) {
+                break;
+            }
+            block.append(line).append('\n');
+        }
+        return block.toString();
     }
 }

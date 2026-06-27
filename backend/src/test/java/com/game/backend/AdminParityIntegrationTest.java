@@ -2,6 +2,7 @@ package com.game.backend;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -44,6 +45,31 @@ class AdminParityIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void resetCatalogPointer() {
+        jdbcTemplate.update(
+            """
+                UPDATE catalog_deployments
+                SET deployment_state = 'previous',
+                    rollout_percent = 0,
+                    allow_new_matches = false,
+                    allow_existing_matches = true
+                WHERE realm_id = 'global'
+                """
+        );
+        jdbcTemplate.update(
+            """
+                UPDATE catalog_deployments
+                SET deployment_state = 'active',
+                    rollout_percent = 100,
+                    allow_new_matches = true,
+                    allow_existing_matches = true
+                WHERE realm_id = 'global'
+                  AND catalog_version = 1
+                """
+        );
+    }
 
     @Test
     void shouldExposeTzItemOperationEndpointsWithIdempotency() throws Exception {
@@ -188,6 +214,59 @@ class AdminParityIntegrationTest {
                 .header("Idempotency-Key", UUID.randomUUID().toString()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.updated").value(false));
+    }
+
+    @Test
+    void shouldRequireAndReplayIdempotencyForAdminControlActions() throws Exception {
+        mockMvc.perform(postJson("/admin/control/outbox/retry-failed", Map.of())
+                .header("X-Admin-Token", ADMIN_TOKEN))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REQUIRED"));
+
+        String idempotencyKey = UUID.randomUUID().toString();
+        MvcResult first = mockMvc.perform(postJson("/admin/control/outbox/retry-failed", Map.of())
+                .header("X-Admin-Token", ADMIN_TOKEN)
+                .header("Idempotency-Key", idempotencyKey))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.retried").isNumber())
+            .andReturn();
+
+        MvcResult replay = mockMvc.perform(postJson("/admin/control/outbox/retry-failed", Map.of())
+                .header("X-Admin-Token", ADMIN_TOKEN)
+                .header("Idempotency-Key", idempotencyKey))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.retried").isNumber())
+            .andReturn();
+
+        assertThat(json(replay).path("retried").asInt())
+            .isEqualTo(json(first).path("retried").asInt());
+    }
+
+    @Test
+    void shouldUseCallerIdempotencyKeyForAdminControlWeaponAccess() throws Exception {
+        UUID playerId = registerPlayer();
+        long catalogVersion = weaponPresetCatalogVersion(playerId);
+        String idempotencyKey = UUID.randomUUID().toString();
+        Map<String, Object> body = Map.of(
+            "weapon_id", WEAPON_ID,
+            "catalog_version", catalogVersion,
+            "action", "hide_item",
+            "reason", "hide weapon through dashboard control"
+        );
+
+        mockMvc.perform(postJson("/admin/control/players/" + playerId + "/weapon-access", body)
+                .header("X-Admin-Token", ADMIN_TOKEN)
+                .header("Idempotency-Key", idempotencyKey))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.hidden").value(true))
+            .andExpect(jsonPath("$.duplicate").value(false));
+
+        mockMvc.perform(postJson("/admin/control/players/" + playerId + "/weapon-access", body)
+                .header("X-Admin-Token", ADMIN_TOKEN)
+                .header("Idempotency-Key", idempotencyKey))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.hidden").value(true))
+            .andExpect(jsonPath("$.duplicate").value(true));
     }
 
     private UUID registerPlayer() throws Exception {
