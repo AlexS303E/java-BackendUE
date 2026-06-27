@@ -93,6 +93,7 @@
 ### Logging
 - [x] **Audit logs retention** — prod profile enables scheduled TTL cleanup for `server_audit_events` and `admin_audit_events`; V028 adds `created_at` indexes for bounded deletes.
 - [x] **Structured logging** — prod/production profile emits JSON console logs via `logback-spring.xml`.
+- [x] **Server auth denial logs** — `/server/*` authentication and scope denials emit `event=server_auth_denied` WARN logs with reason/scope/path/method/port; covered by `ServerMtlsFallbackDisabledIntegrationTest`.
 - [x] **Log levels** — root is fixed at INFO; `com.game.backend` uses DEBUG only in `local`/`dev` and INFO in production/default profiles; covered by `LoggingConfigurationTest`.
 
 ### Health checks

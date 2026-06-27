@@ -4,9 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -32,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 )
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
+@ExtendWith(OutputCaptureExtension.class)
 class ServerMtlsFallbackDisabledIntegrationTest {
     private static final UUID DEV_SERVER_ID = UUID.fromString("10000000-0000-0000-0000-000000000001");
 
@@ -48,7 +52,7 @@ class ServerMtlsFallbackDisabledIntegrationTest {
     private MeterRegistry meterRegistry;
 
     @Test
-    void shouldRejectHeaderFingerprintFallbackWhenDisabledAndAuditKnownServer() throws Exception {
+    void shouldRejectHeaderFingerprintFallbackWhenDisabledAndAuditKnownServer(CapturedOutput output) throws Exception {
         long auditBefore = authenticationDeniedAuditCount("mtls_disabled_and_header_fallback_forbidden");
         double metricBefore = authenticationDeniedMetric("mtls_disabled_and_header_fallback_forbidden");
 
@@ -64,6 +68,11 @@ class ServerMtlsFallbackDisabledIntegrationTest {
                 .isEqualTo(auditBefore + 1);
         assertThat(authenticationDeniedMetric("mtls_disabled_and_header_fallback_forbidden"))
                 .isEqualTo(metricBefore + 1.0);
+        assertThat(output.getOut())
+                .contains("event=server_auth_denied")
+                .contains("reason=mtls_disabled_and_header_fallback_forbidden")
+                .contains("scope=match_profile:read")
+                .contains("path=/server/match-profile/build");
     }
 
     private Map<String, Object> matchProfileBuildBody() {

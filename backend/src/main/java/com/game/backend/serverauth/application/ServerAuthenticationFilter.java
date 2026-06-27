@@ -11,6 +11,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,6 +32,7 @@ import java.util.UUID;
  */
 @Component
 public class ServerAuthenticationFilter extends OncePerRequestFilter {
+    private static final Logger log = LoggerFactory.getLogger(ServerAuthenticationFilter.class);
     private static final String SERVER_ID_HEADER = "X-Server-Id";
     private static final String CERTIFICATE_FINGERPRINT_HEADER = "X-Server-Certificate-Fingerprint";
 
@@ -280,12 +283,21 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private void recordAuthDeniedMetric(HttpServletRequest request, String requiredScope, String reason) {
+        String scope = requiredScope == null ? "unknown" : requiredScope;
         meterRegistry.counter(
                 "backend.server_auth.denials",
                 "reason", reason,
-                "scope", requiredScope == null ? "unknown" : requiredScope,
+                "scope", scope,
                 "path", request.getRequestURI()
         ).increment();
+        log.warn(
+                "event=server_auth_denied reason={} scope={} method={} path={} local_port={}",
+                reason,
+                scope,
+                request.getMethod(),
+                request.getRequestURI(),
+                request.getLocalPort()
+        );
     }
 
     private ServerIdentity toPrincipal(ServerIdentityRecord identityRecord) {

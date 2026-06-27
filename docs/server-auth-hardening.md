@@ -52,3 +52,16 @@ with low-cardinality tags:
 
 Audit rows are still written only when a known `server_id` exists, but the metric
 is emitted before that check so unknown identity and malformed header attempts are visible.
+
+## Denied auth logs
+
+Every denial that increments `backend.server_auth.denials` also writes a WARN log
+with a stable key-value message:
+
+```text
+event=server_auth_denied reason=<reason> scope=<scope> method=<method> path=<path> local_port=<port>
+```
+
+The production profile emits this through the JSON console appender, so the whole
+message is available as the `message` field while retaining low-cardinality
+search keys.
