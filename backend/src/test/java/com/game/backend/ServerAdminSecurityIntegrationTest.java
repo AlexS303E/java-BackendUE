@@ -61,6 +61,12 @@ class ServerAdminSecurityIntegrationTest {
                         .header("X-Server-Certificate-Fingerprint", "wrong-fingerprint"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+
+        mockMvc.perform(postJson("/server/match-profile/build", body)
+                        .header("X-Server-Id", UUID.randomUUID().toString())
+                        .header("X-Server-Certificate-Fingerprint", devServerFingerprint()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
 
     @Test

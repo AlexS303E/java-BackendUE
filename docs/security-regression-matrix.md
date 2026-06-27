@@ -6,9 +6,10 @@ away from the test suite.
 | Risk | Coverage | Required evidence |
 |---|---|---|
 | BOLA/IDOR | `ServerAdminSecurityIntegrationTest` | Rejects server scope, realm, build, and match ownership violations with `403` responses. |
+| Server auth negative cases | `ServerAdminSecurityIntegrationTest` | Rejects missing `X-Server-Id`, unknown server identity, wrong fingerprint, revoked/expired identities, wrong realm, wrong server build, wrong match owner, and insufficient scope. |
 | CSRF | `OpenApiContractMatrixTest` and `ServerAdminSecurityIntegrationTest` | Admin write actions require `X-Admin-Confirm`; admin endpoints require `X-Admin-Token`. |
 | XSS | `OpenApiContractMatrixTest` and `DtoContractValidationTest` | API contracts use JSON request/response DTOs and `ProblemDetails`; no backend-rendered HTML surface is part of Stage 1. |
-| Replay | `RuntimePresetChangeIdempotencyTest` | Duplicate idempotency keys replay the original response, and reused keys with different bodies are rejected. |
+| Replay | `RuntimePresetChangeIdempotencyTest` and `AdminParityIntegrationTest` | Duplicate idempotency keys replay the original response, and reused keys with different bodies are rejected for server runtime changes and admin write-actions. |
 | Invalid loadout | `LoadoutValidationIntegrationTest` | Invalid durable and match-profile loadouts return `422 LOADOUT_VALIDATION_FAILED` and do not produce accepted profiles. |
 | mTLS denied | `ServerMtlsFallbackDisabledIntegrationTest` and `ServerMtlsHardeningValidatorTest` | Header fingerprint fallback is denied when disabled, and production hardening rejects unsafe mTLS settings. |
 

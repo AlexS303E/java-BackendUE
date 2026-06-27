@@ -41,9 +41,11 @@ Decision: runtime-events use `api_idempotency_records` scoped by `server_id`; `I
 
 Goal: lock the current security behavior before deeper hardening.
 
-- Cover missing `X-Server-Id`, invalid server identity, expired/revoked identity, wrong realm, wrong server build, wrong match owner, and insufficient scope.
-- Cover unsupported catalog version and runtime preset idempotency conflict.
-- Cover admin token failures and admin idempotency reuse.
+- [x] Cover missing `X-Server-Id`, invalid server identity, expired/revoked identity, wrong realm, wrong server build, wrong match owner, and insufficient scope.
+- [x] Cover unsupported catalog version and runtime preset idempotency conflict.
+- [x] Cover admin token failures and admin idempotency reuse.
+
+Evidence: `ServerAdminSecurityIntegrationTest`, `MatchProfileBuildIntegrationTest`, `RuntimePresetChangeIdempotencyTest`, and `AdminParityIntegrationTest`.
 
 ## Block 4 - mTLS hardening
 
