@@ -25,7 +25,6 @@ paths:
           ServerIdentityHeader: []
       parameters:
         - $ref: '#/components/parameters/server_id_header'
-        - $ref: '#/components/parameters/server_certificate_fingerprint_header_deprecated'
       requestBody:
         required: true
         content:
@@ -61,7 +60,6 @@ paths:
           ServerIdentityHeader: []
       parameters:
         - $ref: '#/components/parameters/server_id_header'
-        - $ref: '#/components/parameters/server_certificate_fingerprint_header_deprecated'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -117,7 +115,6 @@ paths:
           ServerIdentityHeader: []
       parameters:
         - $ref: '#/components/parameters/server_id_header'
-        - $ref: '#/components/parameters/server_certificate_fingerprint_header_deprecated'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -160,15 +157,6 @@ components:
       schema:
         type: string
         format: uuid
-
-    server_certificate_fingerprint_header_deprecated:
-      name: X-Server-Certificate-Fingerprint
-      in: header
-      required: false
-      deprecated: true
-      description: Deprecated dev-only fallback. In mTLS mode the backend ignores this header and computes the fingerprint from the TLS client certificate.
-      schema:
-        type: string
 
     idempotency_key_header:
       name: Idempotency-Key

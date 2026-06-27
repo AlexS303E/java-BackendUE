@@ -20,4 +20,15 @@ class ServerOpenApiContractTest {
             .contains("enum: [recorded]")
             .doesNotContain("enum: [accepted, duplicate]");
     }
+
+    @Test
+    void serverContractShouldNotExposeDeprecatedHeaderFingerprintFallback() throws IOException {
+        String contract = Files.readString(SERVER_API);
+
+        assertThat(contract)
+            .contains("ServerMutualTls")
+            .contains("X-Server-Id")
+            .doesNotContain("X-Server-Certificate-Fingerprint")
+            .doesNotContain("server_certificate_fingerprint_header_deprecated");
+    }
 }

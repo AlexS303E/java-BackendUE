@@ -138,11 +138,14 @@ foreach ($path in $serverPaths) {
 }
 
 Assert-Contains "server-api.yaml" $server "X-Server-Id"
-Assert-Contains "server-api.yaml" $server "X-Server-Certificate-Fingerprint"
 Assert-Contains "server-api.yaml" $server "Idempotency-Key"
 Assert-Contains "server-api.yaml" $server "IDEMPOTENCY_OPERATION_ID_MISMATCH"
 Assert-Contains "server-api.yaml" $server "PRESET_REVISION_CONFLICT"
 Assert-Contains "server-api.yaml" $server "CATALOG_VERSION_NOT_SUPPORTED"
+
+if ($server -like "*X-Server-Certificate-Fingerprint*") {
+    Add-Failure "server-api.yaml must not expose deprecated X-Server-Certificate-Fingerprint in the production mTLS contract"
+}
 
 $adminPaths = @(
     "/admin/status/overview",

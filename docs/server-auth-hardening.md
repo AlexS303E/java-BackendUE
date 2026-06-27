@@ -8,7 +8,7 @@ When a production profile is active (`prod` or `production`), startup fails unle
 - `app.server-auth.mtls.require-private-port=true`
 - `app.server-auth.mtls.allow-header-fingerprint-fallback=false`
 
-This keeps the `X-Server-Certificate-Fingerprint` shortcut limited to local/dev/test workflows.
+This keeps the `X-Server-Certificate-Fingerprint` shortcut limited to local/dev/test workflows. It is intentionally absent from the production server OpenAPI contract.
 
 ## Runtime server API checks
 
