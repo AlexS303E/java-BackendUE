@@ -541,7 +541,6 @@ components:
         event_type:
           type: string
           enum: [player_spawned, loadout_applied, item_used, player_died, match_finished]
-          enum: [player_spawned, loadout_applied, item_used, player_died, match_finished]
         player_id:
           type: [string, 'null']
           format: uuid
@@ -565,6 +564,6 @@ components:
           format: uuid
         status:
           type: string
-          enum: [accepted, duplicate]
+          enum: [recorded]
         duplicate:
           type: boolean

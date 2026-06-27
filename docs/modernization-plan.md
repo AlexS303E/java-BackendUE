@@ -29,11 +29,13 @@ Validation:
 
 Goal: make `/server/runtime-events` match the non-idempotent POST rule from the architecture brief and OpenAPI.
 
-- Require `Idempotency-Key`.
-- Define whether the key must equal `event_id` or map through `api_idempotency_records`.
-- Return deterministic duplicate responses.
-- Reject key reuse with different payload.
-- Cover the behavior in integration tests and OpenAPI.
+- [x] Require `Idempotency-Key`.
+- [x] Define whether the key must equal `event_id` or map through `api_idempotency_records`.
+- [x] Return deterministic duplicate responses.
+- [x] Reject key reuse with different payload.
+- [x] Cover the behavior in integration tests and OpenAPI.
+
+Decision: runtime-events use `api_idempotency_records` scoped by `server_id`; `Idempotency-Key` does not need to equal `event_id`.
 
 ## Block 3 - Negative/security integration tests
 
