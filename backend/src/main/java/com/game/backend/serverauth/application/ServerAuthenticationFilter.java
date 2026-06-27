@@ -6,6 +6,7 @@ import com.game.backend.serverauth.config.ServerMtlsProperties;
 import com.game.backend.serverauth.mtls.CertificateFingerprints;
 import com.game.backend.serverauth.mtls.ClientCertificateExtractor;
 import com.game.backend.serverauth.repository.ServerAuthRepository.ServerIdentityRecord;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,17 +37,20 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
     private final ServerAuditService serverAuditService;
     private final ServerMtlsProperties mtlsProperties;
     private final ClientCertificateExtractor clientCertificateExtractor;
+    private final MeterRegistry meterRegistry;
 
     public ServerAuthenticationFilter(
             ServerAuthRepository repository,
             ServerAuditService serverAuditService,
             ServerMtlsProperties mtlsProperties,
-            ClientCertificateExtractor clientCertificateExtractor
+            ClientCertificateExtractor clientCertificateExtractor,
+            MeterRegistry meterRegistry
     ) {
         this.repository = repository;
         this.serverAuditService = serverAuditService;
         this.mtlsProperties = mtlsProperties;
         this.clientCertificateExtractor = clientCertificateExtractor;
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -90,6 +94,7 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
 
         ServerIdentity identity = toPrincipal(identityRecord);
         if (!identity.hasScope(requiredScope)) {
+            recordAuthDeniedMetric(request, requiredScope, "missing_scope");
             // Если identity валидна, но scope недостаточен, сохраняем denied audit event.
             serverAuditService.record(
                     identity,
@@ -122,6 +127,7 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
     private UUID parseServerId(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String serverIdHeader = request.getHeader(SERVER_ID_HEADER);
         if (serverIdHeader == null || serverIdHeader.isBlank()) {
+            recordAuthDeniedMetric(request, requiredScope(request), "missing_server_id");
             writeProblem(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", "Server identity header is required");
             return null;
         }
@@ -129,6 +135,7 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
         try {
             return UUID.fromString(serverIdHeader);
         } catch (IllegalArgumentException exception) {
+            recordAuthDeniedMetric(request, requiredScope(request), "invalid_server_id");
             writeProblem(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", "Server identity is invalid");
             return null;
         }
@@ -255,6 +262,7 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
             String requiredScope,
             ServerAuthenticationFailure failure
     ) {
+        recordAuthDeniedMetric(request, requiredScope, failure.reason());
         if (!repository.serverIdentityExists(serverId)) {
             return;
         }
@@ -269,6 +277,15 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
                         "local_port", request.getLocalPort()
                 )
         );
+    }
+
+    private void recordAuthDeniedMetric(HttpServletRequest request, String requiredScope, String reason) {
+        meterRegistry.counter(
+                "backend.server_auth.denials",
+                "reason", reason,
+                "scope", requiredScope == null ? "unknown" : requiredScope,
+                "path", request.getRequestURI()
+        ).increment();
     }
 
     private ServerIdentity toPrincipal(ServerIdentityRecord identityRecord) {

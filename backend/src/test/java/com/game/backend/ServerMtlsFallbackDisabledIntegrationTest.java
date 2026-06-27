@@ -1,6 +1,8 @@
 package com.game.backend;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -42,9 +44,13 @@ class ServerMtlsFallbackDisabledIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private MeterRegistry meterRegistry;
+
     @Test
     void shouldRejectHeaderFingerprintFallbackWhenDisabledAndAuditKnownServer() throws Exception {
         long auditBefore = authenticationDeniedAuditCount("mtls_disabled_and_header_fallback_forbidden");
+        double metricBefore = authenticationDeniedMetric("mtls_disabled_and_header_fallback_forbidden");
 
         mockMvc.perform(post("/server/match-profile/build")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -56,6 +62,8 @@ class ServerMtlsFallbackDisabledIntegrationTest {
 
         assertThat(authenticationDeniedAuditCount("mtls_disabled_and_header_fallback_forbidden"))
                 .isEqualTo(auditBefore + 1);
+        assertThat(authenticationDeniedMetric("mtls_disabled_and_header_fallback_forbidden"))
+                .isEqualTo(metricBefore + 1.0);
     }
 
     private Map<String, Object> matchProfileBuildBody() {
@@ -90,6 +98,15 @@ class ServerMtlsFallbackDisabledIntegrationTest {
                 reason
         );
         return count == null ? 0 : count;
+    }
+
+    private double authenticationDeniedMetric(String reason) {
+        Counter counter = meterRegistry.find("backend.server_auth.denials")
+                .tag("reason", reason)
+                .tag("scope", "match_profile:read")
+                .tag("path", "/server/match-profile/build")
+                .counter();
+        return counter == null ? 0.0 : counter.count();
     }
 
     private String devServerBuildId() {

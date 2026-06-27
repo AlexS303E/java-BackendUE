@@ -88,6 +88,7 @@
 - [x] **JVM/GC metrics** — Actuator JVM/GC metrics are available through non-prod/internal metrics exposure.
 - [x] **Redis metrics** — cache-backed Redis reads emit `backend.cache.requests` counters by cache/result through Micrometer.
 - [x] **Cache hit ratios** — cache hit/miss/error counters are covered by `RedisCacheMetricsTest`.
+- [x] **Server auth denial metrics** — `/server/*` authentication and scope denials emit `backend.server_auth.denials` by reason/scope/path; covered by `ServerMtlsFallbackDisabledIntegrationTest`.
 
 ### Logging
 - [x] **Audit logs retention** — prod profile enables scheduled TTL cleanup for `server_audit_events` and `admin_audit_events`; V028 adds `created_at` indexes for bounded deletes.

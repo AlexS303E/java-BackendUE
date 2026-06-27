@@ -38,3 +38,17 @@ When the request contains a known `server_id`, authentication denials are record
   - `certificate_fingerprint_mismatch`
 
 Scope denials for authenticated server identities continue to be recorded as `server_auth.scope_denied`.
+
+## Denied auth metrics
+
+All `/server/*` authentication and scope denials increment `backend.server_auth.denials`
+with low-cardinality tags:
+
+- `reason`: denial reason such as `missing_server_id`, `wrong_private_port`,
+  `missing_client_certificate`, `certificate_fingerprint_mismatch`,
+  `server_identity_revoked`, `server_identity_expired`, or `missing_scope`
+- `scope`: required endpoint scope, or `unknown`
+- `path`: configured `/server/*` route
+
+Audit rows are still written only when a known `server_id` exists, but the metric
+is emitted before that check so unknown identity and malformed header attempts are visible.
