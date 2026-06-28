@@ -58,6 +58,10 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
 
         Set<String> roles = rolesFor();
         String requiredRole = requiredRole(request);
+        if (requiredRole == null) {
+            writeProblem(response, HttpServletResponse.SC_FORBIDDEN, "ADMIN_ROUTE_FORBIDDEN", "Admin route is not assigned to a role");
+            return;
+        }
         if (!roles.contains(requiredRole)) {
             writeProblem(response, HttpServletResponse.SC_FORBIDDEN, "ADMIN_ROLE_FORBIDDEN", "Admin role is required: " + requiredRole);
             return;
@@ -98,13 +102,13 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
         if (path.startsWith("/admin/catalog/")) {
             return "catalog";
         }
-        if (path.contains("/server-identities") || path.contains("/outbox/") || path.contains("/cache/")) {
+        if (path.contains("/server-identities") || path.contains("/outbox/") || path.contains("/cache/") || path.contains("-cache")) {
             return "ops";
         }
         if (path.startsWith("/admin/items/") || path.contains("/access/") || path.contains("/weapon-access")) {
             return "access";
         }
-        return "security";
+        return null;
     }
 
     private boolean requiresConfirmation(HttpServletRequest request) {

@@ -103,6 +103,67 @@ class AdminAuthenticationFilterTest {
         assertThat(securityOnlyResponse.getContentAsString()).contains("Admin role is required: catalog");
     }
 
+    @Test
+    void shouldRequireExplicitRoleForEveryCurrentAdminRoute() throws Exception {
+        List<RouteRole> routeRoles = List.of(
+            new RouteRole("GET", "/admin/status/overview", "status"),
+            new RouteRole("GET", "/admin/status/servers", "status"),
+            new RouteRole("GET", "/admin/status/matches", "status"),
+            new RouteRole("GET", "/admin/status/recent-audit", "status"),
+            new RouteRole("GET", "/admin/status/players/search", "status"),
+            new RouteRole("GET", "/admin/status/players/00000000-0000-0000-0000-000000000001/weapon-access", "status"),
+            new RouteRole("GET", "/admin/status/players/00000000-0000-0000-0000-000000000001/weapon-access/audit", "status"),
+            new RouteRole("POST", "/admin/players/00000000-0000-0000-0000-000000000001/access/items/weapon.ak12", "access"),
+            new RouteRole("POST", "/admin/items/hide", "access"),
+            new RouteRole("POST", "/admin/items/reveal", "access"),
+            new RouteRole("POST", "/admin/items/shop-lock", "access"),
+            new RouteRole("POST", "/admin/items/shop-unlock", "access"),
+            new RouteRole("POST", "/admin/items/quest-lock", "access"),
+            new RouteRole("POST", "/admin/items/quest-unlock", "access"),
+            new RouteRole("POST", "/admin/items/disable", "access"),
+            new RouteRole("POST", "/admin/items/enable", "access"),
+            new RouteRole("POST", "/admin/access/rebuild-projection", "access"),
+            new RouteRole("POST", "/admin/cache/invalidate-player", "ops"),
+            new RouteRole("POST", "/admin/server-identities/revoke", "ops"),
+            new RouteRole("POST", "/admin/catalog/publish", "catalog"),
+            new RouteRole("POST", "/admin/catalog/rollback", "catalog"),
+            new RouteRole("POST", "/admin/control/players/00000000-0000-0000-0000-000000000001/invalidate-cache", "ops"),
+            new RouteRole("POST", "/admin/control/server-identities/00000000-0000-0000-0000-000000000002/revoke", "ops"),
+            new RouteRole("POST", "/admin/control/outbox/retry-failed", "ops"),
+            new RouteRole("POST", "/admin/control/players/00000000-0000-0000-0000-000000000001/weapon-access", "access")
+        );
+
+        for (RouteRole routeRole : routeRoles) {
+            AdminAuthenticationFilter filter = filter(List.of(), List.of(routeRole.role()));
+            MockHttpServletRequest request = request(routeRole.method(), routeRole.path(), "127.0.0.1");
+            request.addHeader("X-Admin-Token", "token");
+            request.addHeader("X-Admin-Confirm", "true");
+            CountingChain chain = new CountingChain();
+            MockHttpServletResponse response = new MockHttpServletResponse();
+
+            filter.doFilter(request, response, chain);
+
+            assertThat(response.getStatus())
+                .as("%s %s must require role %s", routeRole.method(), routeRole.path(), routeRole.role())
+                .isEqualTo(200);
+            assertThat(chain.count()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void shouldFailClosedForUnmappedAdminRoutes() throws Exception {
+        AdminAuthenticationFilter filter = filter(List.of(), List.of("status", "access", "catalog", "ops", "security"));
+        MockHttpServletRequest request = request("POST", "/admin/new-dangerous-action", "127.0.0.1");
+        request.addHeader("X-Admin-Token", "token");
+        request.addHeader("X-Admin-Confirm", "true");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new CountingChain());
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("ADMIN_ROUTE_FORBIDDEN");
+    }
+
     private AdminAuthenticationFilter filter(List<String> cidrs, List<String> roles) {
         AdminSecurityProperties properties = new AdminSecurityProperties();
         properties.setToken("token");
@@ -128,5 +189,8 @@ class AdminAuthenticationFilterTest {
         private int count() {
             return count.get();
         }
+    }
+
+    private record RouteRole(String method, String path, String role) {
     }
 }

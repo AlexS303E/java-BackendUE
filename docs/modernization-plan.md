@@ -107,3 +107,11 @@ Goal: keep OpenAPI, documentation, and backend stage gates synchronized for admi
 
 - [x] Add `X-Admin-Confirm` as a required OpenAPI parameter for every `POST /admin/*` operation.
 - [x] Add a contract regression test that fails when a future admin POST omits the confirmation header.
+
+## Block 11 - Admin route role matrix guard
+
+Goal: keep admin permissions fail-closed when dashboard routes expand.
+
+- [x] Remove the broad `security` fallback for unmapped `/admin/*` routes.
+- [x] Add a regression matrix for every current admin route and its required role.
+- [x] Deny unmapped admin routes even when the caller has all known roles.
