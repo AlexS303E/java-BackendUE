@@ -74,13 +74,13 @@ public class AdminRepository extends JdbcRepository {
         return count("SELECT count(*) FROM post_match_pending_changes WHERE status = 'pending'");
     }
 
-    public List<Map<String, Object>> listServers() {
+    public List<Map<String, Object>> listServers(int limit) {
         return query(
             """
                 SELECT server_id, realm_id, server_build_id, status, allowed_scopes, created_at, expires_at, revoked_at
                 FROM server_identities
                 ORDER BY created_at DESC
-                LIMIT 50
+                LIMIT ?
                 """,
             (rs, rowNum) -> {
                 Map<String, Object> row = new LinkedHashMap<>();
@@ -93,17 +93,18 @@ public class AdminRepository extends JdbcRepository {
                 row.put("expiresAt", rs.getObject("expires_at", OffsetDateTime.class));
                 row.put("revokedAt", rs.getObject("revoked_at", OffsetDateTime.class));
                 return row;
-            }
+            },
+            limit
         );
     }
 
-    public List<Map<String, Object>> listMatches() {
+    public List<Map<String, Object>> listMatches(int limit) {
         return query(
             """
                 SELECT match_id, server_id, realm_id, status, created_at, finished_at
                 FROM server_matches
                 ORDER BY created_at DESC
-                LIMIT 50
+                LIMIT ?
                 """,
             (rs, rowNum) -> {
                 Map<String, Object> row = new LinkedHashMap<>();
@@ -114,17 +115,18 @@ public class AdminRepository extends JdbcRepository {
                 row.put("createdAt", rs.getObject("created_at", OffsetDateTime.class));
                 row.put("finishedAt", rs.getObject("finished_at", OffsetDateTime.class));
                 return row;
-            }
+            },
+            limit
         );
     }
 
-    public List<Map<String, Object>> listRecentAuditEvents() {
+    public List<Map<String, Object>> listRecentAuditEvents(int limit) {
         return query(
             """
                 SELECT event_id, actor_id, action, target_type, target_id, result, created_at
                 FROM admin_audit_events
                 ORDER BY created_at DESC
-                LIMIT 50
+                LIMIT ?
                 """,
             (rs, rowNum) -> {
                 Map<String, Object> row = new LinkedHashMap<>();
@@ -136,7 +138,8 @@ public class AdminRepository extends JdbcRepository {
                 row.put("result", rs.getString("result"));
                 row.put("createdAt", rs.getObject("created_at", OffsetDateTime.class));
                 return row;
-            }
+            },
+            limit
         );
     }
 
@@ -305,7 +308,7 @@ public class AdminRepository extends JdbcRepository {
         );
     }
 
-    public List<Map<String, Object>> searchPlayersByLogin(String loginFragment) {
+    public List<Map<String, Object>> searchPlayersByLogin(String loginFragment, int limit) {
         return query(
             """
                 SELECT pa.player_id, pa.login_name, pa.status, ps.access_revision
@@ -313,7 +316,7 @@ public class AdminRepository extends JdbcRepository {
                 LEFT JOIN player_access_projection_state ps ON ps.player_id = pa.player_id
                 WHERE pa.login_name ILIKE ?
                 ORDER BY pa.created_at DESC
-                LIMIT 20
+                LIMIT ?
                 """,
             (rs, rowNum) -> playerRow(
                 rs.getObject("player_id", UUID.class),
@@ -321,7 +324,8 @@ public class AdminRepository extends JdbcRepository {
                 rs.getString("status"),
                 rs.getObject("access_revision", Long.class)
             ),
-            "%" + loginFragment + "%"
+            "%" + loginFragment + "%",
+            limit
         );
     }
 
@@ -669,7 +673,7 @@ public class AdminRepository extends JdbcRepository {
         );
     }
 
-    public List<Map<String, Object>> listWeaponAccessAudit(UUID playerId, String weaponId, long catalogVersion) {
+    public List<Map<String, Object>> listWeaponAccessAudit(UUID playerId, String weaponId, long catalogVersion, int limit) {
         return query(
             """
                 SELECT ledger_event_id, event_type, source_type, source_ref, actor_type, actor_id, payload, created_at
@@ -678,7 +682,7 @@ public class AdminRepository extends JdbcRepository {
                   AND item_id = ?
                   AND catalog_version = ?
                 ORDER BY created_at DESC
-                LIMIT 50
+                LIMIT ?
                 """,
             (rs, rowNum) -> {
                 Map<String, Object> row = new LinkedHashMap<>();
@@ -696,7 +700,8 @@ public class AdminRepository extends JdbcRepository {
             },
             playerId,
             weaponId,
-            catalogVersion
+            catalogVersion,
+            limit
         );
     }
 

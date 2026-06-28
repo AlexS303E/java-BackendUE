@@ -24,6 +24,8 @@ import java.util.UUID;
 public class AdminStatusService {
     private static final Duration CERTIFICATE_EXPIRY_WARNING_WINDOW = Duration.ofDays(14);
     private static final Duration DEFAULT_OVERVIEW_SNAPSHOT_TTL = Duration.ofSeconds(5);
+    private static final int DASHBOARD_LIST_LIMIT = 50;
+    private static final int PLAYER_SEARCH_LIMIT = 20;
 
     private final AdminRepository repository;
     private final StringRedisTemplate redisTemplate;
@@ -86,18 +88,18 @@ public class AdminStatusService {
 
     public List<Map<String, Object>> servers() {
         OffsetDateTime now = OffsetDateTime.now();
-        return repository.listServers()
+        return repository.listServers(DASHBOARD_LIST_LIMIT)
             .stream()
             .map(row -> serverStatusRow(row, now))
             .toList();
     }
 
     public List<Map<String, Object>> matches() {
-        return repository.listMatches();
+        return repository.listMatches(DASHBOARD_LIST_LIMIT);
     }
 
     public List<Map<String, Object>> recentAudit() {
-        return repository.listRecentAuditEvents();
+        return repository.listRecentAuditEvents(DASHBOARD_LIST_LIMIT);
     }
 
     public List<Map<String, Object>> searchPlayers(String query) {
@@ -111,7 +113,7 @@ public class AdminStatusService {
             return repository.findPlayer(playerId);
         }
 
-        return repository.searchPlayersByLogin(trimmed);
+        return repository.searchPlayersByLogin(trimmed, PLAYER_SEARCH_LIMIT);
     }
 
     public Map<String, Object> weaponAccess(UUID playerId, String weaponId, long catalogVersion) {
@@ -123,7 +125,7 @@ public class AdminStatusService {
     }
 
     public List<Map<String, Object>> weaponAccessAudit(UUID playerId, String weaponId, long catalogVersion) {
-        return repository.listWeaponAccessAudit(playerId, weaponId, catalogVersion);
+        return repository.listWeaponAccessAudit(playerId, weaponId, catalogVersion, DASHBOARD_LIST_LIMIT);
     }
 
     private boolean databaseOk() {

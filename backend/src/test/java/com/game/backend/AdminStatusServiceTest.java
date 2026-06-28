@@ -18,6 +18,9 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -50,10 +53,10 @@ class AdminStatusServiceTest {
         verify(repository).countPendingRuntimeConflicts();
         verify(repository).outboxStatusCounts();
         verify(repository).oldestPendingOutboxCreatedAt();
-        verify(repository, never()).listServers();
-        verify(repository, never()).listMatches();
-        verify(repository, never()).listRecentAuditEvents();
-        verify(repository, never()).searchPlayersByLogin(org.mockito.ArgumentMatchers.anyString());
+        verify(repository, never()).listServers(anyInt());
+        verify(repository, never()).listMatches(anyInt());
+        verify(repository, never()).listRecentAuditEvents(anyInt());
+        verify(repository, never()).searchPlayersByLogin(anyString(), anyInt());
     }
 
     @Test
@@ -92,13 +95,13 @@ class AdminStatusServiceTest {
         assertThat(service.searchPlayers("  ")).isEqualTo(List.of());
 
         verify(repository, never()).findPlayer(org.mockito.ArgumentMatchers.any());
-        verify(repository, never()).searchPlayersByLogin(org.mockito.ArgumentMatchers.anyString());
+        verify(repository, never()).searchPlayersByLogin(anyString(), anyInt());
     }
 
     @Test
     void serversShouldExposeCertificateExpiryAndRevocationState() {
         OffsetDateTime now = OffsetDateTime.now();
-        when(repository.listServers()).thenReturn(List.of(
+        when(repository.listServers(50)).thenReturn(List.of(
             serverRow("active", now.plusDays(30), null),
             serverRow("active", now.plusDays(2), null),
             serverRow("active", now.minusMinutes(1), null),
@@ -115,6 +118,28 @@ class AdminStatusServiceTest {
             .containsExactly(false, true, false, false);
         assertThat(servers).extracting(row -> row.get("revoked"))
             .containsExactly(false, false, false, true);
+    }
+
+    @Test
+    void dashboardListsShouldUseBoundedRepositoryLimits() {
+        UUID playerId = UUID.randomUUID();
+        when(repository.listServers(50)).thenReturn(List.of());
+        when(repository.listMatches(50)).thenReturn(List.of());
+        when(repository.listRecentAuditEvents(50)).thenReturn(List.of());
+        when(repository.searchPlayersByLogin("player", 20)).thenReturn(List.of());
+        when(repository.listWeaponAccessAudit(playerId, "weapon.ak12", 1L, 50)).thenReturn(List.of());
+
+        service.servers();
+        service.matches();
+        service.recentAudit();
+        service.searchPlayers("player");
+        service.weaponAccessAudit(playerId, "weapon.ak12", 1L);
+
+        verify(repository).listServers(50);
+        verify(repository).listMatches(50);
+        verify(repository).listRecentAuditEvents(50);
+        verify(repository).searchPlayersByLogin(eq("player"), eq(20));
+        verify(repository).listWeaponAccessAudit(eq(playerId), eq("weapon.ak12"), eq(1L), eq(50));
     }
 
     private StringRedisTemplate redisDownTemplate() {
