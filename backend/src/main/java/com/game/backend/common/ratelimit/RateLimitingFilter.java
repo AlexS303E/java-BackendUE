@@ -1,5 +1,7 @@
 package com.game.backend.common.ratelimit;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,17 +23,19 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     private final RateLimitProperties properties;
     private final Clock clock;
+    private final MeterRegistry meterRegistry;
     private final Map<String, WindowCounter> counters = new ConcurrentHashMap<>();
     private final AtomicLong lastCleanupAt = new AtomicLong(0);
 
     @Autowired
-    public RateLimitingFilter(RateLimitProperties properties) {
-        this(properties, Clock.systemUTC());
+    public RateLimitingFilter(RateLimitProperties properties, MeterRegistry meterRegistry) {
+        this(properties, Clock.systemUTC(), meterRegistry);
     }
 
-    RateLimitingFilter(RateLimitProperties properties, Clock clock) {
+    RateLimitingFilter(RateLimitProperties properties, Clock clock, MeterRegistry meterRegistry) {
         this.properties = properties;
         this.clock = clock;
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -57,19 +61,20 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             return;
         }
 
+        recordRateLimitRejection(bucket.group());
         writeRateLimited(response, retryAfterSeconds(counter, now, windowMillis));
     }
 
     private RateLimitBucket bucketFor(HttpServletRequest request) {
         String path = request.getRequestURI();
         if (path.startsWith("/auth/")) {
-            return new RateLimitBucket("auth:" + clientIp(request), properties.getAuthLimit());
+            return new RateLimitBucket("auth", "auth:" + clientIp(request), properties.getAuthLimit());
         }
         if (path.startsWith("/server/")) {
-            return new RateLimitBucket("server:" + firstNonBlank(request.getHeader("X-Server-Id"), clientIp(request)), properties.getServerLimit());
+            return new RateLimitBucket("server", "server:" + firstNonBlank(request.getHeader("X-Server-Id"), clientIp(request)), properties.getServerLimit());
         }
         if (path.startsWith("/admin/")) {
-            return new RateLimitBucket("admin:" + firstNonBlank(request.getHeader("X-Admin-Id"), clientIp(request)), properties.getAdminLimit());
+            return new RateLimitBucket("admin", "admin:" + firstNonBlank(request.getHeader("X-Admin-Id"), clientIp(request)), properties.getAdminLimit());
         }
         return null;
     }
@@ -113,7 +118,15 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         );
     }
 
-    private record RateLimitBucket(String key, int limit) {
+    private void recordRateLimitRejection(String bucketGroup) {
+        Counter.builder("backend.rate_limit.rejections")
+            .description("Rejected requests by fixed-window rate limit bucket group")
+            .tag("bucket", bucketGroup)
+            .register(meterRegistry)
+            .increment();
+    }
+
+    private record RateLimitBucket(String group, String key, int limit) {
     }
 
     private static final class WindowCounter {

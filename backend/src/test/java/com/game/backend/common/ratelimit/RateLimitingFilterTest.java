@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -15,6 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RateLimitingFilterTest {
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
     @Test
     void shouldLimitAuthRequestsByClientIp() throws Exception {
         RateLimitingFilter filter = filter(true, 2, 10, 10);
@@ -26,6 +29,7 @@ class RateLimitingFilterTest {
         assertThat(limited.status()).isEqualTo(429);
         assertThat(limited.retryAfter()).isNotBlank();
         assertThat(limited.body()).contains("RATE_LIMIT_EXCEEDED");
+        assertThat(rateLimitRejections("auth")).isEqualTo(1.0);
     }
 
     @Test
@@ -36,6 +40,7 @@ class RateLimitingFilterTest {
         assertThat(doRequest(filter, "/server/runtime-events", "10.0.0.1", "server-b", null).status()).isEqualTo(200);
 
         assertThat(doRequest(filter, "/server/runtime-events", "10.0.0.1", "server-a", null).status()).isEqualTo(429);
+        assertThat(rateLimitRejections("server")).isEqualTo(1.0);
 
         RateLimitingFilter anotherFilter = filter(true, 10, 1, 10);
         assertThat(doRequest(anotherFilter, "/server/runtime-events", "10.0.0.1", "server-c", null).status()).isEqualTo(200);
@@ -58,7 +63,14 @@ class RateLimitingFilterTest {
         properties.setAuthLimit(authLimit);
         properties.setServerLimit(serverLimit);
         properties.setAdminLimit(adminLimit);
-        return new RateLimitingFilter(properties);
+        return new RateLimitingFilter(properties, meterRegistry);
+    }
+
+    private double rateLimitRejections(String bucket) {
+        return meterRegistry.get("backend.rate_limit.rejections")
+            .tag("bucket", bucket)
+            .counter()
+            .count();
     }
 
     private FilterResult doRequest(

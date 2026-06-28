@@ -137,3 +137,11 @@ Goal: keep overload protection active and sane in production.
 - [x] Reject production startup when rate limiting is disabled.
 - [x] Reject non-positive production rate-limit windows and per-route limits.
 - [x] Cover unsafe rate-limit settings in `ProductionHardeningValidatorTest`.
+
+## Block 15 - Rate-limit rejection metrics
+
+Goal: make overload protection visible during incidents without high-cardinality labels.
+
+- [x] Emit `backend.rate_limit.rejections` when a request is rejected with `429`.
+- [x] Tag rejections by route bucket only: `auth`, `server`, or `admin`.
+- [x] Cover rejection metrics in `RateLimitingFilterTest`.
