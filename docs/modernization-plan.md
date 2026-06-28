@@ -92,3 +92,11 @@ Goal: prevent repeated side-effect delivery failures from amplifying downstream 
 - [x] Move exhausted processing-timeout rows to `dead_letter`.
 - [x] Open an in-memory worker circuit breaker after consecutive fully failed batches.
 - [x] Cover circuit breaker behavior with an integration regression test.
+
+## Block 9 - Admin least-privilege scopes
+
+Goal: keep admin write permissions separated by operational domain before adding more dashboard actions.
+
+- [x] Route `/admin/catalog/*` through the dedicated `catalog` role instead of the broad `security` fallback.
+- [x] Keep production default admin role read-only (`status`) unless `ADMIN_DEFAULT_ROLES` is explicitly configured.
+- [x] Cover catalog route role isolation in `AdminAuthenticationFilterTest`.

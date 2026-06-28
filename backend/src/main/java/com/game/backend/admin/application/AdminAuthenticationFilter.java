@@ -95,6 +95,9 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
         if (path.startsWith("/admin/status/")) {
             return "status";
         }
+        if (path.startsWith("/admin/catalog/")) {
+            return "catalog";
+        }
         if (path.contains("/server-identities") || path.contains("/outbox/") || path.contains("/cache/")) {
             return "ops";
         }

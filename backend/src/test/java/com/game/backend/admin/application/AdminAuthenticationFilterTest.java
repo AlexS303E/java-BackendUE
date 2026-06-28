@@ -77,6 +77,32 @@ class AdminAuthenticationFilterTest {
         assertThat(chain.count()).isEqualTo(1);
     }
 
+    @Test
+    void shouldRouteCatalogWritesToCatalogRoleOnly() throws Exception {
+        AdminAuthenticationFilter filter = filter(List.of(), List.of("catalog"));
+        MockHttpServletRequest request = request("POST", "/admin/catalog/publish", "127.0.0.1");
+        request.addHeader("X-Admin-Token", "token");
+        request.addHeader("X-Admin-Confirm", "true");
+        CountingChain chain = new CountingChain();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(chain.count()).isEqualTo(1);
+
+        AdminAuthenticationFilter securityOnlyFilter = filter(List.of(), List.of("security"));
+        MockHttpServletRequest securityOnlyRequest = request("POST", "/admin/catalog/publish", "127.0.0.1");
+        securityOnlyRequest.addHeader("X-Admin-Token", "token");
+        securityOnlyRequest.addHeader("X-Admin-Confirm", "true");
+        MockHttpServletResponse securityOnlyResponse = new MockHttpServletResponse();
+
+        securityOnlyFilter.doFilter(securityOnlyRequest, securityOnlyResponse, new CountingChain());
+
+        assertThat(securityOnlyResponse.getStatus()).isEqualTo(403);
+        assertThat(securityOnlyResponse.getContentAsString()).contains("Admin role is required: catalog");
+    }
+
     private AdminAuthenticationFilter filter(List<String> cidrs, List<String> roles) {
         AdminSecurityProperties properties = new AdminSecurityProperties();
         properties.setToken("token");

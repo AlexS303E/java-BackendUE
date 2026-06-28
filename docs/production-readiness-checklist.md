@@ -14,7 +14,7 @@
 ### Admin API
 - [x] **Admin token not dev** — `application-prod.yml` requires `ADMIN_TOKEN`; startup fail-fast rejects blank/dev values.
 - [x] **Admin audit trail** — admin write-actions record `admin_audit_events` with result, request hash, target, reason, and operation metadata; covered by `AdminParityIntegrationTest`.
-- [x] **RBAC/IP allowlist** — admin filter enforces configured role buckets and prod requires `ADMIN_ALLOWED_CIDRS`.
+- [x] **RBAC/IP allowlist** — admin filter enforces route-specific role buckets, production defaults to read-only `status`, and prod requires `ADMIN_ALLOWED_CIDRS`.
 
 ### mTLS (Dedicated Server → Backend)
 - [x] **mTLS enabled in prod profile** — `application-prod.yml` defaults `app.server-auth.mtls.enabled=true`; startup fail-fast enforces it for `prod`/`production`.

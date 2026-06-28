@@ -40,7 +40,7 @@ app:
   admin:
     token: ${ADMIN_TOKEN}
     allowed-cidrs: ${ADMIN_ALLOWED_CIDRS}
-    default-roles: ${ADMIN_DEFAULT_ROLES:status,access,catalog,ops,security}
+    default-roles: ${ADMIN_DEFAULT_ROLES:status}
   auth:
     jwt-private-key: ${JWT_PRIVATE_KEY}
     jwt-public-key: ${JWT_PUBLIC_KEY}
