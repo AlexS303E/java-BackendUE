@@ -115,3 +115,10 @@ Goal: keep admin permissions fail-closed when dashboard routes expand.
 - [x] Remove the broad `security` fallback for unmapped `/admin/*` routes.
 - [x] Add a regression matrix for every current admin route and its required role.
 - [x] Deny unmapped admin routes even when the caller has all known roles.
+
+## Block 12 - Admin route OpenAPI drift guard
+
+Goal: keep implemented admin controller routes synchronized with the admin OpenAPI contract.
+
+- [x] Extract literal `/admin/*` Spring mapping annotations from backend controllers in a regression test.
+- [x] Fail CI when an implemented admin route is missing from `contracts/openapi/admin-api.yaml`.

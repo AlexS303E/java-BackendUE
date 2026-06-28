@@ -18,9 +18,11 @@ class OpenApiContractMatrixTest {
     private static final Path OPENAPI_ROOT = Path.of("..", "contracts", "openapi");
     private static final Path ADMIN_API = OPENAPI_ROOT.resolve("admin-api.yaml");
     private static final Path MATRIX = Path.of("..", "docs", "openapi-contract-test-matrix.md");
+    private static final Path BACKEND_JAVA_ROOT = Path.of("src", "main", "java", "com", "game", "backend");
     private static final Pattern OPENAPI_PATH = Pattern.compile("^  (/[^:]+):\\s*$");
     private static final Pattern OPENAPI_METHOD = Pattern.compile("^    (get|post|put|patch|delete):\\s*$");
     private static final Pattern MATRIX_ENDPOINT = Pattern.compile("\\| `([A-Z]+) (/[^`]+)` \\|");
+    private static final Pattern SPRING_MAPPING = Pattern.compile("@(Get|Post|Put|Patch|Delete)Mapping\\(\"(/admin/[^\"]+)\"\\)");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -162,6 +164,13 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void adminOpenApiCoversEveryImplementedAdminRoute() throws IOException {
+        assertThat(openApiOperations(ADMIN_API))
+            .as("contracts/openapi/admin-api.yaml must list every literal /admin/* controller mapping")
+            .containsAll(implementedAdminOperations());
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -179,6 +188,25 @@ class OpenApiContractMatrixTest {
             }
         }
 
+        return operations;
+    }
+
+    private static Set<String> implementedAdminOperations() throws IOException {
+        Set<String> operations = new LinkedHashSet<>();
+        try (var files = Files.walk(BACKEND_JAVA_ROOT)) {
+            for (Path file : files
+                .filter(Files::isRegularFile)
+                .filter(path -> path.toString().endsWith(".java"))
+                .sorted()
+                .toList()) {
+                for (String line : Files.readAllLines(file)) {
+                    Matcher matcher = SPRING_MAPPING.matcher(line);
+                    if (matcher.find()) {
+                        operations.add(matcher.group(1).toUpperCase(Locale.ROOT) + " " + matcher.group(2));
+                    }
+                }
+            }
+        }
         return operations;
     }
 
