@@ -100,3 +100,10 @@ Goal: keep admin write permissions separated by operational domain before adding
 - [x] Route `/admin/catalog/*` through the dedicated `catalog` role instead of the broad `security` fallback.
 - [x] Keep production default admin role read-only (`status`) unless `ADMIN_DEFAULT_ROLES` is explicitly configured.
 - [x] Cover catalog route role isolation in `AdminAuthenticationFilterTest`.
+
+## Block 10 - Admin write contract drift guard
+
+Goal: keep OpenAPI, documentation, and backend stage gates synchronized for admin write actions.
+
+- [x] Add `X-Admin-Confirm` as a required OpenAPI parameter for every `POST /admin/*` operation.
+- [x] Add a contract regression test that fails when a future admin POST omits the confirmation header.

@@ -135,6 +135,33 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void adminOpenApiPostOperationsRequireConfirmationHeader() throws IOException {
+        Set<String> missingConfirmation = new LinkedHashSet<>();
+        List<String> lines = Files.readAllLines(ADMIN_API);
+
+        for (int index = 0; index < lines.size(); index++) {
+            Matcher pathMatcher = OPENAPI_PATH.matcher(lines.get(index));
+            if (!pathMatcher.matches() || !pathMatcher.group(1).startsWith("/admin/")) {
+                continue;
+            }
+
+            String path = pathMatcher.group(1);
+            if (index + 1 >= lines.size() || !lines.get(index + 1).trim().equals("post:")) {
+                continue;
+            }
+
+            String block = operationBlock(lines, index + 1);
+            if (!block.contains("#/components/parameters/admin_confirm_header")) {
+                missingConfirmation.add("POST " + path);
+            }
+        }
+
+        assertThat(missingConfirmation)
+            .as("Admin POST operations in OpenAPI must require X-Admin-Confirm")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;

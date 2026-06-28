@@ -175,6 +175,7 @@ paths:
       summary: Mutate access state for one player item.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
         - $ref: '#/components/parameters/player_id_path'
         - $ref: '#/components/parameters/item_id_path'
@@ -206,6 +207,7 @@ paths:
       summary: Hide an item for one player.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -228,6 +230,7 @@ paths:
       summary: Reveal an item for one player.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -250,6 +253,7 @@ paths:
       summary: Add shop lock for one player item.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -272,6 +276,7 @@ paths:
       summary: Remove shop lock from one player item.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -294,6 +299,7 @@ paths:
       summary: Add quest lock for one player item.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -316,6 +322,7 @@ paths:
       summary: Remove quest lock from one player item.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -338,6 +345,7 @@ paths:
       summary: Disable an item for one player through access projection.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -360,6 +368,7 @@ paths:
       summary: Enable an item for one player through access projection.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -382,6 +391,7 @@ paths:
       summary: Rebuild one player's access projection from entitlement ledger.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -410,6 +420,7 @@ paths:
       summary: Invalidate one player's server-side cache/profile snapshots.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -438,6 +449,7 @@ paths:
       summary: Revoke a server identity.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -466,6 +478,7 @@ paths:
       summary: Publish a validated/canary catalog version for new matches in a realm.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -496,6 +509,7 @@ paths:
       summary: Roll a realm back to the previous or explicitly selected catalog deployment.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -526,6 +540,7 @@ paths:
       summary: Invalidate player cache.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
         - $ref: '#/components/parameters/player_id_path'
       requestBody:
@@ -551,6 +566,7 @@ paths:
       summary: Revoke a server identity.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
         - $ref: '#/components/parameters/server_id_path'
       requestBody:
@@ -578,6 +594,7 @@ paths:
       summary: Retry failed outbox events.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
       requestBody:
         required: true
@@ -602,6 +619,7 @@ paths:
       summary: Rebuild player weapon access projection.
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
+        - $ref: '#/components/parameters/admin_confirm_header'
         - $ref: '#/components/parameters/idempotency_key_header'
         - $ref: '#/components/parameters/player_id_path'
       requestBody:
@@ -643,6 +661,14 @@ components:
       required: true
       schema:
         type: string
+
+    admin_confirm_header:
+      name: X-Admin-Confirm
+      in: header
+      required: true
+      schema:
+        type: boolean
+      description: Must be true for admin write actions.
 
     player_id_path:
       name: player_id
