@@ -2,6 +2,7 @@ package com.game.backend;
 
 import com.game.backend.admin.api.AdminItemAccessUpdateRequest;
 import com.game.backend.admin.api.AdminItemOperationRequest;
+import com.game.backend.admin.api.AdminControlReasonRequest;
 import com.game.backend.admin.api.AdminWeaponAccessControlRequest;
 import com.game.backend.catalog.api.CatalogPublishRequest;
 import com.game.backend.catalog.api.CatalogRollbackRequest;
@@ -120,6 +121,8 @@ class DtoContractValidationTest {
         assertThat(propertyPathsFor(new AdminWeaponAccessControlRequest(
                 "weapon.ak12", 0L, "shop_lock", "reason", null
         ))).contains("catalogVersion");
+        assertThat(propertyPathsFor(new AdminControlReasonRequest(" ", null)))
+                .contains("reason");
     }
 
     @Test

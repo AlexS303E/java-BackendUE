@@ -31,9 +31,10 @@ public class AdminControlController {
     Map<String, Object> invalidatePlayerCache(
         Authentication authentication,
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-        @PathVariable("player_id") UUID playerId
+        @PathVariable("player_id") UUID playerId,
+        @Valid @RequestBody AdminControlReasonRequest request
     ) {
-        return adminControlService.invalidatePlayerCache(CurrentAdmin.require(authentication), idempotencyKey, playerId);
+        return adminControlService.invalidatePlayerCache(CurrentAdmin.require(authentication), idempotencyKey, playerId, request);
     }
 
     /**
@@ -43,9 +44,10 @@ public class AdminControlController {
     Map<String, Object> revokeServerIdentity(
         Authentication authentication,
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-        @PathVariable("server_id") UUID serverId
+        @PathVariable("server_id") UUID serverId,
+        @Valid @RequestBody AdminControlReasonRequest request
     ) {
-        return adminControlService.revokeServerIdentity(CurrentAdmin.require(authentication), idempotencyKey, serverId);
+        return adminControlService.revokeServerIdentity(CurrentAdmin.require(authentication), idempotencyKey, serverId, request);
     }
 
     /**
@@ -54,9 +56,10 @@ public class AdminControlController {
     @PostMapping("/admin/control/outbox/retry-failed")
     Map<String, Object> retryFailedOutbox(
         Authentication authentication,
-        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
+        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+        @Valid @RequestBody AdminControlReasonRequest request
     ) {
-        return adminControlService.retryFailedOutbox(CurrentAdmin.require(authentication), idempotencyKey);
+        return adminControlService.retryFailedOutbox(CurrentAdmin.require(authentication), idempotencyKey, request);
     }
 
     /**

@@ -218,20 +218,35 @@ class AdminParityIntegrationTest {
 
     @Test
     void shouldRequireAndReplayIdempotencyForAdminControlActions() throws Exception {
-        mockMvc.perform(postJson("/admin/control/outbox/retry-failed", Map.of())
+        Map<String, Object> body = controlReasonBody("retry failed outbox from dashboard");
+
+        mockMvc.perform(postJson("/admin/control/outbox/retry-failed", body)
                 .header("X-Admin-Token", ADMIN_TOKEN))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REQUIRED"));
 
+        mockMvc.perform(postJson("/admin/control/outbox/retry-failed", Map.of("reason", " "))
+                .header("X-Admin-Token", ADMIN_TOKEN)
+                .header("Idempotency-Key", UUID.randomUUID().toString()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
         String idempotencyKey = UUID.randomUUID().toString();
-        MvcResult first = mockMvc.perform(postJson("/admin/control/outbox/retry-failed", Map.of())
+        long auditBefore = adminControlAuditCount("outbox.retry_failed", "retry failed outbox from dashboard");
+
+        MvcResult first = mockMvc.perform(postJson("/admin/control/outbox/retry-failed", body)
                 .header("X-Admin-Token", ADMIN_TOKEN)
                 .header("Idempotency-Key", idempotencyKey))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.retried").isNumber())
             .andReturn();
 
-        MvcResult replay = mockMvc.perform(postJson("/admin/control/outbox/retry-failed", Map.of())
+        assertThat(adminControlAuditCount("outbox.retry_failed", "retry failed outbox from dashboard"))
+            .isEqualTo(auditBefore + 1);
+        assertThat(adminControlAuditHasRequestHash("outbox.retry_failed", "retry failed outbox from dashboard"))
+            .isTrue();
+
+        MvcResult replay = mockMvc.perform(postJson("/admin/control/outbox/retry-failed", body)
                 .header("X-Admin-Token", ADMIN_TOKEN)
                 .header("Idempotency-Key", idempotencyKey))
             .andExpect(status().isOk())
@@ -288,6 +303,13 @@ class AdminParityIntegrationTest {
             "item_id", WEAPON_ID,
             "catalog_version", catalogVersion,
             "reason", reason
+        );
+    }
+
+    private Map<String, Object> controlReasonBody(String reason) {
+        return Map.of(
+            "reason", reason,
+            "comment", "admin parity test"
         );
     }
 
@@ -365,6 +387,42 @@ class AdminParityIntegrationTest {
             playerId + ":" + WEAPON_ID + ":" + catalogVersion,
             reason,
             catalogVersion
+        );
+        return Boolean.TRUE.equals(exists);
+    }
+
+    private long adminControlAuditCount(String action, String reason) {
+        Long count = jdbcTemplate.queryForObject(
+            """
+                SELECT count(*)
+                FROM admin_audit_events
+                WHERE action = ?
+                  AND result = 'success'
+                  AND payload->>'reason' = ?
+                """,
+            Long.class,
+            action,
+            reason
+        );
+        return count == null ? 0 : count;
+    }
+
+    private boolean adminControlAuditHasRequestHash(String action, String reason) {
+        Boolean exists = jdbcTemplate.queryForObject(
+            """
+                SELECT EXISTS(
+                  SELECT 1
+                  FROM admin_audit_events
+                  WHERE action = ?
+                    AND result = 'success'
+                    AND request_hash ~ '^[0-9a-f]{64}$'
+                    AND payload->>'reason' = ?
+                    AND payload->>'comment' = 'admin parity test'
+                )
+                """,
+            Boolean.class,
+            action,
+            reason
         );
         return Boolean.TRUE.equals(exists);
     }

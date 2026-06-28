@@ -1163,6 +1163,23 @@
     return response.json().catch(() => ({}));
   }
 
+  function promptAdminReason(actionText) {
+    const reasonLabel = currentLanguage === "ru" ? "Причина" : "Reason";
+    const commentLabel = currentLanguage === "ru" ? "Комментарий" : "Comment";
+    const reason = prompt(`${reasonLabel}: ${actionText}`);
+
+    if (!reason || !reason.trim()) {
+      return null;
+    }
+
+    const comment = prompt(`${commentLabel}: ${actionText}`) || "";
+    const body = { reason: reason.trim() };
+    if (comment.trim()) {
+      body.comment = comment.trim();
+    }
+    return body;
+  }
+
   async function loadDashboard() {
     try {
       const data = await getJson("/admin/status/overview");
@@ -1286,7 +1303,11 @@
     }
 
     try {
-      await postJson(`/admin/control/players/${encodeURIComponent(playerId)}/invalidate-cache`);
+      const body = promptAdminReason(`invalidate player cache ${playerId}`);
+      if (!body) {
+        return;
+      }
+      await postJson(`/admin/control/players/${encodeURIComponent(playerId)}/invalidate-cache`, body);
       result.textContent = currentLanguage === "ru" ? "Cache сброшен" : "Cache invalidated";
     } catch (e) {
       result.textContent = "Error: " + e.message;
@@ -1309,7 +1330,11 @@
     }
 
     try {
-      await postJson(`/admin/control/server-identities/${encodeURIComponent(serverId)}/revoke`);
+      const body = promptAdminReason(`revoke server identity ${serverId}`);
+      if (!body) {
+        return;
+      }
+      await postJson(`/admin/control/server-identities/${encodeURIComponent(serverId)}/revoke`, body);
       result.textContent = currentLanguage === "ru" ? "Server identity отозван" : "Server identity revoked";
     } catch (e) {
       result.textContent = "Error: " + e.message;
@@ -1318,7 +1343,11 @@
 
   async function retryFailedOutbox() {
     try {
-      await postJson("/admin/control/outbox/retry-failed");
+      const body = promptAdminReason("retry failed outbox events");
+      if (!body) {
+        return;
+      }
+      await postJson("/admin/control/outbox/retry-failed", body);
       alert(currentLanguage === "ru" ? "Retry запрошен" : "Retry requested");
       await loadDashboard();
     } catch (e) {

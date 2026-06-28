@@ -85,6 +85,30 @@ class OpenApiContractMatrixTest {
     }
 
     @Test
+    void adminControlWritesDocumentReasonAuditContext() throws IOException {
+        Set<String> missingReasonContext = new LinkedHashSet<>();
+
+        for (String line : Files.readAllLines(MATRIX)) {
+            Matcher matcher = MATRIX_ENDPOINT.matcher(line);
+            if (!matcher.find()) {
+                continue;
+            }
+
+            String method = matcher.group(1);
+            String endpoint = matcher.group(2);
+            if ("POST".equals(method)
+                && endpoint.startsWith("/admin/control/")
+                && !line.contains("reason/comment audit context")) {
+                missingReasonContext.add(method + " " + endpoint);
+            }
+        }
+
+        assertThat(missingReasonContext)
+            .as("Legacy admin control writes must document reason/comment audit context")
+            .isEmpty();
+    }
+
+    @Test
     void adminOpenApiPostOperationsRequireIdempotencyKey() throws IOException {
         Set<String> missingIdempotency = new LinkedHashSet<>();
         List<String> lines = Files.readAllLines(ADMIN_API);

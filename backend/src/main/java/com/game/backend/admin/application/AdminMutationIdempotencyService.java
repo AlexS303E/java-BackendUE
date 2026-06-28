@@ -108,7 +108,7 @@ public class AdminMutationIdempotencyService {
         }
     }
 
-    private String requestHash(String operationScope, String routeFingerprint, Object request) {
+    public String requestHash(String operationScope, String routeFingerprint, Object request) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             digest.update(operationScope.getBytes(StandardCharsets.UTF_8));

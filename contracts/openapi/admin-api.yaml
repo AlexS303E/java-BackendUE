@@ -528,6 +528,12 @@ paths:
         - $ref: '#/components/parameters/admin_id_header_optional'
         - $ref: '#/components/parameters/idempotency_key_header'
         - $ref: '#/components/parameters/player_id_path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminControlReasonRequest'
       responses:
         '200':
           description: Cache invalidation requested.
@@ -547,6 +553,12 @@ paths:
         - $ref: '#/components/parameters/admin_id_header_optional'
         - $ref: '#/components/parameters/idempotency_key_header'
         - $ref: '#/components/parameters/server_id_path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminControlReasonRequest'
       responses:
         '200':
           description: Server identity revoked.
@@ -567,6 +579,12 @@ paths:
       parameters:
         - $ref: '#/components/parameters/admin_id_header_optional'
         - $ref: '#/components/parameters/idempotency_key_header'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminControlReasonRequest'
       responses:
         '200':
           description: Failed outbox events scheduled for retry.
@@ -1218,6 +1236,16 @@ components:
             - item_enable
             - hide_item
             - reveal_item
+        reason:
+          type: string
+        comment:
+          type: string
+          nullable: true
+
+    AdminControlReasonRequest:
+      type: object
+      required: [reason]
+      properties:
         reason:
           type: string
         comment:
