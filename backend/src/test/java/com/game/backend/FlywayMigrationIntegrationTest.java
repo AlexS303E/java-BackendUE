@@ -184,6 +184,19 @@ class FlywayMigrationIntegrationTest {
                 String.class
         );
         assertThat(v031Script).isEqualTo("V031__server_identity_certificate_rotation.sql");
+
+        String v032Script = jdbcTemplate.queryForObject(
+                """
+                    SELECT script
+                    FROM flyway_schema_history
+                    WHERE version = '032'
+                      AND success = true
+                    ORDER BY installed_rank DESC
+                    LIMIT 1
+                    """,
+                String.class
+        );
+        assertThat(v032Script).isEqualTo("V032__outbox_claim_queue_index.sql");
     }
 
     @Test
@@ -254,6 +267,7 @@ class FlywayMigrationIntegrationTest {
         assertThat(indexExists("idx_match_profiles_fresh_dependency_lookup")).isTrue();
         assertThat(indexExists("idx_outfit_item_team_rules_lookup")).isTrue();
         assertThat(indexExists("idx_server_identity_certificates_usable")).isTrue();
+        assertThat(indexExists("idx_outbox_events_claim_queue")).isTrue();
 
         Map<String, Object> activeCatalogIndex = uniquePartialIndex("uq_catalog_active_new_matches");
         assertThat(activeCatalogIndex.get("is_unique")).isEqualTo(true);
@@ -261,6 +275,10 @@ class FlywayMigrationIntegrationTest {
                 .contains("deployment_state")
                 .contains("active")
                 .contains("allow_new_matches");
+        assertThat((String) uniquePartialIndex("idx_outbox_events_claim_queue").get("predicate"))
+                .contains("status")
+                .contains("pending")
+                .contains("failed");
 
         assertThat(foreignKeyCount("player_weapon_preset_weapon_config_modules")).isGreaterThanOrEqualTo(4);
         assertThat(foreignKeyCount("player_outfit_preset_items")).isGreaterThanOrEqualTo(2);

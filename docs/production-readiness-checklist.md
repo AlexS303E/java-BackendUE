@@ -36,7 +36,7 @@
 ## Database
 
 ### Migrations
-- [x] **All migrations verified** — `FlywayMigrationIntegrationTest` validates every `src/main/resources/db/migration/V*.sql` version through V031.
+- [x] **All migrations verified** — `FlywayMigrationIntegrationTest` validates every `src/main/resources/db/migration/V*.sql` version through V032.
 - [x] **Idempotent** — Flyway schema history and checksums prevent re-application; failed migration count is asserted by `FlywayMigrationIntegrationTest`.
 - [x] **Rollback plan** — no V*__undo scripts; rollback is manual DB restore/PITR per `docs/backup-restore.md`.
 
@@ -55,7 +55,7 @@
 - [x] **pg_stat_statements** — enabled through Docker Postgres `shared_preload_libraries` and Flyway V027.
 - [x] **Slow query log** — Docker Postgres sets `log_min_duration_statement = 200ms`.
 - [x] **Connection pooling** — HikariCP is embedded with bounded defaults. PgBouncer not used (single-app architecture).
-- [x] **Index coverage** — `EXPLAIN ANALYZE` regression tests verify covering indexes for batch access validation and fresh match-profile lookup; V030 adds the symmetric outfit team-rule lookup index.
+- [x] **Index coverage** — `EXPLAIN ANALYZE` regression tests verify covering indexes for batch access validation and fresh match-profile lookup; V030 adds the symmetric outfit team-rule lookup index and V032 indexes outbox claim polling.
 
 ---
 

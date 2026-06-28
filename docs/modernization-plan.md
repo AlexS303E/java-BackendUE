@@ -122,3 +122,10 @@ Goal: keep implemented admin controller routes synchronized with the admin OpenA
 
 - [x] Extract literal `/admin/*` Spring mapping annotations from backend controllers in a regression test.
 - [x] Fail CI when an implemented admin route is missing from `contracts/openapi/admin-api.yaml`.
+
+## Block 13 - Outbox claim queue index
+
+Goal: keep outbox polling from scanning operational tables as retry volume grows.
+
+- [x] Add a partial index for deliverable `pending`/`failed` outbox rows ordered by `next_attempt_at` and `created_at`.
+- [x] Cover the index and Flyway migration version in `FlywayMigrationIntegrationTest`.
