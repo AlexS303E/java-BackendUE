@@ -145,3 +145,11 @@ Goal: make overload protection visible during incidents without high-cardinality
 - [x] Emit `backend.rate_limit.rejections` when a request is rejected with `429`.
 - [x] Tag rejections by route bucket only: `auth`, `server`, or `admin`.
 - [x] Cover rejection metrics in `RateLimitingFilterTest`.
+
+## Block 16 - Outbox circuit-breaker metrics
+
+Goal: make outbox retry storm protection visible during incidents.
+
+- [x] Emit `outbox.circuit_breaker.opened` when the worker opens its breaker.
+- [x] Expose `outbox.circuit_breaker.open` as a 0/1 gauge for current breaker state.
+- [x] Cover breaker metrics in `OutboxWorkerIntegrationTest`.

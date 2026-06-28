@@ -4,6 +4,7 @@ import com.game.backend.matchprofile.application.MatchProfileInvalidationService
 import com.game.backend.outbox.application.OutboxWorker;
 import com.game.backend.outbox.application.RoutingOutboxPublisher;
 import com.game.backend.outbox.repository.OutboxRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,9 +49,11 @@ class OutboxWorkerIntegrationTest {
     private TransactionTemplate transactionTemplate;
 
     private final List<UUID> eventIds = new ArrayList<>();
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void retireExistingOutboxEvents() {
+        meterRegistry = new SimpleMeterRegistry();
         jdbcTemplate.update("UPDATE outbox_events SET status = 'processed' WHERE status IN ('pending', 'failed')");
     }
 
@@ -109,7 +112,8 @@ class OutboxWorkerIntegrationTest {
                 10,
                 60,
                 3,
-                30
+                30,
+                meterRegistry
         );
 
         worker.poll();
@@ -171,7 +175,8 @@ class OutboxWorkerIntegrationTest {
                 10,
                 60,
                 1,
-                60
+                60,
+                meterRegistry
         );
 
         worker.poll();
@@ -184,6 +189,8 @@ class OutboxWorkerIntegrationTest {
         assertThat(firstEvent.get("attempts")).isEqualTo(1);
         assertThat(secondEvent.get("status")).isEqualTo("pending");
         assertThat(secondEvent.get("attempts")).isEqualTo(0);
+        assertThat(meterRegistry.get("outbox.circuit_breaker.opened").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("outbox.circuit_breaker.open").gauge().value()).isEqualTo(1.0);
     }
 
     private UUID insertOutboxEvent(String eventType, String payload) {
@@ -239,7 +246,8 @@ class OutboxWorkerIntegrationTest {
                 10,
                 60,
                 3,
-                30
+                30,
+                meterRegistry
         );
     }
 

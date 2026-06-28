@@ -2,6 +2,9 @@ package com.game.backend.outbox.application;
 
 import com.game.backend.outbox.repository.OutboxRepository;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -28,6 +31,7 @@ public class OutboxWorker {
     private final long processingTimeoutSeconds;
     private final int circuitBreakerFailureThreshold;
     private final long circuitBreakerCooldownSeconds;
+    private final Counter circuitBreakerOpenedCounter;
 
     private int consecutiveFailedBatches = 0;
     private OffsetDateTime circuitBreakerOpenUntil;
@@ -42,7 +46,8 @@ public class OutboxWorker {
         @Value("${app.outbox.retry-delay-seconds:10}") long retryDelaySeconds,
         @Value("${app.outbox.processing-timeout-seconds:60}") long processingTimeoutSeconds,
         @Value("${app.outbox.circuit-breaker.failure-threshold:3}") int circuitBreakerFailureThreshold,
-        @Value("${app.outbox.circuit-breaker.cooldown-seconds:30}") long circuitBreakerCooldownSeconds
+        @Value("${app.outbox.circuit-breaker.cooldown-seconds:30}") long circuitBreakerCooldownSeconds,
+        MeterRegistry meterRegistry
     ) {
         this.repository = repository;
         this.transactionTemplate = transactionTemplate;
@@ -54,6 +59,12 @@ public class OutboxWorker {
         this.processingTimeoutSeconds = processingTimeoutSeconds;
         this.circuitBreakerFailureThreshold = Math.max(1, circuitBreakerFailureThreshold);
         this.circuitBreakerCooldownSeconds = Math.max(1, circuitBreakerCooldownSeconds);
+        this.circuitBreakerOpenedCounter = Counter.builder("outbox.circuit_breaker.opened")
+            .description("Number of times the outbox worker circuit breaker opened")
+            .register(meterRegistry);
+        Gauge.builder("outbox.circuit_breaker.open", this, OutboxWorker::circuitBreakerOpenValue)
+            .description("Whether the outbox worker circuit breaker is currently open")
+            .register(meterRegistry);
     }
 
     /**
@@ -141,6 +152,11 @@ public class OutboxWorker {
         if (consecutiveFailedBatches >= circuitBreakerFailureThreshold) {
             circuitBreakerOpenUntil = now.plusSeconds(circuitBreakerCooldownSeconds);
             consecutiveFailedBatches = 0;
+            circuitBreakerOpenedCounter.increment();
         }
+    }
+
+    double circuitBreakerOpenValue() {
+        return isCircuitBreakerOpen(OffsetDateTime.now()) ? 1.0 : 0.0;
     }
 }

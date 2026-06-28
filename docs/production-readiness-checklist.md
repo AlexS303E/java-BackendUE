@@ -90,6 +90,7 @@
 - [x] **Redis metrics** — cache-backed Redis reads emit `backend.cache.requests` counters by cache/result through Micrometer.
 - [x] **Cache hit ratios** — cache hit/miss/error counters are covered by `RedisCacheMetricsTest`.
 - [x] **Rate-limit rejection metrics** — fixed-window rate limit rejections emit `backend.rate_limit.rejections` by low-cardinality bucket (`auth`, `server`, `admin`); covered by `RateLimitingFilterTest`.
+- [x] **Outbox circuit-breaker metrics** — outbox worker emits `outbox.circuit_breaker.opened` and `outbox.circuit_breaker.open`; covered by `OutboxWorkerIntegrationTest`.
 - [x] **Server auth denial metrics** — `/server/*` authentication and scope denials emit `backend.server_auth.denials` by reason/scope/path; covered by `ServerMtlsFallbackDisabledIntegrationTest`.
 
 ### Logging
