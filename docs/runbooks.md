@@ -73,6 +73,8 @@ follow-up action list.
 - Confirm publisher process health and downstream side-effect availability.
 - Pause or slow publishers if retry traffic is amplifying the downstream failure.
 - Check retry backoff, batch size, circuit breaker state, and dead-letter volume.
+- Tune `OUTBOX_CIRCUIT_BREAKER_FAILURE_THRESHOLD` or
+  `OUTBOX_CIRCUIT_BREAKER_COOLDOWN_SECONDS` only with an incident owner and rollback note.
 - Manually inspect the oldest pending rows before replaying anything.
 
 ### Verification

@@ -58,6 +58,9 @@ app:
     max-attempts: ${OUTBOX_MAX_ATTEMPTS:5}
     retry-delay-seconds: ${OUTBOX_RETRY_DELAY_SECONDS:10}
     processing-timeout-seconds: ${OUTBOX_PROCESSING_TIMEOUT_SECONDS:60}
+    circuit-breaker:
+      failure-threshold: ${OUTBOX_CIRCUIT_BREAKER_FAILURE_THRESHOLD:3}
+      cooldown-seconds: ${OUTBOX_CIRCUIT_BREAKER_COOLDOWN_SECONDS:30}
   cache:
     enabled: ${APP_CACHE_ENABLED:true}
     catalog-snapshot-ttl: ${APP_CACHE_CATALOG_SNAPSHOT_TTL:PT10M}

@@ -26,6 +26,11 @@ public class OutboxWorker {
     private final int maxAttempts;
     private final long retryDelaySeconds;
     private final long processingTimeoutSeconds;
+    private final int circuitBreakerFailureThreshold;
+    private final long circuitBreakerCooldownSeconds;
+
+    private int consecutiveFailedBatches = 0;
+    private OffsetDateTime circuitBreakerOpenUntil;
 
     public OutboxWorker(
         OutboxRepository repository,
@@ -35,7 +40,9 @@ public class OutboxWorker {
         @Value("${app.outbox.batch-size:20}") int batchSize,
         @Value("${app.outbox.max-attempts:5}") int maxAttempts,
         @Value("${app.outbox.retry-delay-seconds:10}") long retryDelaySeconds,
-        @Value("${app.outbox.processing-timeout-seconds:60}") long processingTimeoutSeconds
+        @Value("${app.outbox.processing-timeout-seconds:60}") long processingTimeoutSeconds,
+        @Value("${app.outbox.circuit-breaker.failure-threshold:3}") int circuitBreakerFailureThreshold,
+        @Value("${app.outbox.circuit-breaker.cooldown-seconds:30}") long circuitBreakerCooldownSeconds
     ) {
         this.repository = repository;
         this.transactionTemplate = transactionTemplate;
@@ -45,6 +52,8 @@ public class OutboxWorker {
         this.maxAttempts = maxAttempts;
         this.retryDelaySeconds = retryDelaySeconds;
         this.processingTimeoutSeconds = processingTimeoutSeconds;
+        this.circuitBreakerFailureThreshold = Math.max(1, circuitBreakerFailureThreshold);
+        this.circuitBreakerCooldownSeconds = Math.max(1, circuitBreakerCooldownSeconds);
     }
 
     /**
@@ -57,10 +66,27 @@ public class OutboxWorker {
         }
 
         OffsetDateTime now = OffsetDateTime.now();
+        if (isCircuitBreakerOpen(now)) {
+            return;
+        }
+
         requeueTimedOutProcessingEvents(now);
         List<OutboxEvent> events = claimBatch(now);
+        if (events.isEmpty()) {
+            consecutiveFailedBatches = 0;
+            return;
+        }
+
+        int failures = 0;
         for (OutboxEvent event : events) {
-            publish(event);
+            if (!publish(event)) {
+                failures++;
+            }
+        }
+        if (failures == events.size()) {
+            recordFailedBatch(now);
+        } else {
+            consecutiveFailedBatches = 0;
         }
     }
 
@@ -73,13 +99,15 @@ public class OutboxWorker {
         ));
     }
 
-    private void publish(OutboxEvent event) {
+    private boolean publish(OutboxEvent event) {
         OffsetDateTime now = OffsetDateTime.now();
         try {
             outboxPublisher.publish(event);
             markProcessed(event.eventId(), now);
+            return true;
         } catch (RuntimeException exception) {
             markFailed(event, now, exception);
+            return false;
         }
     }
 
@@ -102,5 +130,17 @@ public class OutboxWorker {
 
     private void requeueTimedOutProcessingEvents(OffsetDateTime now) {
         repository.requeueTimedOutProcessingEvents(maxAttempts, now);
+    }
+
+    private boolean isCircuitBreakerOpen(OffsetDateTime now) {
+        return circuitBreakerOpenUntil != null && circuitBreakerOpenUntil.isAfter(now);
+    }
+
+    private void recordFailedBatch(OffsetDateTime now) {
+        consecutiveFailedBatches++;
+        if (consecutiveFailedBatches >= circuitBreakerFailureThreshold) {
+            circuitBreakerOpenUntil = now.plusSeconds(circuitBreakerCooldownSeconds);
+            consecutiveFailedBatches = 0;
+        }
     }
 }

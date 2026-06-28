@@ -5,6 +5,7 @@ import com.game.backend.outbox.application.OutboxWorker;
 import com.game.backend.outbox.application.RoutingOutboxPublisher;
 import com.game.backend.outbox.repository.OutboxRepository;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,6 +48,11 @@ class OutboxWorkerIntegrationTest {
     private TransactionTemplate transactionTemplate;
 
     private final List<UUID> eventIds = new ArrayList<>();
+
+    @BeforeEach
+    void retireExistingOutboxEvents() {
+        jdbcTemplate.update("UPDATE outbox_events SET status = 'processed' WHERE status IN ('pending', 'failed')");
+    }
 
     @AfterEach
     void cleanUp() {
@@ -100,7 +107,9 @@ class OutboxWorkerIntegrationTest {
                 20,
                 MAX_ATTEMPTS,
                 10,
-                60
+                60,
+                3,
+                30
         );
 
         worker.poll();
@@ -144,8 +153,40 @@ class OutboxWorkerIntegrationTest {
         assertThat(event.get("last_error")).isNull();
     }
 
+    @Test
+    void shouldOpenCircuitBreakerAfterFailedBatchAndStopClaimingNewEvents() {
+        UUID firstEventId = insertOutboxEvent("weapon_preset.saved", "{}");
+        UUID secondEventId = insertOutboxEvent("weapon_preset.saved", "{}");
+        AtomicInteger publishAttempts = new AtomicInteger();
+        OutboxWorker worker = new OutboxWorker(
+                new OutboxRepository(jdbcTemplate),
+                transactionTemplate,
+                event -> {
+                    publishAttempts.incrementAndGet();
+                    throw new RuntimeException("downstream unavailable");
+                },
+                true,
+                1,
+                MAX_ATTEMPTS,
+                10,
+                60,
+                1,
+                60
+        );
+
+        worker.poll();
+        worker.poll();
+
+        Map<String, Object> firstEvent = event(firstEventId);
+        Map<String, Object> secondEvent = event(secondEventId);
+        assertThat(publishAttempts.get()).isEqualTo(1);
+        assertThat(firstEvent.get("status")).isEqualTo("failed");
+        assertThat(firstEvent.get("attempts")).isEqualTo(1);
+        assertThat(secondEvent.get("status")).isEqualTo("pending");
+        assertThat(secondEvent.get("attempts")).isEqualTo(0);
+    }
+
     private UUID insertOutboxEvent(String eventType, String payload) {
-        jdbcTemplate.update("UPDATE outbox_events SET status = 'processed' WHERE status IN ('pending', 'failed')");
         UUID eventId = UUID.randomUUID();
         eventIds.add(eventId);
         OffsetDateTime now = OffsetDateTime.now().minusSeconds(1);
@@ -196,7 +237,9 @@ class OutboxWorkerIntegrationTest {
                 20,
                 MAX_ATTEMPTS,
                 10,
-                60
+                60,
+                3,
+                30
         );
     }
 

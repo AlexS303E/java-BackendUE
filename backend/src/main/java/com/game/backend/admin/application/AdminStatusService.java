@@ -3,6 +3,7 @@ package com.game.backend.admin.application;
 import com.game.backend.admin.repository.AdminRepository;
 
 import com.game.backend.common.api.ApiException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -34,6 +35,7 @@ public class AdminStatusService {
     private final OffsetDateTime startedAt;
     private volatile OverviewSnapshot overviewSnapshot;
 
+    @Autowired
     public AdminStatusService(AdminRepository repository, StringRedisTemplate redisTemplate) {
         this(repository, redisTemplate, Clock.systemDefaultZone(), DEFAULT_OVERVIEW_SNAPSHOT_TTL);
     }

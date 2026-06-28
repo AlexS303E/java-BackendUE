@@ -83,3 +83,12 @@ Goal: keep read-only dashboard polling from adding avoidable DB/Redis pressure t
 - [x] Serve `/admin/status/overview` from a short-lived snapshot during polling windows.
 - [x] Add bounded pagination/limits to heavy dashboard lists where missing.
 - [x] Add regression coverage that dashboard polling does not call detail/list queries.
+
+## Block 8 - Outbox retry storm control
+
+Goal: prevent repeated side-effect delivery failures from amplifying downstream incidents.
+
+- [x] Keep outbox polling bounded by batch size and max attempts.
+- [x] Move exhausted processing-timeout rows to `dead_letter`.
+- [x] Open an in-memory worker circuit breaker after consecutive fully failed batches.
+- [x] Cover circuit breaker behavior with an integration regression test.

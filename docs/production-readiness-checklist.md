@@ -108,6 +108,7 @@
 - [x] **Incident runbooks** - `docs/runbooks.md` covers DB down, Redis down, outbox stuck, catalog rollback, DS revoke, and overload.
 - [x] **Security regression matrix** - `docs/security-regression-matrix.md` maps BOLA/IDOR, CSRF, XSS, replay, invalid loadout, and mTLS denied risks to executable tests.
 - [x] **Dashboard polling bounded** - `/admin/status/overview` uses a short-lived snapshot and dashboard list queries use explicit service-level limits; covered by `AdminStatusServiceTest`.
+- [x] **Outbox retry storm control** - outbox worker uses bounded batches, retry backoff, dead-lettering, and an in-memory circuit breaker; covered by `OutboxWorkerIntegrationTest`.
 
 ---
 
