@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
@@ -22,25 +23,53 @@ import java.util.UUID;
 @Service
 public class AdminStatusService {
     private static final Duration CERTIFICATE_EXPIRY_WARNING_WINDOW = Duration.ofDays(14);
+    private static final Duration DEFAULT_OVERVIEW_SNAPSHOT_TTL = Duration.ofSeconds(5);
 
     private final AdminRepository repository;
     private final StringRedisTemplate redisTemplate;
+    private final Clock clock;
+    private final Duration overviewSnapshotTtl;
     private final OffsetDateTime startedAt;
+    private volatile OverviewSnapshot overviewSnapshot;
 
     public AdminStatusService(AdminRepository repository, StringRedisTemplate redisTemplate) {
+        this(repository, redisTemplate, Clock.systemDefaultZone(), DEFAULT_OVERVIEW_SNAPSHOT_TTL);
+    }
+
+    public AdminStatusService(AdminRepository repository, StringRedisTemplate redisTemplate, Clock clock, Duration overviewSnapshotTtl) {
         this.repository = repository;
         this.redisTemplate = redisTemplate;
-        this.startedAt = OffsetDateTime.now();
+        this.clock = clock;
+        this.overviewSnapshotTtl = overviewSnapshotTtl;
+        this.startedAt = now();
     }
 
     /**
      * Компактный обзор health/counts, который dashboard обновляет периодически.
      */
     public Map<String, Object> overview() {
+        OffsetDateTime now = now();
+        OverviewSnapshot snapshot = overviewSnapshot;
+        if (snapshot != null && snapshot.expiresAt().isAfter(now)) {
+            return snapshot.response();
+        }
+        synchronized (this) {
+            snapshot = overviewSnapshot;
+            now = now();
+            if (snapshot != null && snapshot.expiresAt().isAfter(now)) {
+                return snapshot.response();
+            }
+            Map<String, Object> response = buildOverview(now);
+            overviewSnapshot = new OverviewSnapshot(response, now.plus(overviewSnapshotTtl));
+            return response;
+        }
+    }
+
+    private Map<String, Object> buildOverview(OffsetDateTime now) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("backend", Map.of(
             "ok", true,
-            "uptime", formatDuration(Duration.between(startedAt, OffsetDateTime.now()))
+            "uptime", formatDuration(Duration.between(startedAt, now))
         ));
         response.put("infrastructure", Map.of(
             "databaseOk", databaseOk(),
@@ -123,7 +152,7 @@ public class AdminStatusService {
         response.put("pending", counts.get("pending"));
         response.put("failed", counts.get("failed"));
         response.put("processed", counts.get("processed"));
-        response.put("oldestPendingAge", oldest == null ? "0s" : formatDuration(Duration.between(oldest, OffsetDateTime.now())));
+        response.put("oldestPendingAge", oldest == null ? "0s" : formatDuration(Duration.between(oldest, now())));
         return response;
     }
 
@@ -164,6 +193,13 @@ public class AdminStatusService {
         row.put("certificateExpiresSoon", expiresSoon);
         row.put("effectiveAuthState", effectiveAuthState(status, revoked, expired, expiresSoon));
         return row;
+    }
+
+    private OffsetDateTime now() {
+        return OffsetDateTime.now(clock);
+    }
+
+    private record OverviewSnapshot(Map<String, Object> response, OffsetDateTime expiresAt) {
     }
 
     private String effectiveAuthState(String status, boolean revoked, boolean expired, boolean expiresSoon) {

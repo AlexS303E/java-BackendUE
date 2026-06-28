@@ -75,3 +75,11 @@ Goal: make all admin write-actions replay-safe and contract-visible before dashb
 - [x] Cover admin POST idempotency in OpenAPI and the contract matrix.
 - [x] Require explicit reason/comment bodies for legacy `/admin/control/*` write-actions.
 - [x] Add audit request hash coverage for legacy `/admin/control/*` write-actions.
+
+## Block 7 - Dashboard load control
+
+Goal: keep read-only dashboard polling from adding avoidable DB/Redis pressure to gameplay APIs.
+
+- [x] Serve `/admin/status/overview` from a short-lived snapshot during polling windows.
+- [ ] Add bounded pagination/limits to heavy dashboard lists where missing.
+- [ ] Add regression coverage that dashboard polling does not call detail/list queries.

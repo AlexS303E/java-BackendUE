@@ -7,7 +7,11 @@ import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +20,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,6 +54,37 @@ class AdminStatusServiceTest {
         verify(repository, never()).listMatches();
         verify(repository, never()).listRecentAuditEvents();
         verify(repository, never()).searchPlayersByLogin(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void overviewShouldReuseSnapshotWithinPollingTtl() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-06-28T00:00:00Z"));
+        AdminStatusService cachedService = new AdminStatusService(
+            repository,
+            redisDownTemplate(),
+            clock,
+            Duration.ofSeconds(5)
+        );
+        when(repository.databasePingOk()).thenReturn(true);
+        when(repository.activeCatalog()).thenReturn(Map.of("activeVersion", 1L));
+        when(repository.countRunningMatches()).thenReturn(2L, 9L);
+        when(repository.countPendingRuntimeConflicts()).thenReturn(1L);
+        when(repository.outboxStatusCounts()).thenReturn(Map.of(
+            "pending", 3L,
+            "failed", 0L,
+            "processed", 7L
+        ));
+        when(repository.oldestPendingOutboxCreatedAt()).thenReturn(null);
+
+        Map<String, Object> first = cachedService.overview();
+        Map<String, Object> second = cachedService.overview();
+        clock.advance(Duration.ofSeconds(6));
+        Map<String, Object> third = cachedService.overview();
+
+        assertThat(second).isSameAs(first);
+        assertThat(third).isNotSameAs(first);
+        verify(repository, times(2)).countRunningMatches();
+        verify(repository, times(2)).outboxStatusCounts();
     }
 
     @Test
@@ -100,5 +136,32 @@ class AdminStatusServiceTest {
         row.put("expiresAt", expiresAt);
         row.put("revokedAt", revokedAt);
         return row;
+    }
+
+    private static final class MutableClock extends Clock {
+        private Instant instant;
+
+        private MutableClock(Instant instant) {
+            this.instant = instant;
+        }
+
+        private void advance(Duration duration) {
+            instant = instant.plus(duration);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneId.of("UTC");
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
+        }
     }
 }
