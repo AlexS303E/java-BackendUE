@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Set;
@@ -21,6 +22,11 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
     private final String jwtPublicKey;
     private final String corsAllowedOrigins;
     private final String adminAllowedCidrs;
+    private final boolean rateLimitEnabled;
+    private final Duration rateLimitWindow;
+    private final int authRateLimit;
+    private final int serverRateLimit;
+    private final int adminRateLimit;
 
     public ProductionHardeningValidator(
         Environment environment,
@@ -28,7 +34,12 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         @Value("${app.auth.jwt-private-key:}") String jwtPrivateKey,
         @Value("${app.auth.jwt-public-key:}") String jwtPublicKey,
         @Value("${app.cors.allowed-origins:}") String corsAllowedOrigins,
-        @Value("${app.admin.allowed-cidrs:}") String adminAllowedCidrs
+        @Value("${app.admin.allowed-cidrs:}") String adminAllowedCidrs,
+        @Value("${app.rate-limit.enabled:false}") boolean rateLimitEnabled,
+        @Value("${app.rate-limit.window:PT1M}") Duration rateLimitWindow,
+        @Value("${app.rate-limit.auth-limit:60}") int authRateLimit,
+        @Value("${app.rate-limit.server-limit:600}") int serverRateLimit,
+        @Value("${app.rate-limit.admin-limit:120}") int adminRateLimit
     ) {
         this.environment = environment;
         this.adminToken = adminToken;
@@ -36,6 +47,11 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         this.jwtPublicKey = jwtPublicKey;
         this.corsAllowedOrigins = corsAllowedOrigins;
         this.adminAllowedCidrs = adminAllowedCidrs;
+        this.rateLimitEnabled = rateLimitEnabled;
+        this.rateLimitWindow = rateLimitWindow;
+        this.authRateLimit = authRateLimit;
+        this.serverRateLimit = serverRateLimit;
+        this.adminRateLimit = adminRateLimit;
     }
 
     @Override
@@ -46,7 +62,12 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
             jwtPrivateKey,
             jwtPublicKey,
             corsAllowedOrigins,
-            adminAllowedCidrs
+            adminAllowedCidrs,
+            rateLimitEnabled,
+            rateLimitWindow,
+            authRateLimit,
+            serverRateLimit,
+            adminRateLimit
         );
     }
 
@@ -57,7 +78,12 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
             "-----BEGIN PRIVATE KEY-----\nlocal\n-----END PRIVATE KEY-----",
             "-----BEGIN PUBLIC KEY-----\nlocal\n-----END PUBLIC KEY-----",
             "https://game.example",
-            "127.0.0.1/32"
+            "127.0.0.1/32",
+            true,
+            Duration.ofMinutes(1),
+            60,
+            600,
+            120
         );
     }
 
@@ -79,6 +105,34 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         String corsAllowedOrigins,
         String adminAllowedCidrs
     ) {
+        validateForStartup(
+            activeProfiles,
+            adminToken,
+            jwtPrivateKey,
+            jwtPublicKey,
+            corsAllowedOrigins,
+            adminAllowedCidrs,
+            true,
+            Duration.ofMinutes(1),
+            60,
+            600,
+            120
+        );
+    }
+
+    public static void validateForStartup(
+        String[] activeProfiles,
+        String adminToken,
+        String jwtPrivateKey,
+        String jwtPublicKey,
+        String corsAllowedOrigins,
+        String adminAllowedCidrs,
+        boolean rateLimitEnabled,
+        Duration rateLimitWindow,
+        int authRateLimit,
+        int serverRateLimit,
+        int adminRateLimit
+    ) {
         if (!hasProductionProfile(activeProfiles)) {
             return;
         }
@@ -90,6 +144,11 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         rejectInlinePem("app.auth.jwt-public-key", jwtPublicKey);
         requireRequired("app.cors.allowed-origins", corsAllowedOrigins);
         requireRequired("app.admin.allowed-cidrs", adminAllowedCidrs);
+        requireTrue("app.rate-limit.enabled", rateLimitEnabled);
+        requirePositiveDuration("app.rate-limit.window", rateLimitWindow);
+        requirePositiveInt("app.rate-limit.auth-limit", authRateLimit);
+        requirePositiveInt("app.rate-limit.server-limit", serverRateLimit);
+        requirePositiveInt("app.rate-limit.admin-limit", adminRateLimit);
     }
 
     private static void requireProductionSecret(String propertyName, String value, Set<String> unsafeValues) {
@@ -108,6 +167,24 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
     private static void rejectInlinePem(String propertyName, String value) {
         if (value != null && value.contains("-----BEGIN ")) {
             throw new IllegalStateException("Production profile requires " + propertyName + " to reference external secret material, not inline PEM");
+        }
+    }
+
+    private static void requireTrue(String propertyName, boolean value) {
+        if (!value) {
+            throw new IllegalStateException("Production profile requires " + propertyName + "=true");
+        }
+    }
+
+    private static void requirePositiveDuration(String propertyName, Duration value) {
+        if (value == null || value.isZero() || value.isNegative()) {
+            throw new IllegalStateException("Production profile requires positive " + propertyName);
+        }
+    }
+
+    private static void requirePositiveInt(String propertyName, int value) {
+        if (value < 1) {
+            throw new IllegalStateException("Production profile requires positive " + propertyName);
         }
     }
 

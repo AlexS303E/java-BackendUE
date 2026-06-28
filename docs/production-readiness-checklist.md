@@ -27,7 +27,7 @@
 
 ### General
 - [x] **CORS** — prod profile requires `CORS_ALLOWED_ORIGINS`; Spring Security CORS allows only configured origins.
-- [x] **Rate limiting** — production profile enables fixed-window rate limits for `/auth/*`, `/server/*`, and `/admin/*`; server routes bucket by `X-Server-Id`; local/dev profile keeps it disabled by default.
+- [x] **Rate limiting** — production profile enables fixed-window rate limits for `/auth/*`, `/server/*`, and `/admin/*`; startup rejects disabled or non-positive prod limits; server routes bucket by `X-Server-Id`; local/dev profile keeps it disabled by default.
 - [x] **SQL injection** — production code uses JdbcTemplate repository bind parameters; raw JDBC statements and dynamic SQL formatting are guarded by `SqlInjectionGuardTest`.
 - [x] **Secrets in repo** — `.env`, generated mTLS outputs, logs, and local mTLS work dirs are ignored; covered by `ProductionArtifactGuardTest`.
 

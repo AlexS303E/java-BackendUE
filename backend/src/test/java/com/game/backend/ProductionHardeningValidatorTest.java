@@ -3,6 +3,8 @@ package com.game.backend;
 import com.game.backend.common.config.ProductionHardeningValidator;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -72,6 +74,57 @@ class ProductionHardeningValidatorTest {
     }
 
     @Test
+    void shouldRejectUnsafeProductionRateLimitConfiguration() {
+        assertThatThrownBy(() -> ProductionHardeningValidator.validateForStartup(
+            new String[]{"prod"},
+            ADMIN_TOKEN,
+            PRIVATE_KEY,
+            PUBLIC_KEY,
+            CORS,
+            ADMIN_CIDRS,
+            false,
+            Duration.ofMinutes(1),
+            60,
+            600,
+            120
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("app.rate-limit.enabled");
+
+        assertThatThrownBy(() -> ProductionHardeningValidator.validateForStartup(
+            new String[]{"prod"},
+            ADMIN_TOKEN,
+            PRIVATE_KEY,
+            PUBLIC_KEY,
+            CORS,
+            ADMIN_CIDRS,
+            true,
+            Duration.ZERO,
+            60,
+            600,
+            120
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("app.rate-limit.window");
+
+        assertThatThrownBy(() -> ProductionHardeningValidator.validateForStartup(
+            new String[]{"prod"},
+            ADMIN_TOKEN,
+            PRIVATE_KEY,
+            PUBLIC_KEY,
+            CORS,
+            ADMIN_CIDRS,
+            true,
+            Duration.ofMinutes(1),
+            0,
+            600,
+            120
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("app.rate-limit.auth-limit");
+    }
+
+    @Test
     void shouldAllowSafeProductionAndLocalDevConfiguration() {
         assertThatCode(() -> ProductionHardeningValidator.validateForStartup(
             new String[]{"prod"},
@@ -79,7 +132,12 @@ class ProductionHardeningValidatorTest {
             PRIVATE_KEY,
             PUBLIC_KEY,
             CORS,
-            ADMIN_CIDRS
+            ADMIN_CIDRS,
+            true,
+            Duration.ofMinutes(1),
+            60,
+            600,
+            120
         ))
             .doesNotThrowAnyException();
 

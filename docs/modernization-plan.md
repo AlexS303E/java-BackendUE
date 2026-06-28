@@ -129,3 +129,11 @@ Goal: keep outbox polling from scanning operational tables as retry volume grows
 
 - [x] Add a partial index for deliverable `pending`/`failed` outbox rows ordered by `next_attempt_at` and `created_at`.
 - [x] Cover the index and Flyway migration version in `FlywayMigrationIntegrationTest`.
+
+## Block 14 - Production rate-limit fail-fast
+
+Goal: keep overload protection active and sane in production.
+
+- [x] Reject production startup when rate limiting is disabled.
+- [x] Reject non-positive production rate-limit windows and per-route limits.
+- [x] Cover unsafe rate-limit settings in `ProductionHardeningValidatorTest`.
