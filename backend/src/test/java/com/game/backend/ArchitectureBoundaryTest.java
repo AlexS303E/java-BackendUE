@@ -50,6 +50,24 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void jdbcRepositoryBaseClassShouldOnlyBeExtendedByRepositories() throws IOException {
+        Path sourceRoot = Path.of("src/main/java/com/game/backend");
+        List<Path> offenders;
+        try (var paths = Files.walk(sourceRoot)) {
+            offenders = paths
+                .filter(Files::isRegularFile)
+                .filter(path -> path.toString().endsWith(".java"))
+                .filter(ArchitectureBoundaryTest::extendsJdbcRepository)
+                .filter(path -> !isRepositoryPackage(path))
+                .toList();
+        }
+
+        assertThat(offenders)
+            .as("JdbcRepository subclasses must live in repository packages")
+            .isEmpty();
+    }
+
+    @Test
     void everyApplicationPackageShouldStayBehindRepositories() throws IOException {
         List<Path> applicationRoots = applicationPackageRoots();
 
@@ -269,6 +287,18 @@ class ArchitectureBoundaryTest {
         String normalized = path.toString().replace('\\', '/');
         return normalized.contains("/repository/")
             || normalized.contains("/common/persistence/");
+    }
+
+    private static boolean isRepositoryPackage(Path path) {
+        return path.toString().replace('\\', '/').contains("/repository/");
+    }
+
+    private static boolean extendsJdbcRepository(Path path) {
+        try {
+            return Files.readString(path).contains("extends JdbcRepository");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
     }
 
     private static boolean usesJdbcTemplateDirectly(Path path) {

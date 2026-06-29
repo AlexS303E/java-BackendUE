@@ -205,3 +205,10 @@ Goal: keep direct `JdbcTemplate` access constrained to repository infrastructure
 
 - [x] Add a repository-boundary regression that scans production Java sources.
 - [x] Fail CI when direct JDBC usage appears outside `*/repository/*` or `common/persistence`.
+
+## Block 24 - JdbcRepository inheritance boundary guard
+
+Goal: keep generic repository query helpers from leaking into service/application classes.
+
+- [x] Scan production Java sources for `JdbcRepository` subclasses.
+- [x] Fail CI when a subclass lives outside a `*/repository/*` package.
