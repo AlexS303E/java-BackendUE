@@ -161,3 +161,11 @@ Goal: keep operational runbooks tied to the metrics emitted by overload and outb
 - [x] Document outbox lag/status/circuit-breaker metrics in the outbox incident runbook.
 - [x] Document rate-limit rejection metrics in the overload incident runbook.
 - [x] Cover required runbook metric names in `RunbookCoverageTest`.
+
+## Block 18 - Admin role matrix coverage guard
+
+Goal: keep every implemented admin route assigned to an explicit tested role.
+
+- [x] Store route templates in `AdminAuthenticationFilterTest` role matrix.
+- [x] Extract literal `/admin/*` Spring mappings from backend controllers.
+- [x] Fail CI when an implemented admin route is missing from the role matrix.

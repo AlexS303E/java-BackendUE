@@ -7,12 +7,23 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AdminAuthenticationFilterTest {
+    private static final Path BACKEND_JAVA_ROOT = Path.of("src", "main", "java", "com", "game", "backend");
+    private static final Pattern SPRING_MAPPING = Pattern.compile("@(Get|Post|Put|Patch|Delete)Mapping\\(\"(/admin/[^\"]+)\"\\)");
+
     @Test
     void shouldAllowConfiguredIpAndRole() throws Exception {
         AdminAuthenticationFilter filter = filter(List.of("10.10.0.0/16"), List.of("status"));
@@ -105,37 +116,9 @@ class AdminAuthenticationFilterTest {
 
     @Test
     void shouldRequireExplicitRoleForEveryCurrentAdminRoute() throws Exception {
-        List<RouteRole> routeRoles = List.of(
-            new RouteRole("GET", "/admin/status/overview", "status"),
-            new RouteRole("GET", "/admin/status/servers", "status"),
-            new RouteRole("GET", "/admin/status/matches", "status"),
-            new RouteRole("GET", "/admin/status/recent-audit", "status"),
-            new RouteRole("GET", "/admin/status/players/search", "status"),
-            new RouteRole("GET", "/admin/status/players/00000000-0000-0000-0000-000000000001/weapon-access", "status"),
-            new RouteRole("GET", "/admin/status/players/00000000-0000-0000-0000-000000000001/weapon-access/audit", "status"),
-            new RouteRole("POST", "/admin/players/00000000-0000-0000-0000-000000000001/access/items/weapon.ak12", "access"),
-            new RouteRole("POST", "/admin/items/hide", "access"),
-            new RouteRole("POST", "/admin/items/reveal", "access"),
-            new RouteRole("POST", "/admin/items/shop-lock", "access"),
-            new RouteRole("POST", "/admin/items/shop-unlock", "access"),
-            new RouteRole("POST", "/admin/items/quest-lock", "access"),
-            new RouteRole("POST", "/admin/items/quest-unlock", "access"),
-            new RouteRole("POST", "/admin/items/disable", "access"),
-            new RouteRole("POST", "/admin/items/enable", "access"),
-            new RouteRole("POST", "/admin/access/rebuild-projection", "access"),
-            new RouteRole("POST", "/admin/cache/invalidate-player", "ops"),
-            new RouteRole("POST", "/admin/server-identities/revoke", "ops"),
-            new RouteRole("POST", "/admin/catalog/publish", "catalog"),
-            new RouteRole("POST", "/admin/catalog/rollback", "catalog"),
-            new RouteRole("POST", "/admin/control/players/00000000-0000-0000-0000-000000000001/invalidate-cache", "ops"),
-            new RouteRole("POST", "/admin/control/server-identities/00000000-0000-0000-0000-000000000002/revoke", "ops"),
-            new RouteRole("POST", "/admin/control/outbox/retry-failed", "ops"),
-            new RouteRole("POST", "/admin/control/players/00000000-0000-0000-0000-000000000001/weapon-access", "access")
-        );
-
-        for (RouteRole routeRole : routeRoles) {
+        for (RouteRole routeRole : routeRoles()) {
             AdminAuthenticationFilter filter = filter(List.of(), List.of(routeRole.role()));
-            MockHttpServletRequest request = request(routeRole.method(), routeRole.path(), "127.0.0.1");
+            MockHttpServletRequest request = request(routeRole.method(), routeRole.requestPath(), "127.0.0.1");
             request.addHeader("X-Admin-Token", "token");
             request.addHeader("X-Admin-Confirm", "true");
             CountingChain chain = new CountingChain();
@@ -144,10 +127,17 @@ class AdminAuthenticationFilterTest {
             filter.doFilter(request, response, chain);
 
             assertThat(response.getStatus())
-                .as("%s %s must require role %s", routeRole.method(), routeRole.path(), routeRole.role())
+                .as("%s %s must require role %s", routeRole.method(), routeRole.templatePath(), routeRole.role())
                 .isEqualTo(200);
             assertThat(chain.count()).isEqualTo(1);
         }
+    }
+
+    @Test
+    void roleMatrixShouldCoverEveryImplementedAdminRoute() throws IOException {
+        assertThat(roleMatrixOperations())
+            .as("Admin route role matrix must cover every literal /admin/* controller mapping")
+            .containsAll(implementedAdminOperations());
     }
 
     @Test
@@ -178,6 +168,63 @@ class AdminAuthenticationFilterTest {
         return request;
     }
 
+    private static List<RouteRole> routeRoles() {
+        return List.of(
+            new RouteRole("GET", "/admin/status/overview", "/admin/status/overview", "status"),
+            new RouteRole("GET", "/admin/status/servers", "/admin/status/servers", "status"),
+            new RouteRole("GET", "/admin/status/matches", "/admin/status/matches", "status"),
+            new RouteRole("GET", "/admin/status/recent-audit", "/admin/status/recent-audit", "status"),
+            new RouteRole("GET", "/admin/status/players/search", "/admin/status/players/search", "status"),
+            new RouteRole("GET", "/admin/status/players/{player_id}/weapon-access", "/admin/status/players/00000000-0000-0000-0000-000000000001/weapon-access", "status"),
+            new RouteRole("GET", "/admin/status/players/{player_id}/weapon-access/audit", "/admin/status/players/00000000-0000-0000-0000-000000000001/weapon-access/audit", "status"),
+            new RouteRole("POST", "/admin/players/{player_id}/access/items/{item_id}", "/admin/players/00000000-0000-0000-0000-000000000001/access/items/weapon.ak12", "access"),
+            new RouteRole("POST", "/admin/items/hide", "/admin/items/hide", "access"),
+            new RouteRole("POST", "/admin/items/reveal", "/admin/items/reveal", "access"),
+            new RouteRole("POST", "/admin/items/shop-lock", "/admin/items/shop-lock", "access"),
+            new RouteRole("POST", "/admin/items/shop-unlock", "/admin/items/shop-unlock", "access"),
+            new RouteRole("POST", "/admin/items/quest-lock", "/admin/items/quest-lock", "access"),
+            new RouteRole("POST", "/admin/items/quest-unlock", "/admin/items/quest-unlock", "access"),
+            new RouteRole("POST", "/admin/items/disable", "/admin/items/disable", "access"),
+            new RouteRole("POST", "/admin/items/enable", "/admin/items/enable", "access"),
+            new RouteRole("POST", "/admin/access/rebuild-projection", "/admin/access/rebuild-projection", "access"),
+            new RouteRole("POST", "/admin/cache/invalidate-player", "/admin/cache/invalidate-player", "ops"),
+            new RouteRole("POST", "/admin/server-identities/revoke", "/admin/server-identities/revoke", "ops"),
+            new RouteRole("POST", "/admin/catalog/publish", "/admin/catalog/publish", "catalog"),
+            new RouteRole("POST", "/admin/catalog/rollback", "/admin/catalog/rollback", "catalog"),
+            new RouteRole("POST", "/admin/control/players/{player_id}/invalidate-cache", "/admin/control/players/00000000-0000-0000-0000-000000000001/invalidate-cache", "ops"),
+            new RouteRole("POST", "/admin/control/server-identities/{server_id}/revoke", "/admin/control/server-identities/00000000-0000-0000-0000-000000000002/revoke", "ops"),
+            new RouteRole("POST", "/admin/control/outbox/retry-failed", "/admin/control/outbox/retry-failed", "ops"),
+            new RouteRole("POST", "/admin/control/players/{player_id}/weapon-access", "/admin/control/players/00000000-0000-0000-0000-000000000001/weapon-access", "access")
+        );
+    }
+
+    private static Set<String> roleMatrixOperations() {
+        Set<String> operations = new LinkedHashSet<>();
+        for (RouteRole routeRole : routeRoles()) {
+            operations.add(routeRole.method() + " " + routeRole.templatePath());
+        }
+        return operations;
+    }
+
+    private static Set<String> implementedAdminOperations() throws IOException {
+        Set<String> operations = new LinkedHashSet<>();
+        try (var files = Files.walk(BACKEND_JAVA_ROOT)) {
+            for (Path file : files
+                .filter(Files::isRegularFile)
+                .filter(path -> path.toString().endsWith(".java"))
+                .sorted()
+                .toList()) {
+                for (String line : Files.readAllLines(file)) {
+                    Matcher matcher = SPRING_MAPPING.matcher(line);
+                    if (matcher.find()) {
+                        operations.add(matcher.group(1).toUpperCase(Locale.ROOT) + " " + matcher.group(2));
+                    }
+                }
+            }
+        }
+        return operations;
+    }
+
     private static final class CountingChain implements FilterChain {
         private final AtomicInteger count = new AtomicInteger();
 
@@ -191,6 +238,6 @@ class AdminAuthenticationFilterTest {
         }
     }
 
-    private record RouteRole(String method, String path, String role) {
+    private record RouteRole(String method, String templatePath, String requestPath, String role) {
     }
 }
