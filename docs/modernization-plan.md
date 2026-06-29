@@ -176,3 +176,11 @@ Goal: keep implemented Dedicated Server routes synchronized with the private ser
 
 - [x] Reuse the literal Spring mapping extractor for `/server/*` routes.
 - [x] Fail CI when an implemented server route is missing from `contracts/openapi/server-api.yaml`.
+
+## Block 20 - Server route scope matrix guard
+
+Goal: keep every implemented Dedicated Server route assigned to an explicit server identity scope.
+
+- [x] Extract server route/scope mapping into a testable matrix.
+- [x] Fail CI when an implemented `/server/*` route is missing from the scope matrix.
+- [x] Cover unknown server routes as fail-closed.

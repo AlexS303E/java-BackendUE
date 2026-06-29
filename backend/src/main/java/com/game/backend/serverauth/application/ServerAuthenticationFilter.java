@@ -206,21 +206,10 @@ public class ServerAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Жесткая route -> scope матрица для текущего MVP набора server endpoints.
+     * Resolves the required scope from the dedicated server route matrix.
      */
     private String requiredScope(HttpServletRequest request) {
-        String method = request.getMethod();
-        String path = request.getRequestURI();
-        if ("POST".equals(method) && "/server/match-profile/build".equals(path)) {
-            return "match_profile:read";
-        }
-        if ("POST".equals(method) && "/server/runtime-preset-changes".equals(path)) {
-            return "runtime_preset_change:write";
-        }
-        if ("POST".equals(method) && "/server/runtime-events".equals(path)) {
-            return "runtime_event:write";
-        }
-        return null;
+        return ServerRouteScopes.requiredScope(request.getMethod(), request.getRequestURI()).orElse(null);
     }
 
     /**
