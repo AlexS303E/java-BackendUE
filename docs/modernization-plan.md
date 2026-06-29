@@ -260,3 +260,10 @@ Goal: remove the last repository-to-API DTO dependency from player presets.
 - [x] Replace preset save request DTO parameters with repository command records.
 - [x] Move preset API DTO/command mapping into `PresetsService`.
 - [x] Empty the repository-to-API dependency allow-list.
+
+## Block 31 - Repository API boundary finalization
+
+Goal: make repository independence from API contracts unconditional after removing all known debt.
+
+- [x] Remove the repository-to-API dependency allow-list from the architecture boundary test.
+- [x] Fail CI for any `*.api.*` dependency from repository code without exceptions.
