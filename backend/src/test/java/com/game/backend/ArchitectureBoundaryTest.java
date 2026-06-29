@@ -6,10 +6,18 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ArchitectureBoundaryTest {
+    private static final Set<Path> KNOWN_REPOSITORY_API_DEPENDENCIES = Set.of(
+        Path.of("src/main/java/com/game/backend/catalog/repository/CatalogRepository.java"),
+        Path.of("src/main/java/com/game/backend/notifications/repository/NotificationsRepository.java"),
+        Path.of("src/main/java/com/game/backend/postmatch/repository/PostMatchRepository.java"),
+        Path.of("src/main/java/com/game/backend/presets/repository/PresetsRepository.java")
+    );
+
     @Test
     void applicationLayerShouldNotUseJdbcTemplateDirectly() throws IOException {
         Path sourceRoot = Path.of("src/main/java/com/game/backend");
@@ -94,6 +102,24 @@ class ArchitectureBoundaryTest {
 
         assertThat(offenders)
             .as("API controllers and DTOs should depend on application services, not repositories or JDBC")
+            .isEmpty();
+    }
+
+    @Test
+    void everyRepositoryPackageShouldStayIndependentFromApiContracts() throws IOException {
+        List<Path> repositoryRoots = packageRoots("repository");
+
+        assertThat(repositoryRoots)
+            .as("Architecture guard must discover repository packages automatically")
+            .isNotEmpty();
+
+        List<Path> offenders = filesUnder(repositoryRoots).stream()
+            .filter(ArchitectureBoundaryTest::dependsOnApiPackage)
+            .filter(path -> !KNOWN_REPOSITORY_API_DEPENDENCIES.contains(path))
+            .toList();
+
+        assertThat(offenders)
+            .as("New repository code must not depend on API DTOs or controllers")
             .isEmpty();
     }
 
@@ -354,6 +380,14 @@ class ArchitectureBoundaryTest {
                 || source.contains("JdbcRepository")
                 || source.contains("JdbcTemplate")
                 || source.contains("jdbcTemplate.");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean dependsOnApiPackage(Path path) {
+        try {
+            return Files.readString(path).contains(".api.");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

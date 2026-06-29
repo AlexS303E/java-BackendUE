@@ -219,3 +219,11 @@ Goal: keep controllers and DTOs behind application services instead of reaching 
 
 - [x] Discover every `*/api` package automatically in the architecture boundary test.
 - [x] Fail CI when API code imports repositories or uses JDBC/query helpers directly.
+
+## Block 26 - Repository API independence guard
+
+Goal: keep persistence code independent from HTTP/API contracts.
+
+- [x] Discover every `*/repository` package automatically in the architecture boundary test.
+- [x] Freeze the current repository-to-API DTO debt as an explicit allow-list.
+- [x] Fail CI when new repository code depends on `*.api.*` DTOs or controllers.
