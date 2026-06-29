@@ -191,3 +191,10 @@ Goal: keep unknown Dedicated Server routes rejected by the server authentication
 
 - [x] Add an integration regression for an unmapped `/server/*` route with valid server identity headers.
 - [x] Assert the route returns `SERVER_ENDPOINT_NOT_CONFIGURED` instead of falling through to an accidental handler.
+
+## Block 22 - Application repository boundary drift guard
+
+Goal: keep future application services from reintroducing direct SQL/query plumbing outside repositories.
+
+- [x] Discover every `*/application` package automatically in the architecture boundary test.
+- [x] Apply the SQL/query-plumbing guard to each discovered application package instead of relying only on a hand-maintained list.

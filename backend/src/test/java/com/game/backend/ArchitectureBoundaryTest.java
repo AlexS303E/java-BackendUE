@@ -32,6 +32,19 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void everyApplicationPackageShouldStayBehindRepositories() throws IOException {
+        List<Path> applicationRoots = applicationPackageRoots();
+
+        assertThat(applicationRoots)
+            .as("Architecture guard must discover application packages automatically")
+            .isNotEmpty();
+
+        for (Path sourceRoot : applicationRoots) {
+            assertApplicationPackageDoesNotOwnSqlQueries(sourceRoot);
+        }
+    }
+
+    @Test
     void matchProfileApplicationShouldNotOwnSqlQueries() throws IOException {
         Path sourceRoot = Path.of("src/main/java/com/game/backend/matchprofile/application");
         assertApplicationPackageDoesNotOwnSqlQueries(sourceRoot);
@@ -221,6 +234,17 @@ class ArchitectureBoundaryTest {
         assertThat(offenders)
             .as("Application services should call named repository methods, not own SQL/query plumbing")
             .isEmpty();
+    }
+
+    private static List<Path> applicationPackageRoots() throws IOException {
+        Path sourceRoot = Path.of("src/main/java/com/game/backend");
+        try (var paths = Files.walk(sourceRoot)) {
+            return paths
+                .filter(Files::isDirectory)
+                .filter(path -> path.getFileName().toString().equals("application"))
+                .sorted()
+                .toList();
+        }
     }
 
     private static boolean usesJdbcTemplateDirectly(Path path) {
