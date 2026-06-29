@@ -11,9 +11,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ArchitectureBoundaryTest {
-    private static final Set<Path> KNOWN_REPOSITORY_API_DEPENDENCIES = Set.of(
-        Path.of("src/main/java/com/game/backend/presets/repository/PresetsRepository.java")
-    );
+    private static final Set<Path> KNOWN_REPOSITORY_API_DEPENDENCIES = Set.of();
 
     @Test
     void applicationLayerShouldNotUseJdbcTemplateDirectly() throws IOException {

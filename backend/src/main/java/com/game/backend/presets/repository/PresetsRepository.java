@@ -1,23 +1,64 @@
 package com.game.backend.presets.repository;
 
 import com.game.backend.common.persistence.JdbcRepository;
-import com.game.backend.presets.api.ModuleSelectionDto;
-import com.game.backend.presets.api.OutfitItemDto;
-import com.game.backend.presets.api.OutfitPresetDto;
-import com.game.backend.presets.api.SaveModuleRequest;
-import com.game.backend.presets.api.SaveWeaponSlotRequest;
-import com.game.backend.presets.api.WeaponPresetDto;
-import com.game.backend.presets.api.WeaponSlotPresetDto;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 @Repository
 public class PresetsRepository extends JdbcRepository {
+    public record WeaponPresetRecord(
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        long revision,
+        boolean sanitized
+    ) {
+    }
+
+    public record OutfitPresetRecord(
+        String teamTag,
+        String classTag,
+        int outfitPresetSlot,
+        long catalogVersion,
+        long revision,
+        boolean sanitized
+    ) {
+    }
+
+    public record WeaponSlotRecord(
+        String weaponSlotId,
+        String selectedWeaponId
+    ) {
+    }
+
+    public record ModuleSelectionRecord(
+        String mountId,
+        String moduleId
+    ) {
+    }
+
+    public record OutfitItemRecord(
+        String clothingSlotId,
+        String itemId
+    ) {
+    }
+
+    public record SaveWeaponSlotCommand(
+        String weaponSlotId,
+        String weaponId
+    ) {
+    }
+
+    public record SaveModuleCommand(
+        String mountId,
+        String moduleId
+    ) {
+    }
+
     public record WeaponPresetKey(String classTag, int presetSlot, long catalogVersion) {
     }
 
@@ -158,7 +199,7 @@ public class PresetsRepository extends JdbcRepository {
         return Boolean.TRUE.equals(allowed);
     }
 
-    public List<WeaponPresetDto> findWeaponPresets(UUID playerId) {
+    public List<WeaponPresetRecord> findWeaponPresets(UUID playerId) {
         return query(
             """
                 SELECT class_tag, preset_slot, catalog_version, revision, sanitized
@@ -166,13 +207,12 @@ public class PresetsRepository extends JdbcRepository {
                 WHERE player_id = ?
                 ORDER BY class_tag, preset_slot
                 """,
-            (rs, rowNum) -> new WeaponPresetDto(
+            (rs, rowNum) -> new WeaponPresetRecord(
                 rs.getString("class_tag"),
                 rs.getInt("preset_slot"),
                 rs.getLong("catalog_version"),
                 rs.getLong("revision"),
-                rs.getBoolean("sanitized"),
-                new ArrayList<>()
+                rs.getBoolean("sanitized")
             ),
             playerId
         );
@@ -218,7 +258,7 @@ public class PresetsRepository extends JdbcRepository {
         );
     }
 
-    public List<OutfitPresetDto> findOutfitPresets(UUID playerId) {
+    public List<OutfitPresetRecord> findOutfitPresets(UUID playerId) {
         return query(
             """
                 SELECT team_tag, class_tag, outfit_preset_slot, catalog_version, revision, sanitized
@@ -226,14 +266,13 @@ public class PresetsRepository extends JdbcRepository {
                 WHERE player_id = ?
                 ORDER BY team_tag, class_tag, outfit_preset_slot
                 """,
-            (rs, rowNum) -> new OutfitPresetDto(
+            (rs, rowNum) -> new OutfitPresetRecord(
                 rs.getString("team_tag"),
                 rs.getString("class_tag"),
                 rs.getInt("outfit_preset_slot"),
                 rs.getLong("catalog_version"),
                 rs.getLong("revision"),
-                rs.getBoolean("sanitized"),
-                new ArrayList<>()
+                rs.getBoolean("sanitized")
             ),
             playerId
         );
@@ -259,7 +298,7 @@ public class PresetsRepository extends JdbcRepository {
         );
     }
 
-    public List<WeaponSlotPresetDto> findWeaponSlots(
+    public List<WeaponSlotRecord> findWeaponSlots(
         UUID playerId,
         String classTag,
         int presetSlot,
@@ -275,10 +314,9 @@ public class PresetsRepository extends JdbcRepository {
                   AND catalog_version = ?
                 ORDER BY weapon_slot_id
                 """,
-            (rs, rowNum) -> new WeaponSlotPresetDto(
+            (rs, rowNum) -> new WeaponSlotRecord(
                 rs.getString("weapon_slot_id"),
-                rs.getString("selected_weapon_id"),
-                List.of()
+                rs.getString("selected_weapon_id")
             ),
             playerId,
             classTag,
@@ -287,7 +325,7 @@ public class PresetsRepository extends JdbcRepository {
         );
     }
 
-    public List<ModuleSelectionDto> findModules(
+    public List<ModuleSelectionRecord> findModules(
         UUID playerId,
         String classTag,
         int presetSlot,
@@ -307,7 +345,7 @@ public class PresetsRepository extends JdbcRepository {
                   AND weapon_id = ?
                 ORDER BY mount_id
                 """,
-            (rs, rowNum) -> new ModuleSelectionDto(
+            (rs, rowNum) -> new ModuleSelectionRecord(
                 rs.getString("mount_id"),
                 rs.getString("module_id")
             ),
@@ -320,7 +358,7 @@ public class PresetsRepository extends JdbcRepository {
         );
     }
 
-    public List<OutfitItemDto> findOutfitItems(
+    public List<OutfitItemRecord> findOutfitItems(
         UUID playerId,
         String teamTag,
         String classTag,
@@ -338,7 +376,7 @@ public class PresetsRepository extends JdbcRepository {
                   AND catalog_version = ?
                 ORDER BY clothing_slot_id
                 """,
-            (rs, rowNum) -> new OutfitItemDto(
+            (rs, rowNum) -> new OutfitItemRecord(
                 rs.getString("clothing_slot_id"),
                 rs.getString("item_id")
             ),
@@ -402,7 +440,7 @@ public class PresetsRepository extends JdbcRepository {
         String classTag,
         int presetSlot,
         long catalogVersion,
-        SaveWeaponSlotRequest slot
+        SaveWeaponSlotCommand slot
     ) {
         update(
             """
@@ -432,7 +470,7 @@ public class PresetsRepository extends JdbcRepository {
         String classTag,
         int presetSlot,
         long catalogVersion,
-        SaveWeaponSlotRequest slot,
+        SaveWeaponSlotCommand slot,
         OffsetDateTime now
     ) {
         update(
@@ -497,7 +535,7 @@ public class PresetsRepository extends JdbcRepository {
         long catalogVersion,
         String weaponSlotId,
         String weaponId,
-        SaveModuleRequest module
+        SaveModuleCommand module
     ) {
         update(
             """

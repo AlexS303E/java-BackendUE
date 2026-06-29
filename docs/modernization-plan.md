@@ -251,3 +251,12 @@ Goal: reduce repository-to-API DTO debt in the catalog snapshot read path.
 - [x] Replace catalog API DTO returns in `CatalogRepository` with repository records.
 - [x] Move catalog snapshot API DTO mapping into `CatalogService`.
 - [x] Remove `CatalogRepository` from the repository-to-API dependency allow-list.
+
+## Block 30 - Presets repository API decoupling
+
+Goal: remove the last repository-to-API DTO dependency from player presets.
+
+- [x] Replace preset API DTO returns in `PresetsRepository` with repository records.
+- [x] Replace preset save request DTO parameters with repository command records.
+- [x] Move preset API DTO/command mapping into `PresetsService`.
+- [x] Empty the repository-to-API dependency allow-list.

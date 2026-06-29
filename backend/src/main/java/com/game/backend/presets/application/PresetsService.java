@@ -1,13 +1,20 @@
 package com.game.backend.presets.application;
 
 import com.game.backend.presets.repository.PresetsRepository;
+import com.game.backend.presets.repository.PresetsRepository.ModuleSelectionRecord;
+import com.game.backend.presets.repository.PresetsRepository.OutfitItemRecord;
+import com.game.backend.presets.repository.PresetsRepository.OutfitPresetRecord;
 import com.game.backend.presets.repository.PresetsRepository.OutfitPresetItemRow;
 import com.game.backend.presets.repository.PresetsRepository.OutfitPresetKey;
 import com.game.backend.presets.repository.PresetsRepository.PresetHeader;
+import com.game.backend.presets.repository.PresetsRepository.SaveModuleCommand;
+import com.game.backend.presets.repository.PresetsRepository.SaveWeaponSlotCommand;
 import com.game.backend.presets.repository.PresetsRepository.SlotAndWeaponKey;
 import com.game.backend.presets.repository.PresetsRepository.WeaponConfigModuleRow;
+import com.game.backend.presets.repository.PresetsRepository.WeaponPresetRecord;
 import com.game.backend.presets.repository.PresetsRepository.WeaponPresetKey;
 import com.game.backend.presets.repository.PresetsRepository.WeaponPresetSlotRow;
+import com.game.backend.presets.repository.PresetsRepository.WeaponSlotRecord;
 
 import com.game.backend.common.api.ApiException;
 import com.game.backend.outbox.application.OutboxService;
@@ -132,7 +139,10 @@ public class PresetsService {
     }
 
     private List<WeaponPresetDto> loadWeaponPresetsBatch(UUID playerId) {
-        List<WeaponPresetDto> presets = repository.findWeaponPresets(playerId);
+        List<WeaponPresetDto> presets = repository.findWeaponPresets(playerId)
+            .stream()
+            .map(this::toWeaponPresetDto)
+            .toList();
 
         if (presets.isEmpty()) return presets;
 
@@ -177,7 +187,10 @@ public class PresetsService {
     }
 
     private List<OutfitPresetDto> loadOutfitPresetsBatch(UUID playerId) {
-        List<OutfitPresetDto> presets = repository.findOutfitPresets(playerId);
+        List<OutfitPresetDto> presets = repository.findOutfitPresets(playerId)
+            .stream()
+            .map(this::toOutfitPresetDto)
+            .toList();
 
         if (presets.isEmpty()) return presets;
 
@@ -213,13 +226,7 @@ public class PresetsService {
 
     public List<WeaponSlotPresetDto> weaponSlots(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
         return repository.findWeaponSlots(playerId, classTag, presetSlot, catalogVersion).stream()
-            .map(slot -> new WeaponSlotPresetDto(
-                slot.weaponSlotId(),
-                slot.selectedWeaponId(),
-                slot.selectedWeaponId() == null
-                    ? List.of()
-                    : modules(playerId, classTag, presetSlot, catalogVersion, slot.weaponSlotId(), slot.selectedWeaponId())
-            ))
+            .map(slot -> toWeaponSlotPresetDto(playerId, classTag, presetSlot, catalogVersion, slot))
             .toList();
     }
 
@@ -231,11 +238,17 @@ public class PresetsService {
         String weaponSlotId,
         String weaponId
     ) {
-        return repository.findModules(playerId, classTag, presetSlot, catalogVersion, weaponSlotId, weaponId);
+        return repository.findModules(playerId, classTag, presetSlot, catalogVersion, weaponSlotId, weaponId)
+            .stream()
+            .map(this::toModuleSelectionDto)
+            .toList();
     }
 
     public List<OutfitItemDto> outfitItems(UUID playerId, String teamTag, String classTag, int outfitPresetSlot, long catalogVersion) {
-        return repository.findOutfitItems(playerId, teamTag, classTag, outfitPresetSlot, catalogVersion);
+        return repository.findOutfitItems(playerId, teamTag, classTag, outfitPresetSlot, catalogVersion)
+            .stream()
+            .map(this::toOutfitItemDto)
+            .toList();
     }
 
     /**
@@ -320,7 +333,7 @@ public class PresetsService {
         long catalogVersion,
         SaveWeaponSlotRequest slot
     ) {
-        repository.upsertSelectedSlot(playerId, classTag, presetSlot, catalogVersion, slot);
+        repository.upsertSelectedSlot(playerId, classTag, presetSlot, catalogVersion, toSaveWeaponSlotCommand(slot));
     }
 
     private void upsertWeaponConfig(
@@ -331,7 +344,7 @@ public class PresetsService {
         SaveWeaponSlotRequest slot,
         OffsetDateTime now
     ) {
-        repository.upsertWeaponConfig(playerId, classTag, presetSlot, catalogVersion, slot, now);
+        repository.upsertWeaponConfig(playerId, classTag, presetSlot, catalogVersion, toSaveWeaponSlotCommand(slot), now);
     }
 
     /**
@@ -361,8 +374,63 @@ public class PresetsService {
                 catalogVersion,
                 slot.weaponSlotId(),
                 slot.weaponId(),
-                module
+                toSaveModuleCommand(module)
             );
         }
+    }
+
+    private WeaponPresetDto toWeaponPresetDto(WeaponPresetRecord preset) {
+        return new WeaponPresetDto(
+            preset.classTag(),
+            preset.presetSlot(),
+            preset.catalogVersion(),
+            preset.revision(),
+            preset.sanitized(),
+            new ArrayList<>()
+        );
+    }
+
+    private OutfitPresetDto toOutfitPresetDto(OutfitPresetRecord preset) {
+        return new OutfitPresetDto(
+            preset.teamTag(),
+            preset.classTag(),
+            preset.outfitPresetSlot(),
+            preset.catalogVersion(),
+            preset.revision(),
+            preset.sanitized(),
+            new ArrayList<>()
+        );
+    }
+
+    private WeaponSlotPresetDto toWeaponSlotPresetDto(
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        WeaponSlotRecord slot
+    ) {
+        return new WeaponSlotPresetDto(
+            slot.weaponSlotId(),
+            slot.selectedWeaponId(),
+            slot.selectedWeaponId() == null
+                ? List.of()
+                : modules(playerId, classTag, presetSlot, catalogVersion, slot.weaponSlotId(), slot.selectedWeaponId())
+        );
+    }
+
+    private ModuleSelectionDto toModuleSelectionDto(ModuleSelectionRecord module) {
+        return new ModuleSelectionDto(module.mountId(), module.moduleId());
+    }
+
+    private OutfitItemDto toOutfitItemDto(OutfitItemRecord item) {
+        return new OutfitItemDto(item.clothingSlotId(), item.itemId());
+    }
+
+    private SaveWeaponSlotCommand toSaveWeaponSlotCommand(SaveWeaponSlotRequest slot) {
+        return new SaveWeaponSlotCommand(slot.weaponSlotId(), slot.weaponId());
+    }
+
+    private SaveModuleCommand toSaveModuleCommand(SaveModuleRequest module) {
+        return new SaveModuleCommand(module.mountId(), module.moduleId());
     }
 }
