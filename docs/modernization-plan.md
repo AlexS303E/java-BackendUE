@@ -169,3 +169,10 @@ Goal: keep every implemented admin route assigned to an explicit tested role.
 - [x] Store route templates in `AdminAuthenticationFilterTest` role matrix.
 - [x] Extract literal `/admin/*` Spring mappings from backend controllers.
 - [x] Fail CI when an implemented admin route is missing from the role matrix.
+
+## Block 19 - Server route OpenAPI drift guard
+
+Goal: keep implemented Dedicated Server routes synchronized with the private server OpenAPI contract.
+
+- [x] Reuse the literal Spring mapping extractor for `/server/*` routes.
+- [x] Fail CI when an implemented server route is missing from `contracts/openapi/server-api.yaml`.
