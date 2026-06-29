@@ -67,12 +67,16 @@ follow-up action list.
 - Outbox lag gauge grows continuously.
 - Pending outbox rows stop transitioning to completed.
 - Dead-letter or retry counters increase for the same event type.
+- `outbox.circuit_breaker.open` becomes `1` or `outbox.circuit_breaker.opened`
+  increases.
 
 ### Immediate action
 
 - Confirm publisher process health and downstream side-effect availability.
 - Pause or slow publishers if retry traffic is amplifying the downstream failure.
 - Check retry backoff, batch size, circuit breaker state, and dead-letter volume.
+- Check `outbox.pending.lag.seconds`, `outbox.events{status="dead_letter"}`,
+  `outbox.circuit_breaker.open`, and `outbox.circuit_breaker.opened`.
 - Tune `OUTBOX_CIRCUIT_BREAKER_FAILURE_THRESHOLD` or
   `OUTBOX_CIRCUIT_BREAKER_COOLDOWN_SECONDS` only with an incident owner and rollback note.
 - Manually inspect the oldest pending rows before replaying anything.
@@ -148,13 +152,14 @@ follow-up action list.
 ### Symptoms
 
 - p95 latency exceeds SLO or connection pools saturate.
-- Rate-limit, timeout, or circuit-breaker metrics rise sharply.
+- `backend.rate_limit.rejections`, timeout, or circuit-breaker metrics rise sharply.
 - Dashboard polling or fallback reads increase load on the game API database.
 
 ### Immediate action
 
 - Protect gameplay endpoints first by reducing dashboard polling and non-critical reads.
 - Confirm whether overload is CPU, database, Redis, worker, or downstream related.
+- Check `backend.rate_limit.rejections` by bucket before changing traffic policy.
 - Apply route-specific rate limits and keep write timeouts conservative.
 - Scale the bottleneck only after verifying it will not amplify retries.
 

@@ -52,6 +52,20 @@ class RunbookCoverageTest {
         });
     }
 
+    @Test
+    void incidentRunbooksMentionOperationalMetricSignals() throws IOException {
+        String content = Files.readString(RUNBOOK);
+
+        assertThat(sectionFor(content, "Outbox stuck"))
+            .contains("outbox.pending.lag.seconds")
+            .contains("outbox.events")
+            .contains("outbox.circuit_breaker.open")
+            .contains("outbox.circuit_breaker.opened");
+
+        assertThat(sectionFor(content, "Overload"))
+            .contains("backend.rate_limit.rejections");
+    }
+
     private static String sectionFor(String content, String runbook) {
         String heading = "## " + runbook;
         int start = content.indexOf(heading);

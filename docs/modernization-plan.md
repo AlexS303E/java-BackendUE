@@ -153,3 +153,11 @@ Goal: make outbox retry storm protection visible during incidents.
 - [x] Emit `outbox.circuit_breaker.opened` when the worker opens its breaker.
 - [x] Expose `outbox.circuit_breaker.open` as a 0/1 gauge for current breaker state.
 - [x] Cover breaker metrics in `OutboxWorkerIntegrationTest`.
+
+## Block 17 - Runbook metric signal guard
+
+Goal: keep operational runbooks tied to the metrics emitted by overload and outbox protections.
+
+- [x] Document outbox lag/status/circuit-breaker metrics in the outbox incident runbook.
+- [x] Document rate-limit rejection metrics in the overload incident runbook.
+- [x] Cover required runbook metric names in `RunbookCoverageTest`.
