@@ -212,3 +212,10 @@ Goal: keep generic repository query helpers from leaking into service/applicatio
 
 - [x] Scan production Java sources for `JdbcRepository` subclasses.
 - [x] Fail CI when a subclass lives outside a `*/repository/*` package.
+
+## Block 25 - API application boundary drift guard
+
+Goal: keep controllers and DTOs behind application services instead of reaching into persistence.
+
+- [x] Discover every `*/api` package automatically in the architecture boundary test.
+- [x] Fail CI when API code imports repositories or uses JDBC/query helpers directly.

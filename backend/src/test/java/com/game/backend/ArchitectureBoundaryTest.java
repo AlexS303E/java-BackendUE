@@ -81,6 +81,23 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void everyApiPackageShouldStayBehindApplicationServices() throws IOException {
+        List<Path> apiRoots = packageRoots("api");
+
+        assertThat(apiRoots)
+            .as("Architecture guard must discover API packages automatically")
+            .isNotEmpty();
+
+        List<Path> offenders = filesUnder(apiRoots).stream()
+            .filter(ArchitectureBoundaryTest::usesRepositoryOrJdbcFromApi)
+            .toList();
+
+        assertThat(offenders)
+            .as("API controllers and DTOs should depend on application services, not repositories or JDBC")
+            .isEmpty();
+    }
+
+    @Test
     void matchProfileApplicationShouldNotOwnSqlQueries() throws IOException {
         Path sourceRoot = Path.of("src/main/java/com/game/backend/matchprofile/application");
         assertApplicationPackageDoesNotOwnSqlQueries(sourceRoot);
@@ -273,14 +290,32 @@ class ArchitectureBoundaryTest {
     }
 
     private static List<Path> applicationPackageRoots() throws IOException {
+        return packageRoots("application");
+    }
+
+    private static List<Path> packageRoots(String packageName) throws IOException {
         Path sourceRoot = Path.of("src/main/java/com/game/backend");
         try (var paths = Files.walk(sourceRoot)) {
             return paths
                 .filter(Files::isDirectory)
-                .filter(path -> path.getFileName().toString().equals("application"))
+                .filter(path -> path.getFileName().toString().equals(packageName))
                 .sorted()
                 .toList();
         }
+    }
+
+    private static List<Path> filesUnder(List<Path> sourceRoots) throws IOException {
+        List<Path> files = new java.util.ArrayList<>();
+        for (Path sourceRoot : sourceRoots) {
+            try (var paths = Files.walk(sourceRoot)) {
+                files.addAll(paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .sorted()
+                    .toList());
+            }
+        }
+        return files;
     }
 
     private static boolean isRepositoryInfrastructure(Path path) {
@@ -306,6 +341,18 @@ class ArchitectureBoundaryTest {
             String source = Files.readString(path);
             return source.contains("org.springframework.jdbc.core.JdbcTemplate")
                 || source.contains("JdbcTemplate ")
+                || source.contains("jdbcTemplate.");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean usesRepositoryOrJdbcFromApi(Path path) {
+        try {
+            String source = Files.readString(path);
+            return source.contains(".repository.")
+                || source.contains("JdbcRepository")
+                || source.contains("JdbcTemplate")
                 || source.contains("jdbcTemplate.");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
