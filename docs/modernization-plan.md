@@ -227,3 +227,11 @@ Goal: keep persistence code independent from HTTP/API contracts.
 - [x] Discover every `*/repository` package automatically in the architecture boundary test.
 - [x] Freeze the current repository-to-API DTO debt as an explicit allow-list.
 - [x] Fail CI when new repository code depends on `*.api.*` DTOs or controllers.
+
+## Block 27 - Notifications repository API decoupling
+
+Goal: reduce repository-to-API DTO debt with a small, isolated vertical slice.
+
+- [x] Replace notification API DTO returns in `NotificationsRepository` with repository records.
+- [x] Move notification payload parsing and API response mapping into `PlayerNotificationService`.
+- [x] Remove `NotificationsRepository` from the repository-to-API dependency allow-list.

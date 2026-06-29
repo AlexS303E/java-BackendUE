@@ -7,12 +7,16 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.notifications.api.NotificationAcknowledgeResponse;
+import com.game.backend.notifications.api.NotificationDto;
 import com.game.backend.notifications.api.NotificationsResponse;
+import com.game.backend.notifications.repository.NotificationsRepository.AcknowledgeRecord;
+import com.game.backend.notifications.repository.NotificationsRepository.NotificationRecord;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -73,7 +77,7 @@ public class PlayerNotificationService {
             playerId,
             normalizedStatus,
             normalizedLimit,
-            repository.findNotifications(playerId, normalizedStatus, normalizedLimit, this::parsePayload)
+            toNotificationDtos(repository.findNotifications(playerId, normalizedStatus, normalizedLimit))
         );
     }
 
@@ -89,11 +93,28 @@ public class PlayerNotificationService {
     }
 
     private NotificationAcknowledgeResponse readAcknowledgeResponse(UUID playerId, UUID notificationId) {
-        NotificationAcknowledgeResponse response = repository.findAcknowledgeResponse(playerId, notificationId);
-        if (response == null) {
+        AcknowledgeRecord record = repository.findAcknowledgeResponse(playerId, notificationId);
+        if (record == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOTIFICATION_NOT_FOUND", "Notification was not found");
         }
-        return response;
+        return new NotificationAcknowledgeResponse(record.notificationId(), record.status(), record.readAt());
+    }
+
+    private List<NotificationDto> toNotificationDtos(List<NotificationRecord> records) {
+        return records.stream()
+            .map(record -> new NotificationDto(
+                record.notificationId(),
+                record.eventType(),
+                record.aggregateType(),
+                record.aggregateId(),
+                record.payloadSchemaVersion(),
+                parsePayload(record.payloadJson()),
+                record.status(),
+                record.createdAt(),
+                record.readAt(),
+                record.expiresAt()
+            ))
+            .toList();
     }
 
     private String normalizeStatus(String status) {

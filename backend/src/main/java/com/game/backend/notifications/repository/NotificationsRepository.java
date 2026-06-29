@@ -1,19 +1,36 @@
 package com.game.backend.notifications.repository;
 
 import com.game.backend.common.persistence.JdbcRepository;
-import com.game.backend.notifications.api.NotificationAcknowledgeResponse;
-import com.game.backend.notifications.api.NotificationDto;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
 
 @Repository
 public class NotificationsRepository extends JdbcRepository {
+    public record NotificationRecord(
+        UUID notificationId,
+        String eventType,
+        String aggregateType,
+        String aggregateId,
+        int payloadSchemaVersion,
+        String payloadJson,
+        String status,
+        OffsetDateTime createdAt,
+        OffsetDateTime readAt,
+        OffsetDateTime expiresAt
+    ) {
+    }
+
+    public record AcknowledgeRecord(
+        UUID notificationId,
+        String status,
+        OffsetDateTime readAt
+    ) {
+    }
+
     public NotificationsRepository(JdbcTemplate jdbcTemplate) {
         super(jdbcTemplate);
     }
@@ -54,11 +71,10 @@ public class NotificationsRepository extends JdbcRepository {
         );
     }
 
-    public List<NotificationDto> findNotifications(
+    public List<NotificationRecord> findNotifications(
         UUID playerId,
         String status,
-        int limit,
-        Function<String, Map<String, Object>> payloadParser
+        int limit
     ) {
         if ("all".equals(status)) {
             return query(
@@ -79,13 +95,13 @@ public class NotificationsRepository extends JdbcRepository {
                     ORDER BY created_at DESC
                     LIMIT ?
                     """,
-                (rs, rowNum) -> new NotificationDto(
+                (rs, rowNum) -> new NotificationRecord(
                     rs.getObject("notification_id", UUID.class),
                     rs.getString("event_type"),
                     rs.getString("aggregate_type"),
                     rs.getString("aggregate_id"),
                     rs.getInt("payload_schema_version"),
-                    payloadParser.apply(rs.getString("payload")),
+                    rs.getString("payload"),
                     rs.getString("status"),
                     rs.getObject("created_at", OffsetDateTime.class),
                     rs.getObject("read_at", OffsetDateTime.class),
@@ -115,13 +131,13 @@ public class NotificationsRepository extends JdbcRepository {
                 ORDER BY created_at DESC
                 LIMIT ?
                 """,
-            (rs, rowNum) -> new NotificationDto(
+            (rs, rowNum) -> new NotificationRecord(
                 rs.getObject("notification_id", UUID.class),
                 rs.getString("event_type"),
                 rs.getString("aggregate_type"),
                 rs.getString("aggregate_id"),
                 rs.getInt("payload_schema_version"),
-                payloadParser.apply(rs.getString("payload")),
+                rs.getString("payload"),
                 rs.getString("status"),
                 rs.getObject("created_at", OffsetDateTime.class),
                 rs.getObject("read_at", OffsetDateTime.class),
@@ -149,7 +165,7 @@ public class NotificationsRepository extends JdbcRepository {
         );
     }
 
-    public NotificationAcknowledgeResponse findAcknowledgeResponse(UUID playerId, UUID notificationId) {
+    public AcknowledgeRecord findAcknowledgeResponse(UUID playerId, UUID notificationId) {
         return query(
             """
                 SELECT notification_id, status, read_at
@@ -161,7 +177,7 @@ public class NotificationsRepository extends JdbcRepository {
                 if (!rs.next()) {
                     return null;
                 }
-                return new NotificationAcknowledgeResponse(
+                return new AcknowledgeRecord(
                     rs.getObject("notification_id", UUID.class),
                     rs.getString("status"),
                     rs.getObject("read_at", OffsetDateTime.class)
