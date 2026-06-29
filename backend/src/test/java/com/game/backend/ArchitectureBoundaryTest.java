@@ -68,6 +68,24 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void repositoryComponentsShouldOnlyLiveInRepositoryPackages() throws IOException {
+        Path sourceRoot = Path.of("src/main/java/com/game/backend");
+        List<Path> offenders;
+        try (var paths = Files.walk(sourceRoot)) {
+            offenders = paths
+                .filter(Files::isRegularFile)
+                .filter(path -> path.toString().endsWith(".java"))
+                .filter(ArchitectureBoundaryTest::isRepositoryComponent)
+                .filter(path -> !isRepositoryPackage(path))
+                .toList();
+        }
+
+        assertThat(offenders)
+            .as("@Repository components must live in repository packages")
+            .isEmpty();
+    }
+
+    @Test
     void everyApplicationPackageShouldStayBehindRepositories() throws IOException {
         List<Path> applicationRoots = applicationPackageRoots();
 
@@ -171,6 +189,14 @@ class ArchitectureBoundaryTest {
     private static boolean extendsJdbcRepository(Path path) {
         try {
             return Files.readString(path).contains("extends JdbcRepository");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean isRepositoryComponent(Path path) {
+        try {
+            return Files.readString(path).contains("@Repository");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

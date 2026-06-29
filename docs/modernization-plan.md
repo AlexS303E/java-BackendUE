@@ -274,3 +274,10 @@ Goal: keep repository-boundary tests automatic instead of hand-maintained per se
 
 - [x] Remove manual per-application SQL boundary tests now covered by automatic `*/application` discovery.
 - [x] Keep the single package-discovery guard as the source of truth for application SQL/query plumbing.
+
+## Block 33 - Repository component placement guard
+
+Goal: keep persistence Spring components constrained to repository packages.
+
+- [x] Scan production Java sources for `@Repository` components.
+- [x] Fail CI when a repository component lives outside a `*/repository/*` package.
