@@ -1,8 +1,5 @@
 package com.game.backend.catalog.repository;
 
-import com.game.backend.catalog.api.AllowedModuleDto;
-import com.game.backend.catalog.api.CatalogItemDto;
-import com.game.backend.catalog.api.WeaponMountDto;
 import com.game.backend.common.persistence.JdbcRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -13,6 +10,33 @@ import java.util.UUID;
 
 @Repository
 public class CatalogRepository extends JdbcRepository {
+    public record CatalogItemRecord(
+        String itemId,
+        long catalogVersion,
+        String itemType,
+        String displayName,
+        boolean enabled
+    ) {
+    }
+
+    public record WeaponMountRecord(
+        String mountId,
+        long catalogVersion,
+        String weaponId,
+        String mountType,
+        int mountIndex,
+        boolean required,
+        int displayOrder
+    ) {
+    }
+
+    public record AllowedModuleRecord(
+        String mountId,
+        String moduleId,
+        long catalogVersion
+    ) {
+    }
+
     public record WeaponSlotRule(String classTag, String weaponSlotId, boolean allowed) {
     }
 
@@ -122,7 +146,7 @@ public class CatalogRepository extends JdbcRepository {
         return Boolean.TRUE.equals(exists);
     }
 
-    public List<CatalogItemDto> findItems(long catalogVersion) {
+    public List<CatalogItemRecord> findItems(long catalogVersion) {
         return query(
             """
                 SELECT item_id, catalog_version, item_type, display_name, is_enabled
@@ -130,7 +154,7 @@ public class CatalogRepository extends JdbcRepository {
                 WHERE catalog_version = ?
                 ORDER BY item_type, item_id
                 """,
-            (rs, rowNum) -> new CatalogItemDto(
+            (rs, rowNum) -> new CatalogItemRecord(
                 rs.getString("item_id"),
                 rs.getLong("catalog_version"),
                 rs.getString("item_type"),
@@ -141,7 +165,7 @@ public class CatalogRepository extends JdbcRepository {
         );
     }
 
-    public List<WeaponMountDto> findWeaponMounts(long catalogVersion) {
+    public List<WeaponMountRecord> findWeaponMounts(long catalogVersion) {
         return query(
             """
                 SELECT mount_id, catalog_version, weapon_id, mount_type, mount_index, is_required, display_order
@@ -149,7 +173,7 @@ public class CatalogRepository extends JdbcRepository {
                 WHERE catalog_version = ?
                 ORDER BY weapon_id, display_order, mount_id
                 """,
-            (rs, rowNum) -> new WeaponMountDto(
+            (rs, rowNum) -> new WeaponMountRecord(
                 rs.getString("mount_id"),
                 rs.getLong("catalog_version"),
                 rs.getString("weapon_id"),
@@ -162,7 +186,7 @@ public class CatalogRepository extends JdbcRepository {
         );
     }
 
-    public List<AllowedModuleDto> findAllowedModules(long catalogVersion) {
+    public List<AllowedModuleRecord> findAllowedModules(long catalogVersion) {
         return query(
             """
                 SELECT mount_id, module_id, catalog_version
@@ -170,7 +194,7 @@ public class CatalogRepository extends JdbcRepository {
                 WHERE catalog_version = ?
                 ORDER BY mount_id, module_id
                 """,
-            (rs, rowNum) -> new AllowedModuleDto(
+            (rs, rowNum) -> new AllowedModuleRecord(
                 rs.getString("mount_id"),
                 rs.getString("module_id"),
                 rs.getLong("catalog_version")

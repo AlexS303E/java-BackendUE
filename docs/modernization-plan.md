@@ -243,3 +243,11 @@ Goal: reduce repository-to-API DTO debt in the post-match pending change read pa
 - [x] Replace `PostMatchPendingChangeDto` returns in `PostMatchRepository` with a repository summary record.
 - [x] Move pending-change payload parsing and API DTO mapping into `PostMatchPendingChangesService`.
 - [x] Remove `PostMatchRepository` from the repository-to-API dependency allow-list.
+
+## Block 29 - Catalog repository API decoupling
+
+Goal: reduce repository-to-API DTO debt in the catalog snapshot read path.
+
+- [x] Replace catalog API DTO returns in `CatalogRepository` with repository records.
+- [x] Move catalog snapshot API DTO mapping into `CatalogService`.
+- [x] Remove `CatalogRepository` from the repository-to-API dependency allow-list.

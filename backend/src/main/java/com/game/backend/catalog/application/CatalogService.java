@@ -8,6 +8,9 @@ import com.game.backend.catalog.api.CatalogSnapshotResponse;
 import com.game.backend.catalog.api.WeaponMountDto;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.common.api.ApiException;
+import com.game.backend.catalog.repository.CatalogRepository.AllowedModuleRecord;
+import com.game.backend.catalog.repository.CatalogRepository.CatalogItemRecord;
+import com.game.backend.catalog.repository.CatalogRepository.WeaponMountRecord;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -72,14 +75,53 @@ public class CatalogService {
     }
 
     private List<CatalogItemDto> items(long catalogVersion) {
-        return repository.findItems(catalogVersion);
+        return repository.findItems(catalogVersion)
+            .stream()
+            .map(this::toCatalogItemDto)
+            .toList();
     }
 
     private List<WeaponMountDto> weaponMounts(long catalogVersion) {
-        return repository.findWeaponMounts(catalogVersion);
+        return repository.findWeaponMounts(catalogVersion)
+            .stream()
+            .map(this::toWeaponMountDto)
+            .toList();
     }
 
     private List<AllowedModuleDto> allowedModules(long catalogVersion) {
-        return repository.findAllowedModules(catalogVersion);
+        return repository.findAllowedModules(catalogVersion)
+            .stream()
+            .map(this::toAllowedModuleDto)
+            .toList();
+    }
+
+    private CatalogItemDto toCatalogItemDto(CatalogItemRecord item) {
+        return new CatalogItemDto(
+            item.itemId(),
+            item.catalogVersion(),
+            item.itemType(),
+            item.displayName(),
+            item.enabled()
+        );
+    }
+
+    private WeaponMountDto toWeaponMountDto(WeaponMountRecord mount) {
+        return new WeaponMountDto(
+            mount.mountId(),
+            mount.catalogVersion(),
+            mount.weaponId(),
+            mount.mountType(),
+            mount.mountIndex(),
+            mount.required(),
+            mount.displayOrder()
+        );
+    }
+
+    private AllowedModuleDto toAllowedModuleDto(AllowedModuleRecord module) {
+        return new AllowedModuleDto(
+            module.mountId(),
+            module.moduleId(),
+            module.catalogVersion()
+        );
     }
 }
