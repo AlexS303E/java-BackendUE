@@ -267,3 +267,10 @@ Goal: make repository independence from API contracts unconditional after removi
 
 - [x] Remove the repository-to-API dependency allow-list from the architecture boundary test.
 - [x] Fail CI for any `*.api.*` dependency from repository code without exceptions.
+
+## Block 32 - Architecture guard maintenance cleanup
+
+Goal: keep repository-boundary tests automatic instead of hand-maintained per service.
+
+- [x] Remove manual per-application SQL boundary tests now covered by automatic `*/application` discovery.
+- [x] Keep the single package-discovery guard as the source of truth for application SQL/query plumbing.
