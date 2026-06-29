@@ -235,3 +235,11 @@ Goal: reduce repository-to-API DTO debt with a small, isolated vertical slice.
 - [x] Replace notification API DTO returns in `NotificationsRepository` with repository records.
 - [x] Move notification payload parsing and API response mapping into `PlayerNotificationService`.
 - [x] Remove `NotificationsRepository` from the repository-to-API dependency allow-list.
+
+## Block 28 - Post-match repository API decoupling
+
+Goal: reduce repository-to-API DTO debt in the post-match pending change read path.
+
+- [x] Replace `PostMatchPendingChangeDto` returns in `PostMatchRepository` with a repository summary record.
+- [x] Move pending-change payload parsing and API DTO mapping into `PostMatchPendingChangesService`.
+- [x] Remove `PostMatchRepository` from the repository-to-API dependency allow-list.

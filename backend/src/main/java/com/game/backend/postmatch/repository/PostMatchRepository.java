@@ -1,18 +1,31 @@
 package com.game.backend.postmatch.repository;
 
 import com.game.backend.common.persistence.JdbcRepository;
-import com.game.backend.postmatch.api.PostMatchPendingChangeDto;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
 
 @Repository
 public class PostMatchRepository extends JdbcRepository {
+    public record PendingChangeSummary(
+        UUID changeId,
+        UUID matchId,
+        String classTag,
+        int weaponPresetSlot,
+        long baseWeaponPresetRevision,
+        Long currentConflictingRevision,
+        String reasonCode,
+        String status,
+        String payloadJson,
+        OffsetDateTime createdAt,
+        OffsetDateTime expiresAt,
+        OffsetDateTime resolvedAt
+    ) {
+    }
+
     public record PendingChange(
         UUID changeId,
         UUID playerId,
@@ -34,10 +47,9 @@ public class PostMatchRepository extends JdbcRepository {
         super(jdbcTemplate);
     }
 
-    public List<PostMatchPendingChangeDto> findPendingChanges(
+    public List<PendingChangeSummary> findPendingChanges(
         UUID playerId,
-        String status,
-        Function<String, Map<String, Object>> payloadParser
+        String status
     ) {
         return query(
             """
@@ -59,7 +71,7 @@ public class PostMatchRepository extends JdbcRepository {
                   AND status = ?
                 ORDER BY created_at DESC
                 """,
-            (rs, rowNum) -> new PostMatchPendingChangeDto(
+            (rs, rowNum) -> new PendingChangeSummary(
                 rs.getObject("change_id", UUID.class),
                 rs.getObject("match_id", UUID.class),
                 rs.getString("class_tag"),
@@ -68,7 +80,7 @@ public class PostMatchRepository extends JdbcRepository {
                 rs.getObject("current_conflicting_revision", Long.class),
                 rs.getString("reason_code"),
                 rs.getString("status"),
-                payloadParser.apply(rs.getString("payload")),
+                rs.getString("payload"),
                 rs.getObject("created_at", OffsetDateTime.class),
                 rs.getObject("expires_at", OffsetDateTime.class),
                 rs.getObject("resolved_at", OffsetDateTime.class)

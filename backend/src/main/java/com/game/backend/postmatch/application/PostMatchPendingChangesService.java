@@ -2,6 +2,7 @@ package com.game.backend.postmatch.application;
 
 import com.game.backend.postmatch.repository.PostMatchRepository;
 import com.game.backend.postmatch.repository.PostMatchRepository.PendingChange;
+import com.game.backend.postmatch.repository.PostMatchRepository.PendingChangeSummary;
 import com.game.backend.postmatch.repository.PostMatchRepository.PresetHeader;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -72,7 +73,9 @@ public class PostMatchPendingChangesService {
         String normalizedStatus = normalizeStatus(status);
         expireOldPendingChanges(playerId, OffsetDateTime.now());
 
-        List<PostMatchPendingChangeDto> changes = repository.findPendingChanges(playerId, normalizedStatus, this::parsePayloadMap);
+        List<PostMatchPendingChangeDto> changes = toPendingChangeDtos(
+            repository.findPendingChanges(playerId, normalizedStatus)
+        );
         return new PostMatchPendingChangesResponse(playerId, changes);
     }
 
@@ -255,6 +258,25 @@ public class PostMatchPendingChangesService {
 
     private void updateChangeStatus(UUID changeId, String status, OffsetDateTime resolvedAt) {
         repository.updateChangeStatus(changeId, status, resolvedAt);
+    }
+
+    private List<PostMatchPendingChangeDto> toPendingChangeDtos(List<PendingChangeSummary> changes) {
+        return changes.stream()
+            .map(change -> new PostMatchPendingChangeDto(
+                change.changeId(),
+                change.matchId(),
+                change.classTag(),
+                change.weaponPresetSlot(),
+                change.baseWeaponPresetRevision(),
+                change.currentConflictingRevision(),
+                change.reasonCode(),
+                change.status(),
+                parsePayloadMap(change.payloadJson()),
+                change.createdAt(),
+                change.expiresAt(),
+                change.resolvedAt()
+            ))
+            .toList();
     }
 
     private Map<String, Object> parsePayloadMap(String payload) {
