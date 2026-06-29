@@ -184,3 +184,10 @@ Goal: keep every implemented Dedicated Server route assigned to an explicit serv
 - [x] Extract server route/scope mapping into a testable matrix.
 - [x] Fail CI when an implemented `/server/*` route is missing from the scope matrix.
 - [x] Cover unknown server routes as fail-closed.
+
+## Block 21 - Server route filter fail-closed guard
+
+Goal: keep unknown Dedicated Server routes rejected by the server authentication filter before controller dispatch.
+
+- [x] Add an integration regression for an unmapped `/server/*` route with valid server identity headers.
+- [x] Assert the route returns `SERVER_ENDPOINT_NOT_CONFIGURED` instead of falling through to an accidental handler.

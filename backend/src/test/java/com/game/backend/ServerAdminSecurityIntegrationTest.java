@@ -145,6 +145,14 @@ class ServerAdminSecurityIntegrationTest {
     }
 
     @Test
+    void shouldRejectUnconfiguredServerRoutesBeforeControllerDispatch() throws Exception {
+        mockMvc.perform(postJson("/server/not-configured", Map.of("probe", "unknown-route"))
+                        .headers(devServerHeaders()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("SERVER_ENDPOINT_NOT_CONFIGURED"));
+    }
+
+    @Test
     void shouldProtectAdminEndpointsWithAdminToken() throws Exception {
         mockMvc.perform(get("/admin/status/overview"))
                 .andExpect(status().isUnauthorized())
