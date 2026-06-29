@@ -198,3 +198,10 @@ Goal: keep future application services from reintroducing direct SQL/query plumb
 
 - [x] Discover every `*/application` package automatically in the architecture boundary test.
 - [x] Apply the SQL/query-plumbing guard to each discovered application package instead of relying only on a hand-maintained list.
+
+## Block 23 - JDBC infrastructure boundary guard
+
+Goal: keep direct `JdbcTemplate` access constrained to repository infrastructure.
+
+- [x] Add a repository-boundary regression that scans production Java sources.
+- [x] Fail CI when direct JDBC usage appears outside `*/repository/*` or `common/persistence`.

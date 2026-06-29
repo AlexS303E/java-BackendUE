@@ -32,6 +32,24 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void jdbcTemplateShouldStayInRepositoryInfrastructure() throws IOException {
+        Path sourceRoot = Path.of("src/main/java/com/game/backend");
+        List<Path> offenders;
+        try (var paths = Files.walk(sourceRoot)) {
+            offenders = paths
+                .filter(Files::isRegularFile)
+                .filter(path -> path.toString().endsWith(".java"))
+                .filter(ArchitectureBoundaryTest::usesJdbcTemplateDirectly)
+                .filter(path -> !isRepositoryInfrastructure(path))
+                .toList();
+        }
+
+        assertThat(offenders)
+            .as("Direct JdbcTemplate usage belongs in repository infrastructure only")
+            .isEmpty();
+    }
+
+    @Test
     void everyApplicationPackageShouldStayBehindRepositories() throws IOException {
         List<Path> applicationRoots = applicationPackageRoots();
 
@@ -245,6 +263,12 @@ class ArchitectureBoundaryTest {
                 .sorted()
                 .toList();
         }
+    }
+
+    private static boolean isRepositoryInfrastructure(Path path) {
+        String normalized = path.toString().replace('\\', '/');
+        return normalized.contains("/repository/")
+            || normalized.contains("/common/persistence/");
     }
 
     private static boolean usesJdbcTemplateDirectly(Path path) {
