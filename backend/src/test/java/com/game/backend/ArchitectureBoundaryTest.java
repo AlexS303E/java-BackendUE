@@ -86,6 +86,24 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void webControllersShouldOnlyLiveInApiPackages() throws IOException {
+        Path sourceRoot = Path.of("src/main/java/com/game/backend");
+        List<Path> offenders;
+        try (var paths = Files.walk(sourceRoot)) {
+            offenders = paths
+                .filter(Files::isRegularFile)
+                .filter(path -> path.toString().endsWith(".java"))
+                .filter(ArchitectureBoundaryTest::isWebController)
+                .filter(path -> !isApiPackage(path))
+                .toList();
+        }
+
+        assertThat(offenders)
+            .as("Web controllers and controller advice must live in API packages")
+            .isEmpty();
+    }
+
+    @Test
     void everyApplicationPackageShouldStayBehindRepositories() throws IOException {
         List<Path> applicationRoots = applicationPackageRoots();
 
@@ -186,6 +204,10 @@ class ArchitectureBoundaryTest {
         return path.toString().replace('\\', '/').contains("/repository/");
     }
 
+    private static boolean isApiPackage(Path path) {
+        return path.toString().replace('\\', '/').contains("/api/");
+    }
+
     private static boolean extendsJdbcRepository(Path path) {
         try {
             return Files.readString(path).contains("extends JdbcRepository");
@@ -197,6 +219,18 @@ class ArchitectureBoundaryTest {
     private static boolean isRepositoryComponent(Path path) {
         try {
             return Files.readString(path).contains("@Repository");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean isWebController(Path path) {
+        try {
+            String source = Files.readString(path);
+            return source.contains("@RestController")
+                || source.contains("@Controller")
+                || source.contains("@RestControllerAdvice")
+                || source.contains("@ControllerAdvice");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

@@ -281,3 +281,10 @@ Goal: keep persistence Spring components constrained to repository packages.
 
 - [x] Scan production Java sources for `@Repository` components.
 - [x] Fail CI when a repository component lives outside a `*/repository/*` package.
+
+## Block 34 - Web controller placement guard
+
+Goal: keep HTTP endpoint components constrained to API packages.
+
+- [x] Scan production Java sources for controller and controller-advice stereotypes.
+- [x] Fail CI when web controllers or advice live outside a `*/api/*` package.
