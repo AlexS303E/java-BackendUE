@@ -186,6 +186,23 @@ class ArchitectureBoundaryTest {
             .isEmpty();
     }
 
+    @Test
+    void everyRepositoryPackageShouldStayIndependentFromApplicationServices() throws IOException {
+        List<Path> repositoryRoots = packageRoots("repository");
+
+        assertThat(repositoryRoots)
+            .as("Architecture guard must discover repository packages automatically")
+            .isNotEmpty();
+
+        List<Path> offenders = filesUnder(repositoryRoots).stream()
+            .filter(ArchitectureBoundaryTest::dependsOnApplicationPackage)
+            .toList();
+
+        assertThat(offenders)
+            .as("Repository code must not depend on application services or records")
+            .isEmpty();
+    }
+
     private static void assertApplicationPackageDoesNotOwnSqlQueries(Path sourceRoot) throws IOException {
         List<Path> offenders;
         try (var paths = Files.walk(sourceRoot)) {
@@ -314,6 +331,14 @@ class ArchitectureBoundaryTest {
     private static boolean dependsOnApiPackage(Path path) {
         try {
             return Files.readString(path).contains(".api.");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean dependsOnApplicationPackage(Path path) {
+        try {
+            return Files.readString(path).contains(".application.");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

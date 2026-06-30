@@ -302,3 +302,11 @@ Goal: keep generic Spring components from blurring API and repository layer owne
 
 - [x] Scan production Java sources for `@Component` classes.
 - [x] Fail CI when generic components live in `*/api/*` or `*/repository/*` packages.
+
+## Block 37 - Repository application independence guard
+
+Goal: keep repositories independent from application-layer records and services.
+
+- [x] Replace `OutboxRepository`'s application `OutboxEvent` return with a repository record.
+- [x] Map claimed outbox records to application events in `OutboxWorker`.
+- [x] Fail CI when repository code depends on `*.application.*`.

@@ -1,7 +1,6 @@
 package com.game.backend.outbox.repository;
 
 import com.game.backend.common.persistence.JdbcRepository;
-import com.game.backend.outbox.application.OutboxEvent;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -11,6 +10,17 @@ import java.util.UUID;
 
 @Repository
 public class OutboxRepository extends JdbcRepository {
+    public record OutboxEventRecord(
+        UUID eventId,
+        String eventType,
+        String aggregateType,
+        String aggregateId,
+        String payload,
+        int payloadSchemaVersion,
+        int attempts
+    ) {
+    }
+
     public OutboxRepository(JdbcTemplate jdbcTemplate) {
         super(jdbcTemplate);
     }
@@ -51,7 +61,7 @@ public class OutboxRepository extends JdbcRepository {
         );
     }
 
-    public List<OutboxEvent> claimBatch(
+    public List<OutboxEventRecord> claimBatch(
         int maxAttempts,
         OffsetDateTime now,
         int batchSize,
@@ -84,7 +94,7 @@ public class OutboxRepository extends JdbcRepository {
                   oe.payload_schema_version,
                   oe.attempts
                 """,
-            (rs, rowNum) -> new OutboxEvent(
+            (rs, rowNum) -> new OutboxEventRecord(
                 rs.getObject("event_id", UUID.class),
                 rs.getString("event_type"),
                 rs.getString("aggregate_type"),

@@ -1,6 +1,7 @@
 package com.game.backend.outbox.application;
 
 import com.game.backend.outbox.repository.OutboxRepository;
+import com.game.backend.outbox.repository.OutboxRepository.OutboxEventRecord;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
@@ -107,7 +108,21 @@ public class OutboxWorker {
             now,
             batchSize,
             now.plusSeconds(processingTimeoutSeconds)
-        ));
+        )).stream()
+            .map(this::toOutboxEvent)
+            .toList();
+    }
+
+    private OutboxEvent toOutboxEvent(OutboxEventRecord record) {
+        return new OutboxEvent(
+            record.eventId(),
+            record.eventType(),
+            record.aggregateType(),
+            record.aggregateId(),
+            record.payload(),
+            record.payloadSchemaVersion(),
+            record.attempts()
+        );
     }
 
     private boolean publish(OutboxEvent event) {
