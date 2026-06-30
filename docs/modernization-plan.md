@@ -325,3 +325,10 @@ Goal: keep persistence code independent from HTTP, servlet, and Spring Security 
 
 - [x] Discover every `*/repository` package automatically in the architecture boundary test.
 - [x] Fail CI when repository code depends on Spring HTTP, Spring Web, Spring Security, or servlet types.
+
+## Block 40 - API transaction/persistence independence guard
+
+Goal: keep API code from owning transactions or persistence mappings.
+
+- [x] Discover every `*/api` package automatically in the architecture boundary test.
+- [x] Fail CI when API code depends on Spring transaction or persistence/JPA types.

@@ -188,6 +188,23 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void everyApiPackageShouldStayIndependentFromTransactionAndPersistenceTypes() throws IOException {
+        List<Path> apiRoots = packageRoots("api");
+
+        assertThat(apiRoots)
+            .as("Architecture guard must discover API packages automatically")
+            .isNotEmpty();
+
+        List<Path> offenders = filesUnder(apiRoots).stream()
+            .filter(ArchitectureBoundaryTest::dependsOnTransactionOrPersistenceType)
+            .toList();
+
+        assertThat(offenders)
+            .as("API code must not own transactions or persistence mappings")
+            .isEmpty();
+    }
+
+    @Test
     void everyRepositoryPackageShouldStayIndependentFromApiContracts() throws IOException {
         List<Path> repositoryRoots = packageRoots("repository");
 
@@ -394,6 +411,21 @@ class ArchitectureBoundaryTest {
                 || source.contains("org.springframework.security.")
                 || source.contains("org.springframework.web.")
                 || source.contains("jakarta.servlet.");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean dependsOnTransactionOrPersistenceType(Path path) {
+        try {
+            String source = Files.readString(path);
+            return source.contains("@Transactional")
+                || source.contains("org.springframework.transaction.")
+                || source.contains("jakarta.persistence.")
+                || source.contains("javax.persistence.")
+                || source.contains("@Entity")
+                || source.contains("@Table")
+                || source.contains("@Column");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }
