@@ -295,3 +295,10 @@ Goal: keep service components from drifting into API or repository layers.
 
 - [x] Scan production Java sources for `@Service` components.
 - [x] Fail CI when service components live in `*/api/*` or `*/repository/*` packages.
+
+## Block 36 - Generic component placement guard
+
+Goal: keep generic Spring components from blurring API and repository layer ownership.
+
+- [x] Scan production Java sources for `@Component` classes.
+- [x] Fail CI when generic components live in `*/api/*` or `*/repository/*` packages.
