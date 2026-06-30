@@ -288,3 +288,10 @@ Goal: keep HTTP endpoint components constrained to API packages.
 
 - [x] Scan production Java sources for controller and controller-advice stereotypes.
 - [x] Fail CI when web controllers or advice live outside a `*/api/*` package.
+
+## Block 35 - Service component placement guard
+
+Goal: keep service components from drifting into API or repository layers.
+
+- [x] Scan production Java sources for `@Service` components.
+- [x] Fail CI when service components live in `*/api/*` or `*/repository/*` packages.

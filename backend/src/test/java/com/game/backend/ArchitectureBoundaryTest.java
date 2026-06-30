@@ -104,6 +104,24 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void serviceComponentsShouldNotLiveInApiOrRepositoryPackages() throws IOException {
+        Path sourceRoot = Path.of("src/main/java/com/game/backend");
+        List<Path> offenders;
+        try (var paths = Files.walk(sourceRoot)) {
+            offenders = paths
+                .filter(Files::isRegularFile)
+                .filter(path -> path.toString().endsWith(".java"))
+                .filter(ArchitectureBoundaryTest::isServiceComponent)
+                .filter(path -> isApiPackage(path) || isRepositoryPackage(path))
+                .toList();
+        }
+
+        assertThat(offenders)
+            .as("@Service components must not live in API or repository packages")
+            .isEmpty();
+    }
+
+    @Test
     void everyApplicationPackageShouldStayBehindRepositories() throws IOException {
         List<Path> applicationRoots = applicationPackageRoots();
 
@@ -231,6 +249,14 @@ class ArchitectureBoundaryTest {
                 || source.contains("@Controller")
                 || source.contains("@RestControllerAdvice")
                 || source.contains("@ControllerAdvice");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean isServiceComponent(Path path) {
+        try {
+            return Files.readString(path).contains("@Service");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }
