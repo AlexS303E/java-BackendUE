@@ -221,6 +221,23 @@ class ArchitectureBoundaryTest {
             .isEmpty();
     }
 
+    @Test
+    void everyRepositoryPackageShouldStayIndependentFromTransportAndSecurityTypes() throws IOException {
+        List<Path> repositoryRoots = packageRoots("repository");
+
+        assertThat(repositoryRoots)
+            .as("Architecture guard must discover repository packages automatically")
+            .isNotEmpty();
+
+        List<Path> offenders = filesUnder(repositoryRoots).stream()
+            .filter(ArchitectureBoundaryTest::dependsOnTransportOrSecurityType)
+            .toList();
+
+        assertThat(offenders)
+            .as("Repository code must not depend on HTTP, servlet, or Spring Security types")
+            .isEmpty();
+    }
+
     private static void assertApplicationPackageDoesNotOwnSqlQueries(Path sourceRoot) throws IOException {
         List<Path> offenders;
         try (var paths = Files.walk(sourceRoot)) {
@@ -365,6 +382,18 @@ class ArchitectureBoundaryTest {
     private static boolean dependsOnApplicationPackage(Path path) {
         try {
             return Files.readString(path).contains(".application.");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean dependsOnTransportOrSecurityType(Path path) {
+        try {
+            String source = Files.readString(path);
+            return source.contains("org.springframework.http.")
+                || source.contains("org.springframework.security.")
+                || source.contains("org.springframework.web.")
+                || source.contains("jakarta.servlet.");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

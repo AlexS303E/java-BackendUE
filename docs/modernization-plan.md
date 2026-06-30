@@ -318,3 +318,10 @@ Goal: keep API records as transport contracts instead of leaking service or pers
 - [x] Discover every `*/api` package automatically in the architecture boundary test.
 - [x] Scan API `record` types separately from controllers/configuration.
 - [x] Fail CI when API records depend on application, repository, or JDBC types.
+
+## Block 39 - Repository transport/security independence guard
+
+Goal: keep persistence code independent from HTTP, servlet, and Spring Security concerns.
+
+- [x] Discover every `*/repository` package automatically in the architecture boundary test.
+- [x] Fail CI when repository code depends on Spring HTTP, Spring Web, Spring Security, or servlet types.
