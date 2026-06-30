@@ -255,6 +255,23 @@ class ArchitectureBoundaryTest {
             .isEmpty();
     }
 
+    @Test
+    void everyRepositoryPackageShouldStayIndependentFromTransactionAndPersistenceTypes() throws IOException {
+        List<Path> repositoryRoots = packageRoots("repository");
+
+        assertThat(repositoryRoots)
+            .as("Architecture guard must discover repository packages automatically")
+            .isNotEmpty();
+
+        List<Path> offenders = filesUnder(repositoryRoots).stream()
+            .filter(ArchitectureBoundaryTest::dependsOnTransactionOrPersistenceType)
+            .toList();
+
+        assertThat(offenders)
+            .as("Repository code must not own transactions or persistence mappings")
+            .isEmpty();
+    }
+
     private static void assertApplicationPackageDoesNotOwnSqlQueries(Path sourceRoot) throws IOException {
         List<Path> offenders;
         try (var paths = Files.walk(sourceRoot)) {

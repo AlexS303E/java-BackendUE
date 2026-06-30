@@ -332,3 +332,10 @@ Goal: keep API code from owning transactions or persistence mappings.
 
 - [x] Discover every `*/api` package automatically in the architecture boundary test.
 - [x] Fail CI when API code depends on Spring transaction or persistence/JPA types.
+
+## Block 41 - Repository transaction boundary guard
+
+Goal: keep transaction ownership in application services instead of repository classes.
+
+- [x] Discover every `*/repository` package automatically in the architecture boundary test.
+- [x] Fail CI when repository code depends on Spring transaction or persistence/JPA mapping types.
