@@ -1,7 +1,7 @@
 package com.game.backend;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.game.backend.access.api.AccessResponse;
+import com.game.backend.access.application.AccessSnapshot;
 import com.game.backend.access.application.AccessService;
 import com.game.backend.access.application.ItemAccessPolicy;
 import com.game.backend.access.repository.AccessRepository;
@@ -55,7 +55,7 @@ class AccessServiceTest {
         when(repository.findAccessItems(PLAYER_ID, CATALOG_VERSION)).thenReturn(List.of(disabledCatalogItem));
         when(itemAccessPolicy.canUseForUi(false, false, false, false, false)).thenReturn(false);
 
-        AccessResponse response = service.getAccess(PLAYER_ID, "global", CATALOG_VERSION);
+        AccessSnapshot response = service.getAccess(PLAYER_ID, "global", CATALOG_VERSION);
 
         assertThat(response.items()).hasSize(1);
         assertThat(response.items().getFirst().itemId()).isEqualTo("weapon.disabled");

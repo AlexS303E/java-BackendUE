@@ -2,8 +2,8 @@ package com.game.backend;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.game.backend.access.api.AccessItemDto;
-import com.game.backend.access.api.AccessResponse;
+import com.game.backend.access.application.AccessItem;
+import com.game.backend.access.application.AccessSnapshot;
 import com.game.backend.access.application.AccessService;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.catalog.api.CatalogItemDto;
@@ -123,11 +123,11 @@ class RedisCacheIntegrationTest {
     void shouldCachePlayerAccessByCatalogVersionAndAccessRevision() throws Exception {
         UUID playerId = registerPlayer();
 
-        AccessResponse first = accessService.getAccess(playerId, "global", 1L);
+        AccessSnapshot first = accessService.getAccess(playerId, "global", 1L);
         assertThat(first.items()).isNotEmpty();
         assertThat(redisTemplate.hasKey(cacheService.accessKey(playerId, 1L, first.accessRevision()))).isTrue();
 
-        AccessItemDto item = first.items().getFirst();
+        AccessItem item = first.items().getFirst();
         jdbcTemplate.update(
             """
                 UPDATE player_item_access
@@ -146,7 +146,7 @@ class RedisCacheIntegrationTest {
             first.catalogVersion()
         );
 
-        AccessResponse cached = accessService.getAccess(playerId, "global", 1L);
+        AccessSnapshot cached = accessService.getAccess(playerId, "global", 1L);
         assertThat(item(cached, item.itemId()).hidden()).isEqualTo(item.hidden());
 
         jdbcTemplate.update(
@@ -154,7 +154,7 @@ class RedisCacheIntegrationTest {
             playerId
         );
 
-        AccessResponse revised = accessService.getAccess(playerId, "global", 1L);
+        AccessSnapshot revised = accessService.getAccess(playerId, "global", 1L);
         assertThat(revised.accessRevision()).isEqualTo(first.accessRevision() + 1);
         assertThat(item(revised, item.itemId()).hidden()).isEqualTo(!item.hidden());
         assertThat(redisTemplate.hasKey(cacheService.accessKey(playerId, 1L, revised.accessRevision()))).isTrue();
@@ -183,7 +183,7 @@ class RedisCacheIntegrationTest {
             .orElseThrow();
     }
 
-    private AccessItemDto item(AccessResponse response, String itemId) {
+    private AccessItem item(AccessSnapshot response, String itemId) {
         return response.items().stream()
             .filter(item -> item.itemId().equals(itemId))
             .findFirst()

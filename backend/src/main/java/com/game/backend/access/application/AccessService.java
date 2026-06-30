@@ -4,8 +4,6 @@ import com.game.backend.access.repository.AccessRepository;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.game.backend.access.api.AccessItemDto;
-import com.game.backend.access.api.AccessResponse;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.catalog.application.CatalogService;
 import com.game.backend.common.api.ApiException;
@@ -47,7 +45,7 @@ public class AccessService {
     /**
      * Возвращает доступы игрока для конкретного realm и версии каталога.
      */
-    public AccessResponse getAccess(UUID playerId, String realmId, Long requestedCatalogVersion) {
+    public AccessSnapshot getAccess(UUID playerId, String realmId, Long requestedCatalogVersion) {
         long catalogVersion = requestedCatalogVersion == null
             ? catalogService.activeCatalogVersion(realmId)
             : requestedCatalogVersion;
@@ -55,7 +53,7 @@ public class AccessService {
 
         return cacheService.getAccess(playerId, catalogVersion, accessRevision)
             .orElseGet(() -> {
-                AccessResponse response = new AccessResponse(
+                AccessSnapshot response = new AccessSnapshot(
                     playerId,
                     catalogVersion,
                     accessRevision,
@@ -74,10 +72,10 @@ public class AccessService {
         return revisions.getFirst();
     }
 
-    private List<AccessItemDto> items(UUID playerId, long catalogVersion) {
+    private List<AccessItem> items(UUID playerId, long catalogVersion) {
         return repository.findAccessItems(playerId, catalogVersion)
             .stream()
-            .map(row -> new AccessItemDto(
+            .map(row -> new AccessItem(
                     row.itemId(),
                     row.itemType(),
                     row.displayName(),

@@ -2,7 +2,7 @@ package com.game.backend.cache;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.game.backend.access.api.AccessResponse;
+import com.game.backend.access.application.AccessSnapshot;
 import com.game.backend.catalog.api.CatalogSnapshotResponse;
 import com.game.backend.matchprofile.api.MatchProfileResponse;
 import io.micrometer.core.instrument.Counter;
@@ -56,11 +56,11 @@ public class RedisCacheService {
         evictIndexed(catalogSnapshotIndexKey(realmId));
     }
 
-    public Optional<AccessResponse> getAccess(UUID playerId, long catalogVersion, long accessRevision) {
-        return read(ACCESS_CACHE, accessKey(playerId, catalogVersion, accessRevision), AccessResponse.class);
+    public Optional<AccessSnapshot> getAccess(UUID playerId, long catalogVersion, long accessRevision) {
+        return read(ACCESS_CACHE, accessKey(playerId, catalogVersion, accessRevision), AccessSnapshot.class);
     }
 
-    public void putAccess(AccessResponse response) {
+    public void putAccess(AccessSnapshot response) {
         String key = accessKey(response.playerId(), response.catalogVersion(), response.accessRevision());
         String indexKey = accessIndexKey(response.playerId());
         write(key, indexKey, response, properties.getAccessTtl());

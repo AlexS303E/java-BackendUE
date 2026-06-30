@@ -339,3 +339,11 @@ Goal: keep transaction ownership in application services instead of repository c
 
 - [x] Discover every `*/repository` package automatically in the architecture boundary test.
 - [x] Fail CI when repository code depends on Spring transaction or persistence/JPA mapping types.
+
+## Block 42 - Access application API decoupling
+
+Goal: remove API DTO ownership from the access service while preserving the existing `/me/access` response contract.
+
+- [x] Add application-level access snapshot/item records.
+- [x] Move `/me/access` API DTO mapping into `AccessController`.
+- [x] Store the access cache payload as the application snapshot instead of the API response DTO.

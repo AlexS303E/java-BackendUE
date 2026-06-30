@@ -1,7 +1,7 @@
 package com.game.backend;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.game.backend.access.api.AccessResponse;
+import com.game.backend.access.application.AccessSnapshot;
 import com.game.backend.admin.application.AdminStatusService;
 import com.game.backend.admin.repository.AdminRepository;
 import com.game.backend.cache.BackendCacheProperties;
@@ -40,7 +40,7 @@ class RedisDegradationTest {
         );
 
         Optional<CatalogSnapshotResponse> catalog = cacheService.getCatalogSnapshot("global", 1L);
-        Optional<AccessResponse> access = cacheService.getAccess(PLAYER_ID, 1L, 1L);
+        Optional<AccessSnapshot> access = cacheService.getAccess(PLAYER_ID, 1L, 1L);
         Optional<MatchProfileResponse> matchProfile = cacheService.getMatchProfile(
             PLAYER_ID,
             "global",
@@ -63,7 +63,7 @@ class RedisDegradationTest {
             new CatalogSnapshotResponse("global", 1L, List.of(), List.of(), List.of())
         )).doesNotThrowAnyException();
         assertThatCode(() -> cacheService.putAccess(
-            new AccessResponse(PLAYER_ID, 1L, 1L, List.of())
+            new AccessSnapshot(PLAYER_ID, 1L, 1L, List.of())
         )).doesNotThrowAnyException();
         assertThatCode(() -> cacheService.putMatchProfile(matchProfileResponse()))
             .doesNotThrowAnyException();
