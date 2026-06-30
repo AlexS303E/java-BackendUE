@@ -170,6 +170,24 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void apiRecordsShouldStayPureTransportContracts() throws IOException {
+        List<Path> apiRoots = packageRoots("api");
+
+        assertThat(apiRoots)
+            .as("Architecture guard must discover API packages automatically")
+            .isNotEmpty();
+
+        List<Path> offenders = filesUnder(apiRoots).stream()
+            .filter(ArchitectureBoundaryTest::isRecordType)
+            .filter(path -> dependsOnApplicationPackage(path) || usesRepositoryOrJdbcFromApi(path))
+            .toList();
+
+        assertThat(offenders)
+            .as("API records should stay as transport contracts without application, repository, or JDBC dependencies")
+            .isEmpty();
+    }
+
+    @Test
     void everyRepositoryPackageShouldStayIndependentFromApiContracts() throws IOException {
         List<Path> repositoryRoots = packageRoots("repository");
 
@@ -300,6 +318,14 @@ class ArchitectureBoundaryTest {
     private static boolean isGenericComponent(Path path) {
         try {
             return Files.readString(path).contains("@Component");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean isRecordType(Path path) {
+        try {
+            return Files.readString(path).contains("public record ");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

@@ -310,3 +310,11 @@ Goal: keep repositories independent from application-layer records and services.
 - [x] Replace `OutboxRepository`'s application `OutboxEvent` return with a repository record.
 - [x] Map claimed outbox records to application events in `OutboxWorker`.
 - [x] Fail CI when repository code depends on `*.application.*`.
+
+## Block 38 - API DTO transport purity guard
+
+Goal: keep API records as transport contracts instead of leaking service or persistence dependencies into request/response DTOs.
+
+- [x] Discover every `*/api` package automatically in the architecture boundary test.
+- [x] Scan API `record` types separately from controllers/configuration.
+- [x] Fail CI when API records depend on application, repository, or JDBC types.
