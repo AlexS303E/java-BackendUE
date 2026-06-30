@@ -1,6 +1,5 @@
 package com.game.backend;
 
-import com.game.backend.auth.api.RegisterRequest;
 import com.game.backend.auth.application.AuthService;
 import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import com.game.backend.matchprofile.api.DependencyRevisionsDto;
@@ -64,7 +63,7 @@ class MatchProfileCacheServiceIntegrationTest {
 
     private UUID registerPlayer() {
         String loginName = "mp_cache_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-        return authService.register(new RegisterRequest(loginName, "password123")).playerId();
+        return authService.register(loginName, "password123").playerId();
     }
 
     private BuildMatchProfileRequest request(UUID playerId, long catalogVersion) {

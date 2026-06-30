@@ -347,3 +347,11 @@ Goal: remove API DTO ownership from the access service while preserving the exis
 - [x] Add application-level access snapshot/item records.
 - [x] Move `/me/access` API DTO mapping into `AccessController`.
 - [x] Store the access cache payload as the application snapshot instead of the API response DTO.
+
+## Block 43 - Auth application API decoupling
+
+Goal: remove auth request/response DTO ownership from `AuthService` while preserving the existing auth HTTP contracts.
+
+- [x] Add application-level registered-player and token-pair records.
+- [x] Move auth request/response DTO mapping into `AuthController`.
+- [x] Update integration helpers to call the application registration API directly.

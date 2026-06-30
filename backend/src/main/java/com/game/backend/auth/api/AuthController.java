@@ -1,6 +1,8 @@
 package com.game.backend.auth.api;
 
+import com.game.backend.auth.application.AuthTokenPair;
 import com.game.backend.auth.application.AuthService;
+import com.game.backend.auth.application.RegisteredPlayer;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,7 +28,7 @@ public class AuthController {
     @PostMapping("/auth/register")
     @ResponseStatus(HttpStatus.CREATED)
     RegisterResponse register(@Valid @RequestBody RegisterRequest request) {
-        return authService.register(request);
+        return toResponse(authService.register(request.loginName(), request.password()));
     }
 
     /**
@@ -34,7 +36,7 @@ public class AuthController {
      */
     @PostMapping("/auth/login")
     AuthTokenResponse login(@Valid @RequestBody LoginRequest request) {
-        return authService.login(request);
+        return toResponse(authService.login(request.loginName(), request.password()));
     }
 
     /**
@@ -42,7 +44,7 @@ public class AuthController {
      */
     @PostMapping("/auth/refresh")
     AuthTokenResponse refresh(@Valid @RequestBody RefreshRequest request) {
-        return authService.refresh(request);
+        return toResponse(authService.refresh(request.refreshToken()));
     }
 
     /**
@@ -50,7 +52,27 @@ public class AuthController {
      */
     @PostMapping("/auth/logout")
     ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
-        authService.logout(request);
+        authService.logout(request.refreshToken());
         return ResponseEntity.noContent().build();
+    }
+
+    private RegisterResponse toResponse(RegisteredPlayer player) {
+        return new RegisterResponse(
+            player.playerId(),
+            player.loginName(),
+            player.status(),
+            player.needsBootstrap()
+        );
+    }
+
+    private AuthTokenResponse toResponse(AuthTokenPair tokenPair) {
+        return new AuthTokenResponse(
+            tokenPair.playerId(),
+            tokenPair.accessToken(),
+            tokenPair.tokenType(),
+            tokenPair.expiresIn(),
+            tokenPair.refreshToken(),
+            tokenPair.refreshExpiresIn()
+        );
     }
 }

@@ -2,12 +2,6 @@ package com.game.backend.auth.application;
 
 import com.game.backend.auth.repository.AuthRepository;
 
-import com.game.backend.auth.api.AuthTokenResponse;
-import com.game.backend.auth.api.LoginRequest;
-import com.game.backend.auth.api.LogoutRequest;
-import com.game.backend.auth.api.RefreshRequest;
-import com.game.backend.auth.api.RegisterRequest;
-import com.game.backend.auth.api.RegisterResponse;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.auth.repository.AuthRepository.Account;
 import com.game.backend.auth.repository.AuthRepository.RefreshSession;
@@ -55,28 +49,28 @@ public class AuthService {
      * Создает player_account и сразу bootstrap-ит базовые access/preset данные.
      */
     @Transactional
-    public RegisterResponse register(RegisterRequest request) {
+    public RegisteredPlayer register(String loginName, String password) {
         UUID playerId = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now();
-        String passwordHash = passwordEncoder.encode(request.password());
+        String passwordHash = passwordEncoder.encode(password);
 
         try {
-            repository.insertPlayerAccount(playerId, request.loginName(), passwordHash, now);
+            repository.insertPlayerAccount(playerId, loginName, passwordHash, now);
         } catch (DuplicateKeyException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "LOGIN_NAME_ALREADY_EXISTS", "Login name is already taken");
         }
 
         playerBootstrapService.bootstrapNewPlayer(playerId, now);
-        return new RegisterResponse(playerId, request.loginName(), "active", false);
+        return new RegisteredPlayer(playerId, loginName, "active", false);
     }
 
     /**
      * Проверяет пароль активного аккаунта и открывает новую refresh-сессию.
      */
     @Transactional
-    public AuthTokenResponse login(LoginRequest request) {
-        Account account = accountByLoginName(request.loginName());
-        if (!passwordEncoder.matches(request.password(), account.passwordHash())) {
+    public AuthTokenPair login(String loginName, String password) {
+        Account account = accountByLoginName(loginName);
+        if (!passwordEncoder.matches(password, account.passwordHash())) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Invalid login name or password");
         }
         ensureActive(account.status());
@@ -87,8 +81,8 @@ public class AuthService {
      * Делает refresh rotation: старый refresh token отзывается, новая пара токенов сохраняется как новая сессия.
      */
     @Transactional
-    public AuthTokenResponse refresh(RefreshRequest request) {
-        String refreshTokenHash = refreshTokenService.hashRefreshToken(request.refreshToken());
+    public AuthTokenPair refresh(String refreshToken) {
+        String refreshTokenHash = refreshTokenService.hashRefreshToken(refreshToken);
         List<RefreshSession> sessions = repository.lockActiveRefreshSessions(refreshTokenHash);
         if (sessions.isEmpty()) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Refresh token is invalid");
@@ -110,8 +104,8 @@ public class AuthService {
      * Идемпотентно отзывает refresh token, если он еще активен.
      */
     @Transactional
-    public void logout(LogoutRequest request) {
-        String refreshTokenHash = refreshTokenService.hashRefreshToken(request.refreshToken());
+    public void logout(String refreshToken) {
+        String refreshTokenHash = refreshTokenService.hashRefreshToken(refreshToken);
         repository.revokeActiveSessionByRefreshTokenHash(refreshTokenHash, OffsetDateTime.now());
     }
 
@@ -132,7 +126,7 @@ public class AuthService {
     /**
      * Создает access token и сохраняет только SHA-256 hash refresh token.
      */
-    private AuthTokenResponse issueTokenPair(UUID playerId, String loginName, OffsetDateTime now) {
+    private AuthTokenPair issueTokenPair(UUID playerId, String loginName, OffsetDateTime now) {
         String accessToken = jwtTokenService.issueAccessToken(playerId, loginName);
         String refreshToken = refreshTokenService.generateRefreshToken();
         String refreshTokenHash = refreshTokenService.hashRefreshToken(refreshToken);
@@ -146,7 +140,7 @@ public class AuthService {
             refreshExpiresAt
         );
 
-        return new AuthTokenResponse(
+        return new AuthTokenPair(
             playerId,
             accessToken,
             "Bearer",

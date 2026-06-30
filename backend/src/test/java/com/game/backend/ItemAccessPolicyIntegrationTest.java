@@ -1,7 +1,6 @@
 package com.game.backend;
 
 import com.game.backend.access.application.ItemAccessPolicy;
-import com.game.backend.auth.api.RegisterRequest;
 import com.game.backend.auth.application.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,7 +66,7 @@ class ItemAccessPolicyIntegrationTest {
 
     private UUID registerPlayer() {
         String loginName = "policy_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-        return authService.register(new RegisterRequest(loginName, "password123")).playerId();
+        return authService.register(loginName, "password123").playerId();
     }
 
     private long weaponPresetCatalogVersion(UUID playerId) {

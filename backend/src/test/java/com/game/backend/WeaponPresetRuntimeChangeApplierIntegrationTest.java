@@ -1,6 +1,5 @@
 package com.game.backend;
 
-import com.game.backend.auth.api.RegisterRequest;
 import com.game.backend.auth.application.AuthService;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
@@ -76,7 +75,7 @@ class WeaponPresetRuntimeChangeApplierIntegrationTest {
 
     private UUID registerPlayer() {
         String loginName = "runtime_applier_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-        return authService.register(new RegisterRequest(loginName, "password123")).playerId();
+        return authService.register(loginName, "password123").playerId();
     }
 
     private RuntimePresetChangePayload payload(RuntimePresetChangeStep step) {

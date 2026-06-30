@@ -1,6 +1,5 @@
 package com.game.backend;
 
-import com.game.backend.auth.api.RegisterRequest;
 import com.game.backend.auth.application.AuthService;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.presets.application.LoadoutValidationService;
@@ -120,7 +119,7 @@ class LoadoutValidationServiceIntegrationTest {
 
     private UUID registerPlayer() {
         String loginName = "loadout_validation_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-        return authService.register(new RegisterRequest(loginName, "password123")).playerId();
+        return authService.register(loginName, "password123").playerId();
     }
 
     private long weaponPresetCatalogVersion(UUID playerId) {
