@@ -1,8 +1,6 @@
 package com.game.backend.matchprofile.application;
 
 import com.game.backend.common.api.ApiException;
-import com.game.backend.matchprofile.api.DependencyRevisionsDto;
-import com.game.backend.matchprofile.api.MatchProfileResponse;
 import com.game.backend.serverauth.application.ServerAuditService;
 import com.game.backend.serverauth.application.ServerIdentity;
 import com.game.backend.serverauth.application.ServerMatchService;
@@ -44,7 +42,7 @@ public class MatchProfileService {
     }
 
     @Transactional
-    public MatchProfileResponse build(ServerIdentity server, MatchProfileBuildCommand command) {
+    public MatchProfileSnapshot build(ServerIdentity server, MatchProfileBuildCommand command) {
         boolean matchAssigned = false;
         try {
             serverMatchService.ensureAssignedForBuild(server, command);
@@ -54,7 +52,7 @@ public class MatchProfileService {
 
             MatchProfileDependencyService.DependencyTuple dependencies = dependencyService.load(command, catalogVersion);
 
-            MatchProfileResponse existing = matchProfileCacheService.findByDependencyTuple(
+            MatchProfileSnapshot existing = matchProfileCacheService.findByDependencyTuple(
                 command, catalogVersion,
                 dependencies.weaponPresetRevision(), dependencies.outfitPresetRevision(), dependencies.accessRevision()
             );
@@ -65,7 +63,7 @@ public class MatchProfileService {
             long profileRevision = System.currentTimeMillis();
             MatchProfileSnapshotBuilder.Snapshot snapshot = snapshotBuilder.build(command, catalogVersion);
 
-            MatchProfileResponse response = new MatchProfileResponse(
+            MatchProfileSnapshot response = new MatchProfileSnapshot(
                 1,
                 command.playerId(),
                 command.realmId(),
@@ -77,7 +75,7 @@ public class MatchProfileService {
                 snapshot.weapons(),
                 snapshot.outfit(),
                 snapshot.warnings(),
-                new DependencyRevisionsDto(
+                new MatchProfileDependencyRevisions(
                     dependencies.weaponPresetRevision(),
                     dependencies.outfitPresetRevision(),
                     dependencies.accessRevision(),
@@ -96,7 +94,7 @@ public class MatchProfileService {
         }
     }
 
-    private void auditSuccess(ServerIdentity server, MatchProfileBuildCommand command, MatchProfileResponse response) {
+    private void auditSuccess(ServerIdentity server, MatchProfileBuildCommand command, MatchProfileSnapshot response) {
         serverAuditService.recordSync(
             server,
             command.matchId(),

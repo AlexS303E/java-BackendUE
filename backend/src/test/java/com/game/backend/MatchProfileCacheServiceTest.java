@@ -2,9 +2,9 @@ package com.game.backend;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.cache.RedisCacheService;
-import com.game.backend.matchprofile.api.DependencyRevisionsDto;
-import com.game.backend.matchprofile.api.MatchProfileResponse;
 import com.game.backend.matchprofile.application.MatchProfileBuildCommand;
+import com.game.backend.matchprofile.application.MatchProfileDependencyRevisions;
+import com.game.backend.matchprofile.application.MatchProfileSnapshot;
 import com.game.backend.matchprofile.application.MatchProfileCacheService;
 import com.game.backend.matchprofile.repository.MatchProfileRepository;
 import org.junit.jupiter.api.Test;
@@ -37,7 +37,7 @@ class MatchProfileCacheServiceTest {
     @Test
     void shouldIgnoreCachedProfileWhenPayloadDoesNotMatchDependencyTuple() {
         MatchProfileBuildCommand request = request();
-        MatchProfileResponse mismatched = response(request, WEAPON_REVISION + 1, OUTFIT_REVISION, ACCESS_REVISION);
+        MatchProfileSnapshot mismatched = response(request, WEAPON_REVISION + 1, OUTFIT_REVISION, ACCESS_REVISION);
         when(cacheService.getMatchProfile(
             request.playerId(),
             request.realmId(),
@@ -88,7 +88,7 @@ class MatchProfileCacheServiceTest {
     @Test
     void shouldIgnoreDatabaseProfileWhenPayloadDoesNotMatchDependencyTuple() throws Exception {
         MatchProfileBuildCommand request = request();
-        MatchProfileResponse mismatched = response(request, WEAPON_REVISION, OUTFIT_REVISION + 1, ACCESS_REVISION);
+        MatchProfileSnapshot mismatched = response(request, WEAPON_REVISION, OUTFIT_REVISION + 1, ACCESS_REVISION);
         when(cacheService.getMatchProfile(
             request.playerId(),
             request.realmId(),
@@ -139,13 +139,13 @@ class MatchProfileCacheServiceTest {
         );
     }
 
-    private MatchProfileResponse response(
+    private MatchProfileSnapshot response(
         MatchProfileBuildCommand request,
         long weaponPresetRevision,
         long outfitPresetRevision,
         long accessRevision
     ) {
-        return new MatchProfileResponse(
+        return new MatchProfileSnapshot(
             1,
             request.playerId(),
             request.realmId(),
@@ -157,7 +157,7 @@ class MatchProfileCacheServiceTest {
             List.of(),
             List.of(),
             List.of(),
-            new DependencyRevisionsDto(weaponPresetRevision, outfitPresetRevision, accessRevision, 19)
+            new MatchProfileDependencyRevisions(weaponPresetRevision, outfitPresetRevision, accessRevision, 19)
         );
     }
 }

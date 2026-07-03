@@ -419,3 +419,11 @@ Goal: remove `BuildMatchProfileRequest` ownership from match-profile and server-
 - [x] Add an application-level match profile build command.
 - [x] Map `/server/match-profile/build` transport request into the application command in `MatchProfileController`.
 - [x] Update catalog selection, dependency loading, cache lookup, snapshot build, and match assignment to use the application command.
+
+## Block 52 - Match profile snapshot response decoupling
+
+Goal: remove match profile response DTO ownership from application services and Redis cache.
+
+- [x] Add application-level match profile snapshot, weapon, module, outfit, and dependency records.
+- [x] Move `/server/match-profile/build` response mapping into `MatchProfileController`.
+- [x] Store and read match profile cache payloads as application snapshots.

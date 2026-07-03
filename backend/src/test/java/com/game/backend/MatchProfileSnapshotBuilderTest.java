@@ -2,8 +2,8 @@ package com.game.backend;
 
 import com.game.backend.access.application.ItemAccessPolicy;
 import com.game.backend.catalog.application.CatalogValidationData;
-import com.game.backend.matchprofile.api.MatchWeaponDto;
 import com.game.backend.matchprofile.application.MatchProfileBuildCommand;
+import com.game.backend.matchprofile.application.MatchProfileWeapon;
 import com.game.backend.matchprofile.application.MatchProfileSnapshotBuilder;
 import com.game.backend.matchprofile.repository.MatchProfileRepository;
 import org.junit.jupiter.api.Test;
@@ -46,7 +46,7 @@ class MatchProfileSnapshotBuilderTest {
         MatchProfileSnapshotBuilder.Snapshot snapshot = builder.build(request("tdm"), CATALOG_VERSION);
 
         assertThat(snapshot.weapons())
-            .extracting(MatchWeaponDto::weaponId)
+            .extracting(MatchProfileWeapon::weaponId)
             .containsExactly(BLUE_ONLY_WEAPON);
         assertThat(snapshot.warnings()).isEmpty();
     }

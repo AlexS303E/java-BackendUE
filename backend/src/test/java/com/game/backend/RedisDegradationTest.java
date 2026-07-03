@@ -7,8 +7,8 @@ import com.game.backend.admin.repository.AdminRepository;
 import com.game.backend.cache.BackendCacheProperties;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.catalog.application.CatalogSnapshot;
-import com.game.backend.matchprofile.api.DependencyRevisionsDto;
-import com.game.backend.matchprofile.api.MatchProfileResponse;
+import com.game.backend.matchprofile.application.MatchProfileDependencyRevisions;
+import com.game.backend.matchprofile.application.MatchProfileSnapshot;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.RedisConnectionFailureException;
@@ -41,7 +41,7 @@ class RedisDegradationTest {
 
         Optional<CatalogSnapshot> catalog = cacheService.getCatalogSnapshot("global", 1L);
         Optional<AccessSnapshot> access = cacheService.getAccess(PLAYER_ID, 1L, 1L);
-        Optional<MatchProfileResponse> matchProfile = cacheService.getMatchProfile(
+        Optional<MatchProfileSnapshot> matchProfile = cacheService.getMatchProfile(
             PLAYER_ID,
             "global",
             "class.assault",
@@ -118,8 +118,8 @@ class RedisDegradationTest {
         return properties;
     }
 
-    private MatchProfileResponse matchProfileResponse() {
-        return new MatchProfileResponse(
+    private MatchProfileSnapshot matchProfileResponse() {
+        return new MatchProfileSnapshot(
             1,
             PLAYER_ID,
             "global",
@@ -131,7 +131,7 @@ class RedisDegradationTest {
             List.of(),
             List.of(),
             List.of(),
-            new DependencyRevisionsDto(1L, 1L, 1L, 1L)
+            new MatchProfileDependencyRevisions(1L, 1L, 1L, 1L)
         );
     }
 }

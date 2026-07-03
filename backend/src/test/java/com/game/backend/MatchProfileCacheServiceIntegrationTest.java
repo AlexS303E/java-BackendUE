@@ -1,9 +1,9 @@
 package com.game.backend;
 
 import com.game.backend.auth.application.AuthService;
-import com.game.backend.matchprofile.api.DependencyRevisionsDto;
-import com.game.backend.matchprofile.api.MatchProfileResponse;
 import com.game.backend.matchprofile.application.MatchProfileBuildCommand;
+import com.game.backend.matchprofile.application.MatchProfileDependencyRevisions;
+import com.game.backend.matchprofile.application.MatchProfileSnapshot;
 import com.game.backend.matchprofile.application.MatchProfileCacheService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,13 +46,13 @@ class MatchProfileCacheServiceIntegrationTest {
         UUID playerId = registerPlayer();
         long catalogVersion = activeCatalogVersion();
         MatchProfileBuildCommand request = request(playerId, catalogVersion);
-        MatchProfileResponse response = response(request, catalogVersion, 1, 1, accessRevision(playerId), 12345);
+        MatchProfileSnapshot response = response(request, catalogVersion, 1, 1, accessRevision(playerId), 12345);
 
         assertThat(cacheService.findByDependencyTuple(request, catalogVersion, 1, 1, accessRevision(playerId))).isNull();
 
         cacheService.save(request, response);
 
-        MatchProfileResponse cached = cacheService.findByDependencyTuple(request, catalogVersion, 1, 1, accessRevision(playerId));
+        MatchProfileSnapshot cached = cacheService.findByDependencyTuple(request, catalogVersion, 1, 1, accessRevision(playerId));
         assertThat(cached).isNotNull();
         assertThat(cached.playerId()).isEqualTo(playerId);
         assertThat(cached.catalogVersion()).isEqualTo(catalogVersion);
@@ -82,7 +82,7 @@ class MatchProfileCacheServiceIntegrationTest {
         );
     }
 
-    private MatchProfileResponse response(
+    private MatchProfileSnapshot response(
             MatchProfileBuildCommand request,
             long catalogVersion,
             long weaponPresetRevision,
@@ -90,7 +90,7 @@ class MatchProfileCacheServiceIntegrationTest {
             long accessRevision,
             long profileRevision
     ) {
-        return new MatchProfileResponse(
+        return new MatchProfileSnapshot(
                 1,
                 request.playerId(),
                 request.realmId(),
@@ -102,7 +102,7 @@ class MatchProfileCacheServiceIntegrationTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                new DependencyRevisionsDto(weaponPresetRevision, outfitPresetRevision, accessRevision, profileRevision)
+                new MatchProfileDependencyRevisions(weaponPresetRevision, outfitPresetRevision, accessRevision, profileRevision)
         );
     }
 

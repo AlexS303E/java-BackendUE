@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.access.application.AccessSnapshot;
 import com.game.backend.catalog.application.CatalogSnapshot;
-import com.game.backend.matchprofile.api.MatchProfileResponse;
+import com.game.backend.matchprofile.application.MatchProfileSnapshot;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -70,7 +70,7 @@ public class RedisCacheService {
         evictIndexed(accessIndexKey(playerId));
     }
 
-    public Optional<MatchProfileResponse> getMatchProfile(
+    public Optional<MatchProfileSnapshot> getMatchProfile(
         UUID playerId,
         String realmId,
         String classTag,
@@ -93,10 +93,10 @@ public class RedisCacheService {
             weaponPresetRevision,
             outfitPresetRevision,
             accessRevision
-        ), MatchProfileResponse.class);
+        ), MatchProfileSnapshot.class);
     }
 
-    public void putMatchProfile(MatchProfileResponse response) {
+    public void putMatchProfile(MatchProfileSnapshot response) {
         String key = matchProfileKey(
             response.playerId(),
             response.realmId(),

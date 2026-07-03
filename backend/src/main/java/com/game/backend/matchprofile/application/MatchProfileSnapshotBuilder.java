@@ -5,9 +5,6 @@ import com.game.backend.matchprofile.repository.MatchProfileRepository;
 import com.game.backend.access.application.ItemAccessPolicy;
 import com.game.backend.catalog.application.CatalogValidationData;
 import com.game.backend.common.api.ApiException;
-import com.game.backend.matchprofile.api.MatchModuleDto;
-import com.game.backend.matchprofile.api.MatchOutfitItemDto;
-import com.game.backend.matchprofile.api.MatchWeaponDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -36,14 +33,14 @@ public class MatchProfileSnapshotBuilder {
 
     public Snapshot build(MatchProfileBuildCommand command, long catalogVersion) {
         boolean enforceTeamItemRules = repository.enforceTeamItemRules(command.gameModeId());
-        List<MatchWeaponDto> weapons = weapons(command, catalogVersion);
-        List<MatchOutfitItemDto> outfit = outfit(command, catalogVersion);
+        List<MatchProfileWeapon> weapons = weapons(command, catalogVersion);
+        List<MatchProfileOutfitItem> outfit = outfit(command, catalogVersion);
         List<String> warnings = new ArrayList<>();
         validateLoadout(command, catalogVersion, weapons, outfit, enforceTeamItemRules, warnings);
         return new Snapshot(weapons, outfit, warnings);
     }
 
-    private List<MatchWeaponDto> weapons(MatchProfileBuildCommand command, long catalogVersion) {
+    private List<MatchProfileWeapon> weapons(MatchProfileBuildCommand command, long catalogVersion) {
         List<MatchProfileRepository.WeaponRow> rows = repository.findWeaponRows(
             command.playerId(),
             command.classTag(),
@@ -51,27 +48,27 @@ public class MatchProfileSnapshotBuilder {
             catalogVersion
         );
 
-        Map<String, MatchWeaponDto> weaponMap = new HashMap<>();
+        Map<String, MatchProfileWeapon> weaponMap = new HashMap<>();
         for (MatchProfileRepository.WeaponRow row : rows) {
             String slotId = row.weaponSlotId();
             String weaponId = row.weaponId();
             String mountId = row.mountId();
             String moduleId = row.moduleId();
 
-            MatchWeaponDto weapon = weaponMap.get(slotId);
+            MatchProfileWeapon weapon = weaponMap.get(slotId);
             if (weapon == null) {
-                weapon = new MatchWeaponDto(slotId, weaponId, new ArrayList<>());
+                weapon = new MatchProfileWeapon(slotId, weaponId, new ArrayList<>());
                 weaponMap.put(slotId, weapon);
             }
             if (mountId != null && moduleId != null) {
-                weapon.modules().add(new MatchModuleDto(mountId, moduleId));
+                weapon.modules().add(new MatchProfileModule(mountId, moduleId));
             }
         }
 
         return new ArrayList<>(weaponMap.values());
     }
 
-    private List<MatchOutfitItemDto> outfit(MatchProfileBuildCommand command, long catalogVersion) {
+    private List<MatchProfileOutfitItem> outfit(MatchProfileBuildCommand command, long catalogVersion) {
         return new ArrayList<>(repository.findOutfitRows(
             command.playerId(),
             command.teamTag(),
@@ -79,15 +76,15 @@ public class MatchProfileSnapshotBuilder {
             command.outfitPresetSlot(),
             catalogVersion
         ).stream()
-            .map(row -> new MatchOutfitItemDto(row.clothingSlotId(), row.itemId()))
+            .map(row -> new MatchProfileOutfitItem(row.clothingSlotId(), row.itemId()))
             .toList());
     }
 
     private void validateLoadout(
         MatchProfileBuildCommand command,
         long catalogVersion,
-        List<MatchWeaponDto> weapons,
-        List<MatchOutfitItemDto> outfit,
+        List<MatchProfileWeapon> weapons,
+        List<MatchProfileOutfitItem> outfit,
         boolean enforceTeamItemRules,
         List<String> warnings
     ) {
@@ -96,16 +93,16 @@ public class MatchProfileSnapshotBuilder {
         Set<String> clothingItemIds = new HashSet<>();
         Set<String> clothingSlotIds = new HashSet<>();
 
-        for (MatchWeaponDto weapon : weapons) {
+        for (MatchProfileWeapon weapon : weapons) {
             weaponSlotIds.add(weapon.weaponSlotId());
             if (weapon.weaponId() == null) continue;
             itemIds.add(weapon.weaponId());
-            for (MatchModuleDto module : weapon.modules()) {
+            for (MatchProfileModule module : weapon.modules()) {
                 itemIds.add(module.moduleId());
             }
         }
 
-        for (MatchOutfitItemDto item : outfit) {
+        for (MatchProfileOutfitItem item : outfit) {
             clothingSlotIds.add(item.clothingSlotId());
             itemIds.add(item.itemId());
             clothingItemIds.add(item.itemId());
@@ -127,16 +124,16 @@ public class MatchProfileSnapshotBuilder {
     }
 
     private void filterRestrictedItems(
-        List<MatchWeaponDto> weapons,
-        List<MatchOutfitItemDto> outfit,
+        List<MatchProfileWeapon> weapons,
+        List<MatchProfileOutfitItem> outfit,
         Set<String> baseUsableItems,
         Set<String> teamUsableItems,
         Set<String> outfitTeamUsableItems,
         boolean enforceTeamItemRules,
         List<String> warnings
     ) {
-        List<MatchWeaponDto> removedWeapons = new ArrayList<>();
-        for (MatchWeaponDto weapon : List.copyOf(weapons)) {
+        List<MatchProfileWeapon> removedWeapons = new ArrayList<>();
+        for (MatchProfileWeapon weapon : List.copyOf(weapons)) {
             if (weapon.weaponId() == null) continue;
             if (!baseUsableItems.contains(weapon.weaponId())) {
                 throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED",
@@ -146,8 +143,8 @@ public class MatchProfileSnapshotBuilder {
                 removedWeapons.add(weapon);
                 continue;
             }
-            List<MatchModuleDto> removedModules = new ArrayList<>();
-            for (MatchModuleDto module : List.copyOf(weapon.modules())) {
+            List<MatchProfileModule> removedModules = new ArrayList<>();
+            for (MatchProfileModule module : List.copyOf(weapon.modules())) {
                 if (!baseUsableItems.contains(module.moduleId())) {
                     throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED",
                         "Item is not usable in selected loadout: " + module.moduleId());
@@ -157,17 +154,17 @@ public class MatchProfileSnapshotBuilder {
                 }
             }
             weapon.modules().removeAll(removedModules);
-            for (MatchModuleDto removed : removedModules) {
+            for (MatchProfileModule removed : removedModules) {
                 warnings.add("Module restricted for team in this game mode, removed: " + removed.moduleId());
             }
         }
         weapons.removeAll(removedWeapons);
-        for (MatchWeaponDto removed : removedWeapons) {
+        for (MatchProfileWeapon removed : removedWeapons) {
             warnings.add("Weapon restricted for team in this game mode, removed: " + removed.weaponId());
         }
 
-        List<MatchOutfitItemDto> removedOutfit = new ArrayList<>();
-        for (MatchOutfitItemDto item : outfit) {
+        List<MatchProfileOutfitItem> removedOutfit = new ArrayList<>();
+        for (MatchProfileOutfitItem item : outfit) {
             if (!baseUsableItems.contains(item.itemId())) {
                 throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "LOADOUT_VALIDATION_FAILED",
                     "Item is not usable in selected loadout: " + item.itemId());
@@ -177,7 +174,7 @@ public class MatchProfileSnapshotBuilder {
             }
         }
         outfit.removeAll(removedOutfit);
-        for (MatchOutfitItemDto removed : removedOutfit) {
+        for (MatchProfileOutfitItem removed : removedOutfit) {
             warnings.add("Clothing restricted for team, removed: " + removed.itemId());
         }
     }
@@ -214,11 +211,11 @@ public class MatchProfileSnapshotBuilder {
         }
     }
 
-    private List<ModuleMountPair> collectModuleMountPairs(List<MatchWeaponDto> weapons) {
+    private List<ModuleMountPair> collectModuleMountPairs(List<MatchProfileWeapon> weapons) {
         List<ModuleMountPair> pairs = new ArrayList<>();
-        for (MatchWeaponDto weapon : weapons) {
+        for (MatchProfileWeapon weapon : weapons) {
             if (weapon.weaponId() == null) continue;
-            for (MatchModuleDto module : weapon.modules()) {
+            for (MatchProfileModule module : weapon.modules()) {
                 pairs.add(new ModuleMountPair(module.mountId(), module.moduleId()));
             }
         }
@@ -226,8 +223,8 @@ public class MatchProfileSnapshotBuilder {
     }
 
     public record Snapshot(
-        List<MatchWeaponDto> weapons,
-        List<MatchOutfitItemDto> outfit,
+        List<MatchProfileWeapon> weapons,
+        List<MatchProfileOutfitItem> outfit,
         List<String> warnings
     ) {
     }

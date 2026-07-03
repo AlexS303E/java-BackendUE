@@ -6,7 +6,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.common.api.ApiException;
-import com.game.backend.matchprofile.api.MatchProfileResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -30,14 +29,14 @@ public class MatchProfileCacheService {
         this.cacheService = cacheService;
     }
 
-    public MatchProfileResponse findByDependencyTuple(
+    public MatchProfileSnapshot findByDependencyTuple(
         MatchProfileBuildCommand command,
         long catalogVersion,
         long weaponPresetRevision,
         long outfitPresetRevision,
         long accessRevision
     ) {
-        MatchProfileResponse cached = cacheService.getMatchProfile(
+        MatchProfileSnapshot cached = cacheService.getMatchProfile(
             command.playerId(),
             command.realmId(),
             command.classTag(),
@@ -76,7 +75,7 @@ public class MatchProfileCacheService {
             return null;
         }
         try {
-            MatchProfileResponse response = objectMapper.readValue(payloads.getFirst(), MatchProfileResponse.class);
+            MatchProfileSnapshot response = objectMapper.readValue(payloads.getFirst(), MatchProfileSnapshot.class);
             if (matchesDependencyTuple(
                 command,
                 catalogVersion,
@@ -94,7 +93,7 @@ public class MatchProfileCacheService {
         }
     }
 
-    public void save(MatchProfileBuildCommand command, MatchProfileResponse response) {
+    public void save(MatchProfileBuildCommand command, MatchProfileSnapshot response) {
         OffsetDateTime now = OffsetDateTime.now();
         String payload = toJson(response);
 
@@ -118,7 +117,7 @@ public class MatchProfileCacheService {
         cacheService.putMatchProfile(response);
     }
 
-    private String toJson(MatchProfileResponse response) {
+    private String toJson(MatchProfileSnapshot response) {
         try {
             return objectMapper.writeValueAsString(response);
         } catch (JsonProcessingException exception) {
@@ -136,7 +135,7 @@ public class MatchProfileCacheService {
         long weaponPresetRevision,
         long outfitPresetRevision,
         long accessRevision,
-        MatchProfileResponse response
+        MatchProfileSnapshot response
     ) {
         return response != null
             && response.dependencyRevisions() != null

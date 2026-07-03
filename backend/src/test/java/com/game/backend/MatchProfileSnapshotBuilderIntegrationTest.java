@@ -1,8 +1,8 @@
 package com.game.backend;
 
 import com.game.backend.auth.application.AuthService;
-import com.game.backend.matchprofile.api.MatchWeaponDto;
 import com.game.backend.matchprofile.application.MatchProfileBuildCommand;
+import com.game.backend.matchprofile.application.MatchProfileWeapon;
 import com.game.backend.matchprofile.application.MatchProfileSnapshotBuilder;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,7 +54,7 @@ class MatchProfileSnapshotBuilderIntegrationTest {
                 catalogVersion
         );
 
-        MatchWeaponDto primary = findWeapon(snapshot, WEAPON_SLOT_ID);
+        MatchProfileWeapon primary = findWeapon(snapshot, WEAPON_SLOT_ID);
         assertThat(primary.weaponId()).isEqualTo(WEAPON_ID);
         assertThat(primary.modules()).hasSize(1);
         assertThat(primary.modules().getFirst().moduleId()).isEqualTo(MODULE_ID);
@@ -75,7 +75,7 @@ class MatchProfileSnapshotBuilderIntegrationTest {
         );
 
         assertThat(snapshot.weapons())
-                .extracting(MatchWeaponDto::weaponId)
+                .extracting(MatchProfileWeapon::weaponId)
                 .doesNotContain(blueOnlyWeaponId);
         assertThat(snapshot.warnings())
                 .anySatisfy(warning -> assertThat(warning).contains("Weapon restricted for team"));
@@ -102,7 +102,7 @@ class MatchProfileSnapshotBuilderIntegrationTest {
         );
     }
 
-    private MatchWeaponDto findWeapon(MatchProfileSnapshotBuilder.Snapshot snapshot, String weaponSlotId) {
+    private MatchProfileWeapon findWeapon(MatchProfileSnapshotBuilder.Snapshot snapshot, String weaponSlotId) {
         return snapshot.weapons().stream()
                 .filter(weapon -> weaponSlotId.equals(weapon.weaponSlotId()))
                 .findFirst()
