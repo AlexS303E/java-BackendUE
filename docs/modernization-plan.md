@@ -379,3 +379,11 @@ Goal: remove notification response DTO ownership from `PlayerNotificationService
 - [x] Add application-level notification page/entry/acknowledgement records.
 - [x] Move notification response DTO mapping into `NotificationsController`.
 - [x] Keep notification read and acknowledgement behavior unchanged.
+
+## Block 47 - Post-match application API decoupling
+
+Goal: remove post-match pending change request/response DTO ownership from `PostMatchPendingChangesService`.
+
+- [x] Add application-level pending change page/entry/resolution records.
+- [x] Move post-match pending change response DTO mapping into `PostMatchPendingChangesController`.
+- [x] Pass the validated resolution value into the service instead of the API request DTO.

@@ -1,6 +1,9 @@
 package com.game.backend.postmatch.api;
 
 import com.game.backend.auth.application.CurrentPlayer;
+import com.game.backend.postmatch.application.PostMatchPendingChangeEntry;
+import com.game.backend.postmatch.application.PostMatchPendingChangePage;
+import com.game.backend.postmatch.application.PostMatchPendingChangeResolution;
 import com.game.backend.postmatch.application.PostMatchPendingChangesService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -33,7 +36,7 @@ public class PostMatchPendingChangesController {
             @RequestParam(value = "status", defaultValue = "pending") String status
     ) {
         UUID playerId = CurrentPlayer.require(authentication).playerId();
-        return postMatchPendingChangesService.getChanges(playerId, status);
+        return toResponse(postMatchPendingChangesService.getChanges(playerId, status));
     }
 
     /**
@@ -46,6 +49,39 @@ public class PostMatchPendingChangesController {
             @Valid @RequestBody PostMatchPendingChangeResolutionRequest request
     ) {
         UUID playerId = CurrentPlayer.require(authentication).playerId();
-        return postMatchPendingChangesService.resolve(playerId, changeId, request);
+        return toResponse(postMatchPendingChangesService.resolve(playerId, changeId, request.resolution()));
+    }
+
+    private PostMatchPendingChangesResponse toResponse(PostMatchPendingChangePage page) {
+        return new PostMatchPendingChangesResponse(
+            page.playerId(),
+            page.changes().stream().map(this::toDto).toList()
+        );
+    }
+
+    private PostMatchPendingChangeDto toDto(PostMatchPendingChangeEntry change) {
+        return new PostMatchPendingChangeDto(
+            change.changeId(),
+            change.matchId(),
+            change.classTag(),
+            change.weaponPresetSlot(),
+            change.baseWeaponPresetRevision(),
+            change.currentConflictingRevision(),
+            change.reasonCode(),
+            change.status(),
+            change.payload(),
+            change.createdAt(),
+            change.expiresAt(),
+            change.resolvedAt()
+        );
+    }
+
+    private PostMatchPendingChangeResolutionResponse toResponse(PostMatchPendingChangeResolution resolution) {
+        return new PostMatchPendingChangeResolutionResponse(
+            resolution.changeId(),
+            resolution.status(),
+            resolution.resultRevision(),
+            resolution.resolvedAt()
+        );
     }
 }

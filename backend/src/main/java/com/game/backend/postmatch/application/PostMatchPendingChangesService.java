@@ -12,10 +12,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.notifications.application.PlayerNotificationService;
 import com.game.backend.outbox.application.OutboxService;
-import com.game.backend.postmatch.api.PostMatchPendingChangeDto;
-import com.game.backend.postmatch.api.PostMatchPendingChangeResolutionRequest;
-import com.game.backend.postmatch.api.PostMatchPendingChangeResolutionResponse;
-import com.game.backend.postmatch.api.PostMatchPendingChangesResponse;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.application.WeaponPresetRuntimeChangeApplier;
 import org.springframework.http.HttpStatus;
@@ -69,24 +65,24 @@ public class PostMatchPendingChangesService {
      * Возвращает changes игрока по статусу и по пути истечает просроченные pending rows.
      */
     @Transactional
-    public PostMatchPendingChangesResponse getChanges(UUID playerId, String status) {
+    public PostMatchPendingChangePage getChanges(UUID playerId, String status) {
         String normalizedStatus = normalizeStatus(status);
         expireOldPendingChanges(playerId, OffsetDateTime.now());
 
-        List<PostMatchPendingChangeDto> changes = toPendingChangeDtos(
+        List<PostMatchPendingChangeEntry> changes = toPendingChangeEntries(
             repository.findPendingChanges(playerId, normalizedStatus)
         );
-        return new PostMatchPendingChangesResponse(playerId, changes);
+        return new PostMatchPendingChangePage(playerId, changes);
     }
 
     /**
      * Применяет решение игрока: применить изменение, если preset не ушел вперед, или отклонить его.
      */
     @Transactional
-    public PostMatchPendingChangeResolutionResponse resolve(
+    public PostMatchPendingChangeResolution resolve(
         UUID playerId,
         UUID changeId,
-        PostMatchPendingChangeResolutionRequest request
+        String requestedResolution
     ) {
         PendingChange change = lockPendingChange(playerId, changeId);
         if (change == null) {
@@ -100,7 +96,7 @@ public class PostMatchPendingChangesService {
             throw new ApiException(HttpStatus.CONFLICT, "PENDING_CHANGE_EXPIRED", "Pending change is expired");
         }
 
-        String resolution = request.resolution().toLowerCase(Locale.ROOT);
+        String resolution = requestedResolution.toLowerCase(Locale.ROOT);
         return switch (resolution) {
             case "discard" -> discard(change, now);
             case "apply_if_still_valid" -> applyIfStillValid(change, now);
@@ -112,18 +108,18 @@ public class PostMatchPendingChangesService {
             default -> throw new ApiException(
                 HttpStatus.BAD_REQUEST,
                 "VALIDATION_ERROR",
-                "Unsupported post-match resolution: " + request.resolution()
+                "Unsupported post-match resolution: " + requestedResolution
             );
         };
     }
 
-    private PostMatchPendingChangeResolutionResponse discard(PendingChange change, OffsetDateTime now) {
+    private PostMatchPendingChangeResolution discard(PendingChange change, OffsetDateTime now) {
         updateChangeStatus(change.changeId(), "rejected", now);
         recordPendingChangeResolved(change, "discard", "rejected", null, now);
-        return new PostMatchPendingChangeResolutionResponse(change.changeId(), "rejected", null, now);
+        return new PostMatchPendingChangeResolution(change.changeId(), "rejected", null, now);
     }
 
-    private PostMatchPendingChangeResolutionResponse applyIfStillValid(PendingChange change, OffsetDateTime now) {
+    private PostMatchPendingChangeResolution applyIfStillValid(PendingChange change, OffsetDateTime now) {
         PendingPayload payload = parsePendingPayload(change.payloadJson());
         validatePendingPayload(payload);
 
@@ -174,7 +170,7 @@ public class PostMatchPendingChangesService {
         );
         updateChangeStatus(change.changeId(), "applied", now);
         recordPendingChangeResolved(change, "apply_if_still_valid", "applied", resultRevision, now);
-        return new PostMatchPendingChangeResolutionResponse(change.changeId(), "applied", resultRevision, now);
+        return new PostMatchPendingChangeResolution(change.changeId(), "applied", resultRevision, now);
     }
 
     private void recordPendingChangeResolved(
@@ -260,9 +256,9 @@ public class PostMatchPendingChangesService {
         repository.updateChangeStatus(changeId, status, resolvedAt);
     }
 
-    private List<PostMatchPendingChangeDto> toPendingChangeDtos(List<PendingChangeSummary> changes) {
+    private List<PostMatchPendingChangeEntry> toPendingChangeEntries(List<PendingChangeSummary> changes) {
         return changes.stream()
-            .map(change -> new PostMatchPendingChangeDto(
+            .map(change -> new PostMatchPendingChangeEntry(
                 change.changeId(),
                 change.matchId(),
                 change.classTag(),
