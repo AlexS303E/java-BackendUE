@@ -7,8 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
-import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
-import com.game.backend.runtimechanges.api.RuntimePresetChangeResponse;
 import com.game.backend.serverauth.application.ServerAuditService;
 import com.game.backend.serverauth.application.ServerIdentity;
 import com.game.backend.serverauth.application.ServerMatchService;
@@ -67,48 +65,48 @@ public class RuntimePresetChangeService {
     }
 
     @Transactional
-    public RuntimePresetChangeResponse submit(
+    public RuntimePresetChangeResult submit(
         ServerIdentity server,
         String idempotencyKey,
-        RuntimePresetChangeRequest request
+        RuntimePresetChangeCommand command
     ) {
         boolean matchAssigned = false;
         try {
-            validateIdempotencyKey(idempotencyKey, request);
-            validatePayload(request.runtimeChangePayload());
+            validateIdempotencyKey(idempotencyKey, command);
+            validatePayload(command.runtimeChangePayload());
 
-            String requestHash = requestHash(request);
-            serverMatchService.ensureAssignedForRuntimeChange(server, request);
+            String requestHash = requestHash(command);
+            serverMatchService.ensureAssignedForRuntimeChange(server, command);
             matchAssigned = true;
             OffsetDateTime now = OffsetDateTime.now();
 
             // 1. Check for existing operation (idempotency) before locking/ordering
-            RuntimeOperationRecorder.ExistingOperation existing = operationRecorder.find(request.operationId());
+            RuntimeOperationRecorder.ExistingOperation existing = operationRecorder.find(command.operationId());
             if (existing != null) {
-                return auditedResponse(server, request, replayExistingOperation(request, requestHash, existing));
+                return auditedResponse(server, command, replayExistingOperation(command, requestHash, existing));
             }
 
             // 2. Lock stream and validate ordering
-            operationStreamService.lockAndValidateNextSequence(request);
+            operationStreamService.lockAndValidateNextSequence(command);
 
             // 3. INSERT operation with 'processing' status
-            int inserted = operationRecorder.insertProcessing(request, requestHash, now);
+            int inserted = operationRecorder.insertProcessing(command, requestHash, now);
             if (inserted == 0) {
                 // Race: concurrent thread inserted between SELECT and INSERT
-                existing = operationRecorder.find(request.operationId());
-                return auditedResponse(server, request, replayExistingOperation(request, requestHash, existing));
+                existing = operationRecorder.find(command.operationId());
+                return auditedResponse(server, command, replayExistingOperation(command, requestHash, existing));
             }
 
             // 3. Lock preset and apply
-            PresetHeader preset = lockWeaponPreset(request);
-            if (preset.revision() != request.baseWeaponPresetRevision()) {
-                UUID pendingChangeId = conflictService.createRevisionConflict(request, preset.revision(), now);
-                operationRecorder.markConflict(request.operationId(), pendingChangeId, now);
-                operationStreamService.advance(request);
+            PresetHeader preset = lockWeaponPreset(command);
+            if (preset.revision() != command.baseWeaponPresetRevision()) {
+                UUID pendingChangeId = conflictService.createRevisionConflict(command, preset.revision(), now);
+                operationRecorder.markConflict(command.operationId(), pendingChangeId, now);
+                operationStreamService.advance(command);
                 return auditedResponse(
-                    server, request,
-                    new RuntimePresetChangeResponse(
-                        request.operationId(), "conflict", null, pendingChangeId, false,
+                    server, command,
+                    new RuntimePresetChangeResult(
+                        command.operationId(), "conflict", null, pendingChangeId, false,
                         "PRESET_REVISION_CONFLICT"
                     )
                 );
@@ -116,76 +114,76 @@ public class RuntimePresetChangeService {
 
             try {
                 runtimeChangeApplier.apply(
-                    request.playerId(), request.classTag(), request.weaponPresetSlot(),
-                    preset.catalogVersion(), request.runtimeChangePayload(), now
+                    command.playerId(), command.classTag(), command.weaponPresetSlot(),
+                    preset.catalogVersion(), command.runtimeChangePayload(), now
                 );
             } catch (ApiException exception) {
                 String opStatus = exception.status() == HttpStatus.UNPROCESSABLE_ENTITY ? "rejected" : "failed";
                 String reason = exception.code();
                 if ("rejected".equals(opStatus)) {
-                    operationRecorder.markRejected(request.operationId(), now);
+                    operationRecorder.markRejected(command.operationId(), now);
                 } else {
-                    operationRecorder.markFailed(request.operationId(), now);
+                    operationRecorder.markFailed(command.operationId(), now);
                 }
-                operationStreamService.advance(request);
-                recordRuntimePresetFailed(request, preset.catalogVersion(), opStatus, reason, now);
+                operationStreamService.advance(command);
+                recordRuntimePresetFailed(command, preset.catalogVersion(), opStatus, reason, now);
                 return auditedResponse(
-                    server, request,
-                    new RuntimePresetChangeResponse(
-                        request.operationId(), opStatus, null, null, false, reason
+                    server, command,
+                    new RuntimePresetChangeResult(
+                        command.operationId(), opStatus, null, null, false, reason
                     )
                 );
             }
 
             long resultRevision = preset.revision() + 1;
             repository.updateWeaponPresetRevision(
-                request.playerId(),
-                request.classTag(),
-                request.weaponPresetSlot(),
+                command.playerId(),
+                command.classTag(),
+                command.weaponPresetSlot(),
                 preset.catalogVersion(),
                 resultRevision,
                 now
             );
 
-            operationRecorder.markApplied(request.operationId(), resultRevision, now);
-            operationStreamService.advance(request);
-            recordRuntimePresetApplied(request, preset.catalogVersion(), resultRevision, now);
+            operationRecorder.markApplied(command.operationId(), resultRevision, now);
+            operationStreamService.advance(command);
+            recordRuntimePresetApplied(command, preset.catalogVersion(), resultRevision, now);
             return auditedResponse(
-                server, request,
-                new RuntimePresetChangeResponse(
-                    request.operationId(), "applied", resultRevision, null, false, null
+                server, command,
+                new RuntimePresetChangeResult(
+                    command.operationId(), "applied", resultRevision, null, false, null
                 )
             );
         } catch (ApiException exception) {
-            auditFailure(server, request, matchAssigned, auditResult(exception), exception.code(), exception.status().value());
+            auditFailure(server, command, matchAssigned, auditResult(exception), exception.code(), exception.status().value());
             throw exception;
         } catch (RuntimeException exception) {
-            auditFailure(server, request, matchAssigned, "failed", exception.getClass().getSimpleName(), 500);
+            auditFailure(server, command, matchAssigned, "failed", exception.getClass().getSimpleName(), 500);
             throw exception;
         }
     }
 
-    private RuntimePresetChangeResponse auditedResponse(
+    private RuntimePresetChangeResult auditedResponse(
         ServerIdentity server,
-        RuntimePresetChangeRequest request,
-        RuntimePresetChangeResponse response
+        RuntimePresetChangeCommand command,
+        RuntimePresetChangeResult response
     ) {
-        auditSuccess(server, request, response);
+        auditSuccess(server, command, response);
         return response;
     }
 
     private void auditSuccess(
         ServerIdentity server,
-        RuntimePresetChangeRequest request,
-        RuntimePresetChangeResponse response
+        RuntimePresetChangeCommand command,
+        RuntimePresetChangeResult response
     ) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("match_id", request.matchId());
-        payload.put("operation_id", request.operationId());
-        payload.put("operation_seq", request.operationSeq());
-        payload.put("player_id", request.playerId());
-        payload.put("class_tag", request.classTag());
-        payload.put("weapon_preset_slot", request.weaponPresetSlot());
+        payload.put("match_id", command.matchId());
+        payload.put("operation_id", command.operationId());
+        payload.put("operation_seq", command.operationSeq());
+        payload.put("player_id", command.playerId());
+        payload.put("class_tag", command.classTag());
+        payload.put("weapon_preset_slot", command.weaponPresetSlot());
         payload.put("status", response.status());
         payload.put("duplicate", response.duplicate());
         if (response.resultRevision() != null) {
@@ -197,7 +195,7 @@ public class RuntimePresetChangeService {
 
         serverAuditService.record(
             server,
-            request.matchId(),
+            command.matchId(),
             AUDIT_ACTION,
             AUDIT_SCOPE,
             "success",
@@ -207,7 +205,7 @@ public class RuntimePresetChangeService {
 
     private void auditFailure(
         ServerIdentity server,
-        RuntimePresetChangeRequest request,
+        RuntimePresetChangeCommand command,
         boolean matchAssigned,
         String result,
         String code,
@@ -215,17 +213,17 @@ public class RuntimePresetChangeService {
     ) {
         serverAuditService.record(
             server,
-            matchAssigned ? request.matchId() : null,
+            matchAssigned ? command.matchId() : null,
             AUDIT_ACTION,
             AUDIT_SCOPE,
             result,
             Map.of(
-                "match_id", request.matchId(),
-                "operation_id", request.operationId(),
-                "operation_seq", request.operationSeq(),
-                "player_id", request.playerId(),
-                "class_tag", request.classTag(),
-                "weapon_preset_slot", request.weaponPresetSlot(),
+                "match_id", command.matchId(),
+                "operation_id", command.operationId(),
+                "operation_seq", command.operationSeq(),
+                "player_id", command.playerId(),
+                "class_tag", command.classTag(),
+                "weapon_preset_slot", command.weaponPresetSlot(),
                 "code", code,
                 "status", status
             )
@@ -237,7 +235,7 @@ public class RuntimePresetChangeService {
     }
 
     private void recordRuntimePresetApplied(
-        RuntimePresetChangeRequest request,
+        RuntimePresetChangeCommand command,
         long catalogVersion,
         long resultRevision,
         OffsetDateTime now
@@ -245,16 +243,16 @@ public class RuntimePresetChangeService {
         outboxService.record(
             "weapon_preset.runtime_changed",
             "weapon_preset",
-            weaponPresetAggregateId(request.playerId(), request.classTag(), request.weaponPresetSlot(), catalogVersion),
+            weaponPresetAggregateId(command.playerId(), command.classTag(), command.weaponPresetSlot(), catalogVersion),
             1,
             Map.of(
-                "player_id", request.playerId(),
-                "match_id", request.matchId(),
-                "operation_id", request.operationId(),
-                "class_tag", request.classTag(),
-                "preset_slot", request.weaponPresetSlot(),
+                "player_id", command.playerId(),
+                "match_id", command.matchId(),
+                "operation_id", command.operationId(),
+                "class_tag", command.classTag(),
+                "preset_slot", command.weaponPresetSlot(),
                 "catalog_version", catalogVersion,
-                "base_revision", request.baseWeaponPresetRevision(),
+                "base_revision", command.baseWeaponPresetRevision(),
                 "revision", resultRevision,
                 "source", "runtime"
             ),
@@ -263,7 +261,7 @@ public class RuntimePresetChangeService {
     }
 
     private void recordRuntimePresetFailed(
-        RuntimePresetChangeRequest request,
+        RuntimePresetChangeCommand command,
         long catalogVersion,
         String status,
         String reason,
@@ -272,16 +270,16 @@ public class RuntimePresetChangeService {
         outboxService.record(
             "weapon_preset.runtime_failed",
             "weapon_preset",
-            weaponPresetAggregateId(request.playerId(), request.classTag(), request.weaponPresetSlot(), catalogVersion),
+            weaponPresetAggregateId(command.playerId(), command.classTag(), command.weaponPresetSlot(), catalogVersion),
             1,
             Map.of(
-                "player_id", request.playerId(),
-                "match_id", request.matchId(),
-                "operation_id", request.operationId(),
-                "class_tag", request.classTag(),
-                "preset_slot", request.weaponPresetSlot(),
+                "player_id", command.playerId(),
+                "match_id", command.matchId(),
+                "operation_id", command.operationId(),
+                "class_tag", command.classTag(),
+                "preset_slot", command.weaponPresetSlot(),
                 "catalog_version", catalogVersion,
-                "base_revision", request.baseWeaponPresetRevision(),
+                "base_revision", command.baseWeaponPresetRevision(),
                 "status", status,
                 "reason", reason,
                 "source", "runtime"
@@ -294,7 +292,7 @@ public class RuntimePresetChangeService {
         return playerId + ":" + classTag + ":" + presetSlot + ":" + catalogVersion;
     }
 
-    private void validateIdempotencyKey(String idempotencyKey, RuntimePresetChangeRequest request) {
+    private void validateIdempotencyKey(String idempotencyKey, RuntimePresetChangeCommand command) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
@@ -302,7 +300,7 @@ public class RuntimePresetChangeService {
                 "Idempotency-Key header is required"
             );
         }
-        if (!idempotencyKey.equalsIgnoreCase(request.operationId().toString())) {
+        if (!idempotencyKey.equalsIgnoreCase(command.operationId().toString())) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
                 "IDEMPOTENCY_OPERATION_ID_MISMATCH",
@@ -324,8 +322,8 @@ public class RuntimePresetChangeService {
     /**
      * Возвращает результат уже записанной операции, если operation_id повторили с тем же request hash.
      */
-    private RuntimePresetChangeResponse replayExistingOperation(
-        RuntimePresetChangeRequest request,
+    private RuntimePresetChangeResult replayExistingOperation(
+        RuntimePresetChangeCommand command,
         String requestHash,
         RuntimeOperationRecorder.ExistingOperation existing
     ) {
@@ -336,8 +334,8 @@ public class RuntimePresetChangeService {
                 "Runtime operation id was reused with a different request body"
             );
         }
-        return new RuntimePresetChangeResponse(
-            request.operationId(),
+        return new RuntimePresetChangeResult(
+            command.operationId(),
             existing.status(),
             existing.resultRevision(),
             existing.pendingChangeId(),
@@ -349,11 +347,11 @@ public class RuntimePresetChangeService {
     /**
      * Блокирует weapon preset до конца транзакции, чтобы ревизия и запись операции были согласованы.
      */
-    private PresetHeader lockWeaponPreset(RuntimePresetChangeRequest request) {
+    private PresetHeader lockWeaponPreset(RuntimePresetChangeCommand command) {
         List<RuntimeChangesRepository.PresetHeader> presets = repository.lockWeaponPreset(
-            request.playerId(),
-            request.classTag(),
-            request.weaponPresetSlot()
+            command.playerId(),
+            command.classTag(),
+            command.weaponPresetSlot()
         );
         if (presets.isEmpty()) {
             throw new ApiException(
@@ -366,8 +364,8 @@ public class RuntimePresetChangeService {
         return new PresetHeader(preset.catalogVersion(), preset.revision());
     }
 
-    private String requestHash(RuntimePresetChangeRequest request) {
-        return sha256(toJson(request));
+    private String requestHash(RuntimePresetChangeCommand command) {
+        return sha256(toJson(command));
     }
 
     private String toJson(Object value) {

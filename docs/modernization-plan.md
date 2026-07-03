@@ -395,3 +395,11 @@ Goal: remove runtime event request/response DTO ownership from `RuntimeEventsSer
 - [x] Add application-level runtime event command/result records.
 - [x] Move runtime event request/result mapping into `RuntimeEventsController`.
 - [x] Keep idempotency replay payload shape compatible through matching result fields.
+
+## Block 49 - Runtime preset changes application API decoupling
+
+Goal: remove runtime preset change request/response DTO ownership from runtime change application services while preserving `/server/runtime-preset-changes`.
+
+- [x] Add application-level runtime preset change command/result records.
+- [x] Move runtime preset request/result mapping into `RuntimePresetChangeController`.
+- [x] Update runtime operation recorder/stream/conflict helpers to use the application command.

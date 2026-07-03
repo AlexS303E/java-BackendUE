@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.notifications.application.PlayerNotificationService;
 import com.game.backend.outbox.application.OutboxService;
-import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -39,31 +38,31 @@ public class RuntimeChangeConflictService {
     }
 
     public UUID createRevisionConflict(
-        RuntimePresetChangeRequest request,
+        RuntimePresetChangeCommand command,
         long currentRevision,
         OffsetDateTime now
     ) {
-        UUID pendingChangeId = createPendingChange(request, currentRevision, now);
-        recordPendingChangeCreated(request, currentRevision, pendingChangeId, now);
+        UUID pendingChangeId = createPendingChange(command, currentRevision, now);
+        recordPendingChangeCreated(command, currentRevision, pendingChangeId, now);
         return pendingChangeId;
     }
 
     private UUID createPendingChange(
-        RuntimePresetChangeRequest request,
+        RuntimePresetChangeCommand command,
         long currentRevision,
         OffsetDateTime now
     ) {
         UUID changeId = UUID.randomUUID();
         repository.insertPostMatchPendingChange(
             changeId,
-            request.playerId(),
-            request.matchId(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            request.baseWeaponPresetRevision(),
+            command.playerId(),
+            command.matchId(),
+            command.classTag(),
+            command.weaponPresetSlot(),
+            command.baseWeaponPresetRevision(),
             currentRevision,
             REVISION_CONFLICT_REASON,
-            pendingPayload(request, currentRevision),
+            pendingPayload(command, currentRevision),
             now,
             now.plusDays(PENDING_TTL_DAYS)
         );
@@ -71,18 +70,18 @@ public class RuntimeChangeConflictService {
     }
 
     private void recordPendingChangeCreated(
-        RuntimePresetChangeRequest request,
+        RuntimePresetChangeCommand command,
         long currentRevision,
         UUID pendingChangeId,
         OffsetDateTime now
     ) {
         Map<String, Object> payload = Map.of(
-            "player_id", request.playerId(),
-            "match_id", request.matchId(),
-            "operation_id", request.operationId(),
-            "class_tag", request.classTag(),
-            "preset_slot", request.weaponPresetSlot(),
-            "base_revision", request.baseWeaponPresetRevision(),
+            "player_id", command.playerId(),
+            "match_id", command.matchId(),
+            "operation_id", command.operationId(),
+            "class_tag", command.classTag(),
+            "preset_slot", command.weaponPresetSlot(),
+            "base_revision", command.baseWeaponPresetRevision(),
             "current_revision", currentRevision,
             "pending_change_id", pendingChangeId,
             "status", "pending",
@@ -97,7 +96,7 @@ public class RuntimeChangeConflictService {
             now
         );
         playerNotificationService.record(
-            request.playerId(),
+            command.playerId(),
             "post_match_pending_change.created",
             "post_match_pending_change",
             pendingChangeId.toString(),
@@ -107,13 +106,13 @@ public class RuntimeChangeConflictService {
         );
     }
 
-    private String pendingPayload(RuntimePresetChangeRequest request, long currentRevision) {
+    private String pendingPayload(RuntimePresetChangeCommand command, long currentRevision) {
         Map<String, Object> payload = Map.of(
             "schema_version", 1,
-            "runtime_change_payload", request.runtimeChangePayload(),
+            "runtime_change_payload", command.runtimeChangePayload(),
             "conflict", Map.of(
                 "reason_code", REVISION_CONFLICT_REASON,
-                "base_weapon_preset_revision", request.baseWeaponPresetRevision(),
+                "base_weapon_preset_revision", command.baseWeaponPresetRevision(),
                 "current_weapon_preset_revision", currentRevision
             ),
             "resolution_options", List.of("apply_if_still_valid", "discard", "manual_merge")

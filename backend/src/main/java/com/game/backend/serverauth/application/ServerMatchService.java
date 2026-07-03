@@ -5,7 +5,7 @@ import com.game.backend.serverauth.repository.ServerAuthRepository.ServerMatch;
 
 import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
-import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
+import com.game.backend.runtimechanges.application.RuntimePresetChangeCommand;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -60,8 +60,8 @@ public class ServerMatchService {
      * Проверяет, что runtime operation пришла от DS, которому назначен этот match_id.
      */
     @Transactional(readOnly = true)
-    public void ensureAssignedForRuntimeChange(ServerIdentity identity, RuntimePresetChangeRequest request) {
-        ensureAssignedForServerOperation(identity, request.matchId(), "Runtime preset changes");
+    public void ensureAssignedForRuntimeChange(ServerIdentity identity, RuntimePresetChangeCommand command) {
+        ensureAssignedForServerOperation(identity, command.matchId(), "Runtime preset changes");
     }
 
     /**

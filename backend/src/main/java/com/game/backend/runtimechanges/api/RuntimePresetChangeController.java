@@ -1,6 +1,8 @@
 package com.game.backend.runtimechanges.api;
 
 import com.game.backend.runtimechanges.application.RuntimePresetChangeService;
+import com.game.backend.runtimechanges.application.RuntimePresetChangeCommand;
+import com.game.backend.runtimechanges.application.RuntimePresetChangeResult;
 import com.game.backend.serverauth.application.CurrentServer;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -32,12 +34,23 @@ public class RuntimePresetChangeController {
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody RuntimePresetChangeRequest request
     ) {
-        RuntimePresetChangeResponse response = runtimePresetChangeService.submit(
+        RuntimePresetChangeCommand command = new RuntimePresetChangeCommand(
+            request.operationId(),
+            request.operationSeq(),
+            request.matchId(),
+            request.playerId(),
+            request.classTag(),
+            request.weaponPresetSlot(),
+            request.baseWeaponPresetRevision(),
+            request.runtimeChangePayload()
+        );
+        RuntimePresetChangeResult result = runtimePresetChangeService.submit(
             CurrentServer.require(authentication),
             idempotencyKey,
-            request
+            command
         );
-        if ("conflict".equals(response.status())) {
+        RuntimePresetChangeResponse response = toResponse(result);
+        if ("conflict".equals(result.status())) {
             // Конфликт ревизии отдаем как problem+json, но сохраняем pending change для post-match решения.
             ProblemDetail detail = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,
@@ -45,11 +58,22 @@ public class RuntimePresetChangeController {
             );
             detail.setTitle("PRESET_REVISION_CONFLICT");
             detail.setProperty("code", "PRESET_REVISION_CONFLICT");
-            detail.setProperty("operation_id", response.operationId());
-            detail.setProperty("pending_change_id", response.pendingChangeId());
-            detail.setProperty("duplicate", response.duplicate());
+            detail.setProperty("operation_id", result.operationId());
+            detail.setProperty("pending_change_id", result.pendingChangeId());
+            detail.setProperty("duplicate", result.duplicate());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(detail);
         }
         return ResponseEntity.ok(response);
+    }
+
+    private RuntimePresetChangeResponse toResponse(RuntimePresetChangeResult result) {
+        return new RuntimePresetChangeResponse(
+            result.operationId(),
+            result.status(),
+            result.resultRevision(),
+            result.pendingChangeId(),
+            result.duplicate(),
+            result.errorCode()
+        );
     }
 }

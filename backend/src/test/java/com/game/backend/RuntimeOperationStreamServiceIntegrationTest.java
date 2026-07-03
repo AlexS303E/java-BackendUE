@@ -2,8 +2,8 @@ package com.game.backend;
 
 import com.game.backend.common.api.ApiException;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
-import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
+import com.game.backend.runtimechanges.application.RuntimePresetChangeCommand;
 import com.game.backend.runtimechanges.application.RuntimeOperationStreamService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,13 +38,13 @@ class RuntimeOperationStreamServiceIntegrationTest {
 
     @Test
     void shouldValidateNextSequenceAndAdvanceStream() {
-        RuntimePresetChangeRequest first = request(1);
+        RuntimePresetChangeCommand first = request(1);
         streamService.lockAndValidateNextSequence(first);
         streamService.advance(first);
 
         assertThat(lastAppliedSeq(first.matchId(), first.playerId())).isEqualTo(1);
 
-        RuntimePresetChangeRequest second = new RuntimePresetChangeRequest(
+        RuntimePresetChangeCommand second = new RuntimePresetChangeCommand(
                 UUID.randomUUID(),
                 2L,
                 first.matchId(),
@@ -59,7 +59,7 @@ class RuntimeOperationStreamServiceIntegrationTest {
 
     @Test
     void shouldRejectOutOfOrderSequence() {
-        RuntimePresetChangeRequest request = request(2);
+        RuntimePresetChangeCommand request = request(2);
 
         assertThatThrownBy(() -> streamService.lockAndValidateNextSequence(request))
                 .isInstanceOf(ApiException.class)
@@ -76,8 +76,8 @@ class RuntimeOperationStreamServiceIntegrationTest {
         );
     }
 
-    private RuntimePresetChangeRequest request(long operationSeq) {
-        return new RuntimePresetChangeRequest(
+    private RuntimePresetChangeCommand request(long operationSeq) {
+        return new RuntimePresetChangeCommand(
                 UUID.randomUUID(),
                 operationSeq,
                 UUID.randomUUID(),

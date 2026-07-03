@@ -2,9 +2,9 @@ package com.game.backend;
 
 import com.game.backend.auth.application.AuthService;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
-import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
 import com.game.backend.runtimechanges.application.RuntimeChangeConflictService;
+import com.game.backend.runtimechanges.application.RuntimePresetChangeCommand;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -47,7 +47,7 @@ class RuntimeChangeConflictServiceIntegrationTest {
     void shouldCreatePendingChangeOutboxEventAndPlayerNotification() {
         UUID playerId = registerPlayer();
         UUID matchId = createMatch();
-        RuntimePresetChangeRequest request = request(playerId, matchId);
+        RuntimePresetChangeCommand request = request(playerId, matchId);
 
         UUID pendingChangeId = conflictService.createRevisionConflict(request, 5, OffsetDateTime.now());
 
@@ -82,8 +82,8 @@ class RuntimeChangeConflictServiceIntegrationTest {
         return matchId;
     }
 
-    private RuntimePresetChangeRequest request(UUID playerId, UUID matchId) {
-        return new RuntimePresetChangeRequest(
+    private RuntimePresetChangeCommand request(UUID playerId, UUID matchId) {
+        return new RuntimePresetChangeCommand(
                 UUID.randomUUID(),
                 1L,
                 matchId,

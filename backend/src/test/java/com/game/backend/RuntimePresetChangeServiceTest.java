@@ -4,12 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
-import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
-import com.game.backend.runtimechanges.api.RuntimePresetChangeResponse;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
 import com.game.backend.runtimechanges.application.RuntimeChangeConflictService;
 import com.game.backend.runtimechanges.application.RuntimeOperationRecorder;
 import com.game.backend.runtimechanges.application.RuntimeOperationStreamService;
+import com.game.backend.runtimechanges.application.RuntimePresetChangeCommand;
+import com.game.backend.runtimechanges.application.RuntimePresetChangeResult;
 import com.game.backend.runtimechanges.application.RuntimePresetChangeService;
 import com.game.backend.runtimechanges.application.WeaponPresetRuntimeChangeApplier;
 import com.game.backend.runtimechanges.repository.RuntimeChangesRepository;
@@ -60,7 +60,7 @@ class RuntimePresetChangeServiceTest {
 
     @Test
     void shouldRecordProcessingOperationBeforeApplyingRuntimeChange() {
-        RuntimePresetChangeRequest request = request();
+        RuntimePresetChangeCommand request = request();
         ServerIdentity server = new ServerIdentity(UUID.randomUUID(), "global", "dev-server-build", Set.of("runtime_preset_change:write"));
         when(operationRecorder.find(request.operationId())).thenReturn(null);
         when(operationRecorder.insertProcessing(eq(request), anyString(), any(OffsetDateTime.class))).thenReturn(1);
@@ -77,7 +77,7 @@ class RuntimePresetChangeServiceTest {
                 any(OffsetDateTime.class)
             );
 
-        RuntimePresetChangeResponse response = service.submit(server, request.operationId().toString(), request);
+        RuntimePresetChangeResult response = service.submit(server, request.operationId().toString(), request);
 
         assertThat(response.status()).isEqualTo("rejected");
         InOrder order = inOrder(operationRecorder, operationStreamService, repository, runtimeChangeApplier);
@@ -97,8 +97,8 @@ class RuntimePresetChangeServiceTest {
         verify(operationStreamService).advance(request);
     }
 
-    private RuntimePresetChangeRequest request() {
-        return new RuntimePresetChangeRequest(
+    private RuntimePresetChangeCommand request() {
+        return new RuntimePresetChangeCommand(
             UUID.randomUUID(),
             1L,
             UUID.randomUUID(),

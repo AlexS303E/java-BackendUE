@@ -2,7 +2,6 @@ package com.game.backend.runtimechanges.application;
 
 import com.game.backend.runtimechanges.repository.RuntimeChangesRepository;
 
-import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -32,18 +31,18 @@ public class RuntimeOperationRecorder {
     }
 
     public int insertProcessing(
-        RuntimePresetChangeRequest request,
+        RuntimePresetChangeCommand command,
         String requestHash,
         OffsetDateTime now
     ) {
         return repository.insertProcessingOperation(
-            request.operationId(),
-            request.matchId(),
-            request.playerId(),
-            request.operationSeq(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            request.baseWeaponPresetRevision(),
+            command.operationId(),
+            command.matchId(),
+            command.playerId(),
+            command.operationSeq(),
+            command.classTag(),
+            command.weaponPresetSlot(),
+            command.baseWeaponPresetRevision(),
             requestHash,
             now
         );

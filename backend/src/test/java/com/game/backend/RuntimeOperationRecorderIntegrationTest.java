@@ -2,8 +2,8 @@ package com.game.backend;
 
 import com.game.backend.auth.application.AuthService;
 import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
-import com.game.backend.runtimechanges.api.RuntimePresetChangeRequest;
 import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
+import com.game.backend.runtimechanges.application.RuntimePresetChangeCommand;
 import com.game.backend.runtimechanges.application.RuntimeOperationRecorder;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +43,7 @@ class RuntimeOperationRecorderIntegrationTest {
 
     @Test
     void shouldInsertFindAndMarkRuntimeOperationTransitions() {
-        RuntimePresetChangeRequest request = request();
+        RuntimePresetChangeCommand request = request();
         OffsetDateTime now = OffsetDateTime.now();
 
         assertThat(recorder.insertProcessing(request, "hash-1", now)).isEqualTo(1);
@@ -70,10 +70,10 @@ class RuntimeOperationRecorderIntegrationTest {
         );
     }
 
-    private RuntimePresetChangeRequest request() {
+    private RuntimePresetChangeCommand request() {
         UUID playerId = registerPlayer();
         UUID matchId = createMatch();
-        return new RuntimePresetChangeRequest(
+        return new RuntimePresetChangeCommand(
                 UUID.randomUUID(),
                 1L,
                 matchId,
