@@ -387,3 +387,11 @@ Goal: remove post-match pending change request/response DTO ownership from `Post
 - [x] Add application-level pending change page/entry/resolution records.
 - [x] Move post-match pending change response DTO mapping into `PostMatchPendingChangesController`.
 - [x] Pass the validated resolution value into the service instead of the API request DTO.
+
+## Block 48 - Runtime events application API decoupling
+
+Goal: remove runtime event request/response DTO ownership from `RuntimeEventsService` while preserving `/server/runtime-events`.
+
+- [x] Add application-level runtime event command/result records.
+- [x] Move runtime event request/result mapping into `RuntimeEventsController`.
+- [x] Keep idempotency replay payload shape compatible through matching result fields.

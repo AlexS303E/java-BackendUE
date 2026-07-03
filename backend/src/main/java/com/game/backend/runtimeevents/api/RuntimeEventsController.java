@@ -1,5 +1,7 @@
 package com.game.backend.runtimeevents.api;
 
+import com.game.backend.runtimeevents.application.RuntimeEventCommand;
+import com.game.backend.runtimeevents.application.RuntimeEventResult;
 import com.game.backend.runtimeevents.application.RuntimeEventsService;
 import com.game.backend.serverauth.application.CurrentServer;
 import jakarta.validation.Valid;
@@ -29,6 +31,24 @@ public class RuntimeEventsController {
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody RuntimeEventRequest request
     ) {
-        return runtimeEventsService.record(CurrentServer.require(authentication), idempotencyKey, request);
+        RuntimeEventCommand command = new RuntimeEventCommand(
+            request.eventId(),
+            request.eventSeq(),
+            request.matchId(),
+            request.eventType(),
+            request.playerId(),
+            request.payloadSchemaVersion(),
+            request.occurredAt(),
+            request.payload()
+        );
+        return toResponse(runtimeEventsService.record(CurrentServer.require(authentication), idempotencyKey, command));
+    }
+
+    private RuntimeEventResponse toResponse(RuntimeEventResult result) {
+        return new RuntimeEventResponse(
+            result.eventId(),
+            result.status(),
+            result.duplicate()
+        );
     }
 }

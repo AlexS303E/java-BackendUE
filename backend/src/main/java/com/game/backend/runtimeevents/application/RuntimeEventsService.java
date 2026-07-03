@@ -7,8 +7,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.outbox.application.OutboxService;
-import com.game.backend.runtimeevents.api.RuntimeEventRequest;
-import com.game.backend.runtimeevents.api.RuntimeEventResponse;
 import com.game.backend.serverauth.application.ServerAuditService;
 import com.game.backend.serverauth.application.ServerIdentity;
 import com.game.backend.serverauth.application.ServerMatchService;
@@ -70,53 +68,53 @@ public class RuntimeEventsService {
      * Записывает событие один раз по Idempotency-Key/event_id и публикует доменное событие в outbox.
      */
     @Transactional
-    public RuntimeEventResponse record(ServerIdentity server, String idempotencyKey, RuntimeEventRequest request) {
+    public RuntimeEventResult record(ServerIdentity server, String idempotencyKey, RuntimeEventCommand command) {
         boolean matchAssigned = false;
         try {
             validateIdempotencyKey(idempotencyKey);
-            validate(request);
+            validate(command);
             OffsetDateTime now = OffsetDateTime.now();
-            String requestHash = requestHash(request);
+            String requestHash = requestHash(command);
             deleteExpiredIdempotencyRecord(server, idempotencyKey, now);
 
             ExistingIdempotencyRecord existing = existingIdempotencyRecord(server, idempotencyKey);
             if (existing != null) {
-                return auditedResponse(server, request, replayExistingRecord(requestHash, existing));
+                return auditedResponse(server, command, replayExistingRecord(requestHash, existing));
             }
 
-            serverMatchService.ensureAssignedForServerOperation(server, request.matchId(), "Runtime events");
+            serverMatchService.ensureAssignedForServerOperation(server, command.matchId(), "Runtime events");
             matchAssigned = true;
 
-            if (eventExists(request.eventId())) {
-                RuntimeEventResponse response = new RuntimeEventResponse(request.eventId(), "recorded", true);
+            if (eventExists(command.eventId())) {
+                RuntimeEventResult response = new RuntimeEventResult(command.eventId(), "recorded", true);
                 insertIdempotencyRecord(server, idempotencyKey, requestHash, response, now);
-                return auditedResponse(server, request, response);
+                return auditedResponse(server, command, response);
             }
 
-            insertRuntimeEvent(server, request, now);
-            if ("match_finished".equals(request.eventType())) {
-                finishMatch(request.matchId(), now);
+            insertRuntimeEvent(server, command, now);
+            if ("match_finished".equals(command.eventType())) {
+                finishMatch(command.matchId(), now);
             }
-            recordOutboxEvent(server, request, now);
+            recordOutboxEvent(server, command, now);
 
-            RuntimeEventResponse response = new RuntimeEventResponse(request.eventId(), "recorded", false);
+            RuntimeEventResult response = new RuntimeEventResult(command.eventId(), "recorded", false);
             insertIdempotencyRecord(server, idempotencyKey, requestHash, response, now);
-            return auditedResponse(server, request, response);
+            return auditedResponse(server, command, response);
         } catch (ApiException exception) {
-            auditFailure(server, request, matchAssigned, auditResult(exception), exception.code(), exception.status().value());
+            auditFailure(server, command, matchAssigned, auditResult(exception), exception.code(), exception.status().value());
             throw exception;
         } catch (RuntimeException exception) {
-            auditFailure(server, request, matchAssigned, "failed", exception.getClass().getSimpleName(), 500);
+            auditFailure(server, command, matchAssigned, "failed", exception.getClass().getSimpleName(), 500);
             throw exception;
         }
     }
 
-    private RuntimeEventResponse auditedResponse(
+    private RuntimeEventResult auditedResponse(
         ServerIdentity server,
-        RuntimeEventRequest request,
-        RuntimeEventResponse response
+        RuntimeEventCommand command,
+        RuntimeEventResult response
     ) {
-        auditSuccess(server, request, response);
+        auditSuccess(server, command, response);
         return response;
     }
 
@@ -130,14 +128,14 @@ public class RuntimeEventsService {
         }
     }
 
-    private void validate(RuntimeEventRequest request) {
-        if (request.payloadSchemaVersion() != 1) {
+    private void validate(RuntimeEventCommand command) {
+        if (command.payloadSchemaVersion() != 1) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Only runtime event payload_schema_version=1 is supported");
         }
-        if (!SUPPORTED_EVENT_TYPES.contains(request.eventType())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Unsupported runtime event type: " + request.eventType());
+        if (!SUPPORTED_EVENT_TYPES.contains(command.eventType())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Unsupported runtime event type: " + command.eventType());
         }
-        if (request.payload().isEmpty()) {
+        if (command.payload().isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Runtime event payload must not be empty");
         }
     }
@@ -164,7 +162,7 @@ public class RuntimeEventsService {
         return records.isEmpty() ? null : records.getFirst();
     }
 
-    private RuntimeEventResponse replayExistingRecord(String requestHash, ExistingIdempotencyRecord existing) {
+    private RuntimeEventResult replayExistingRecord(String requestHash, ExistingIdempotencyRecord existing) {
         if (!existing.requestHash().equals(requestHash)) {
             throw new ApiException(
                 HttpStatus.CONFLICT,
@@ -172,15 +170,15 @@ public class RuntimeEventsService {
                 "Idempotency-Key was reused with a different runtime event request body"
             );
         }
-        RuntimeEventResponse stored = fromJson(existing.responseBody());
-        return new RuntimeEventResponse(stored.eventId(), stored.status(), true);
+        RuntimeEventResult stored = fromJson(existing.responseBody());
+        return new RuntimeEventResult(stored.eventId(), stored.status(), true);
     }
 
     private void insertIdempotencyRecord(
         ServerIdentity server,
         String idempotencyKey,
         String requestHash,
-        RuntimeEventResponse response,
+        RuntimeEventResult response,
         OffsetDateTime now
     ) {
         try {
@@ -203,18 +201,18 @@ public class RuntimeEventsService {
         }
     }
 
-    private void insertRuntimeEvent(ServerIdentity server, RuntimeEventRequest request, OffsetDateTime now) {
+    private void insertRuntimeEvent(ServerIdentity server, RuntimeEventCommand command, OffsetDateTime now) {
         try {
             repository.insertRuntimeEvent(
-                request.eventId(),
-                request.matchId(),
+                command.eventId(),
+                command.matchId(),
                 server.serverId(),
-                request.eventSeq(),
-                request.eventType(),
-                request.playerId(),
-                toJson(request.payload()),
-                request.payloadSchemaVersion(),
-                request.occurredAt(),
+                command.eventSeq(),
+                command.eventType(),
+                command.playerId(),
+                toJson(command.payload()),
+                command.payloadSchemaVersion(),
+                command.occurredAt(),
                 now
             );
         } catch (DuplicateKeyException exception) {
@@ -230,37 +228,37 @@ public class RuntimeEventsService {
         repository.markMatchFinished(matchId, now);
     }
 
-    private void recordOutboxEvent(ServerIdentity server, RuntimeEventRequest request, OffsetDateTime now) {
+    private void recordOutboxEvent(ServerIdentity server, RuntimeEventCommand command, OffsetDateTime now) {
         outboxService.record(
             "server_runtime_event.recorded",
             "server_runtime_event",
-            request.eventId().toString(),
+            command.eventId().toString(),
             1,
             Map.of(
-                "event_id", request.eventId(),
-                "event_seq", request.eventSeq(),
-                "event_type", request.eventType(),
-                "match_id", request.matchId(),
+                "event_id", command.eventId(),
+                "event_seq", command.eventSeq(),
+                "event_type", command.eventType(),
+                "match_id", command.matchId(),
                 "server_id", server.serverId(),
-                "player_id", request.playerId() == null ? "" : request.playerId(),
-                "occurred_at", request.occurredAt(),
+                "player_id", command.playerId() == null ? "" : command.playerId(),
+                "occurred_at", command.occurredAt(),
                 "source", "dedicated_server"
             ),
             now
         );
     }
 
-    private void auditSuccess(ServerIdentity server, RuntimeEventRequest request, RuntimeEventResponse response) {
+    private void auditSuccess(ServerIdentity server, RuntimeEventCommand command, RuntimeEventResult response) {
         serverAuditService.record(
             server,
-            request.matchId(),
+            command.matchId(),
             AUDIT_ACTION,
             AUDIT_SCOPE,
             "success",
             Map.of(
-                "event_id", request.eventId(),
-                "event_seq", request.eventSeq(),
-                "event_type", request.eventType(),
+                "event_id", command.eventId(),
+                "event_seq", command.eventSeq(),
+                "event_type", command.eventType(),
                 "duplicate", response.duplicate(),
                 "status", response.status()
             )
@@ -269,22 +267,22 @@ public class RuntimeEventsService {
 
     private void auditFailure(
         ServerIdentity server,
-        RuntimeEventRequest request,
+        RuntimeEventCommand command,
         boolean matchAssigned,
         String result,
         String code,
         int status
     ) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("event_id", request.eventId());
-        payload.put("event_seq", request.eventSeq());
-        payload.put("event_type", request.eventType());
-        payload.put("match_id", request.matchId());
+        payload.put("event_id", command.eventId());
+        payload.put("event_seq", command.eventSeq());
+        payload.put("event_type", command.eventType());
+        payload.put("match_id", command.matchId());
         payload.put("code", code);
         payload.put("status", status);
         serverAuditService.record(
             server,
-            matchAssigned ? request.matchId() : null,
+            matchAssigned ? command.matchId() : null,
             AUDIT_ACTION,
             AUDIT_SCOPE,
             result,
@@ -296,8 +294,8 @@ public class RuntimeEventsService {
         return exception.status() == HttpStatus.FORBIDDEN ? "denied" : "failed";
     }
 
-    private String requestHash(RuntimeEventRequest request) {
-        return sha256(toJson(request));
+    private String requestHash(RuntimeEventCommand command) {
+        return sha256(toJson(command));
     }
 
     private String toJson(Map<String, Object> payload) {
@@ -312,9 +310,9 @@ public class RuntimeEventsService {
         }
     }
 
-    private RuntimeEventResponse fromJson(String payload) {
+    private RuntimeEventResult fromJson(String payload) {
         try {
-            return objectMapper.readValue(payload, RuntimeEventResponse.class);
+            return objectMapper.readValue(payload, RuntimeEventResult.class);
         } catch (JsonProcessingException exception) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "RUNTIME_EVENT_SERIALIZATION_FAILED", "Unable to deserialize runtime event response");
         }
