@@ -427,3 +427,11 @@ Goal: remove match profile response DTO ownership from application services and 
 - [x] Add application-level match profile snapshot, weapon, module, outfit, and dependency records.
 - [x] Move `/server/match-profile/build` response mapping into `MatchProfileController`.
 - [x] Store and read match profile cache payloads as application snapshots.
+
+## Block 53 - Presets read response decoupling
+
+Goal: remove `/me/presets` read response DTO ownership from `PresetsService`.
+
+- [x] Add application-level player presets, weapon preset, outfit preset, slot, module, and outfit item records.
+- [x] Return application snapshots from preset read methods.
+- [x] Move `/me/presets` response mapping into `PresetsController`.

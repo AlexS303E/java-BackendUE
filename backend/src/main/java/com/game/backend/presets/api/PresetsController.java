@@ -1,7 +1,13 @@
 package com.game.backend.presets.api;
 
 import com.game.backend.auth.application.CurrentPlayer;
+import com.game.backend.presets.application.ModuleSelection;
+import com.game.backend.presets.application.OutfitItem;
+import com.game.backend.presets.application.OutfitPreset;
+import com.game.backend.presets.application.PlayerPresetsSnapshot;
 import com.game.backend.presets.application.PresetsService;
+import com.game.backend.presets.application.WeaponPreset;
+import com.game.backend.presets.application.WeaponSlotPreset;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -30,7 +36,7 @@ public class PresetsController {
      */
     @GetMapping("/me/presets")
     PlayerPresetsResponse getMyPresets(Authentication authentication) {
-        return presetsService.getPlayerPresets(CurrentPlayer.require(authentication).playerId());
+        return toResponse(presetsService.getPlayerPresets(CurrentPlayer.require(authentication).playerId()));
     }
 
     /**
@@ -56,5 +62,52 @@ public class PresetsController {
                 .ok()
                 .eTag(Long.toString(response.revision()))
                 .body(response);
+    }
+
+    private PlayerPresetsResponse toResponse(PlayerPresetsSnapshot snapshot) {
+        return new PlayerPresetsResponse(
+                snapshot.playerId(),
+                snapshot.weaponPresets().stream().map(this::toWeaponPresetDto).toList(),
+                snapshot.outfitPresets().stream().map(this::toOutfitPresetDto).toList()
+        );
+    }
+
+    private WeaponPresetDto toWeaponPresetDto(WeaponPreset preset) {
+        return new WeaponPresetDto(
+                preset.classTag(),
+                preset.presetSlot(),
+                preset.catalogVersion(),
+                preset.revision(),
+                preset.sanitized(),
+                preset.slots().stream().map(this::toWeaponSlotPresetDto).toList()
+        );
+    }
+
+    private WeaponSlotPresetDto toWeaponSlotPresetDto(WeaponSlotPreset slot) {
+        return new WeaponSlotPresetDto(
+                slot.weaponSlotId(),
+                slot.selectedWeaponId(),
+                slot.modules().stream().map(this::toModuleSelectionDto).toList()
+        );
+    }
+
+    private ModuleSelectionDto toModuleSelectionDto(ModuleSelection module) {
+        return new ModuleSelectionDto(module.mountId(), module.moduleId());
+    }
+
+    private OutfitPresetDto toOutfitPresetDto(OutfitPreset preset) {
+        return new OutfitPresetDto(
+                preset.teamTag(),
+                preset.classTag(),
+                preset.outfitPresetSlot(),
+                preset.catalogVersion(),
+                preset.revision(),
+                preset.sanitized(),
+                preset.items().stream().map(this::toOutfitItemDto).toList()
+        );
+    }
+
+    private OutfitItemDto toOutfitItemDto(OutfitItem item) {
+        return new OutfitItemDto(item.clothingSlotId(), item.itemId());
     }
 }
