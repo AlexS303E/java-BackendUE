@@ -6,9 +6,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
-import com.game.backend.notifications.api.NotificationAcknowledgeResponse;
-import com.game.backend.notifications.api.NotificationDto;
-import com.game.backend.notifications.api.NotificationsResponse;
 import com.game.backend.notifications.repository.NotificationsRepository.AcknowledgeRecord;
 import com.game.backend.notifications.repository.NotificationsRepository.NotificationRecord;
 import org.springframework.http.HttpStatus;
@@ -70,14 +67,14 @@ public class PlayerNotificationService {
      * Читает последние уведомления игрока с фильтром по статусу.
      */
     @Transactional(readOnly = true)
-    public NotificationsResponse getNotifications(UUID playerId, String status, int limit) {
+    public NotificationPage getNotifications(UUID playerId, String status, int limit) {
         String normalizedStatus = normalizeStatus(status);
         int normalizedLimit = normalizeLimit(limit);
-        return new NotificationsResponse(
+        return new NotificationPage(
             playerId,
             normalizedStatus,
             normalizedLimit,
-            toNotificationDtos(repository.findNotifications(playerId, normalizedStatus, normalizedLimit))
+            toNotificationEntries(repository.findNotifications(playerId, normalizedStatus, normalizedLimit))
         );
     }
 
@@ -85,24 +82,24 @@ public class PlayerNotificationService {
      * Ставит status=read только для уведомления текущего игрока.
      */
     @Transactional
-    public NotificationAcknowledgeResponse markRead(UUID playerId, UUID notificationId) {
+    public NotificationAcknowledgement markRead(UUID playerId, UUID notificationId) {
         OffsetDateTime now = OffsetDateTime.now();
         repository.markRead(playerId, notificationId, now);
 
-        return readAcknowledgeResponse(playerId, notificationId);
+        return readAcknowledgement(playerId, notificationId);
     }
 
-    private NotificationAcknowledgeResponse readAcknowledgeResponse(UUID playerId, UUID notificationId) {
+    private NotificationAcknowledgement readAcknowledgement(UUID playerId, UUID notificationId) {
         AcknowledgeRecord record = repository.findAcknowledgeResponse(playerId, notificationId);
         if (record == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOTIFICATION_NOT_FOUND", "Notification was not found");
         }
-        return new NotificationAcknowledgeResponse(record.notificationId(), record.status(), record.readAt());
+        return new NotificationAcknowledgement(record.notificationId(), record.status(), record.readAt());
     }
 
-    private List<NotificationDto> toNotificationDtos(List<NotificationRecord> records) {
+    private List<NotificationEntry> toNotificationEntries(List<NotificationRecord> records) {
         return records.stream()
-            .map(record -> new NotificationDto(
+            .map(record -> new NotificationEntry(
                 record.notificationId(),
                 record.eventType(),
                 record.aggregateType(),

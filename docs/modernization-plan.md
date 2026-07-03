@@ -371,3 +371,11 @@ Goal: remove catalog lifecycle request/response DTO ownership from `CatalogLifec
 - [x] Add application-level publish/rollback command records and lifecycle result record.
 - [x] Move admin catalog request/result mapping into `AdminCatalogController`.
 - [x] Keep idempotency replay payload shape compatible through matching lifecycle result fields.
+
+## Block 46 - Notifications application API decoupling
+
+Goal: remove notification response DTO ownership from `PlayerNotificationService` while preserving player notification endpoints.
+
+- [x] Add application-level notification page/entry/acknowledgement records.
+- [x] Move notification response DTO mapping into `NotificationsController`.
+- [x] Keep notification read and acknowledgement behavior unchanged.
