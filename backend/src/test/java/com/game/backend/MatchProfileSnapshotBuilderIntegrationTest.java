@@ -1,8 +1,8 @@
 package com.game.backend;
 
 import com.game.backend.auth.application.AuthService;
-import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import com.game.backend.matchprofile.api.MatchWeaponDto;
+import com.game.backend.matchprofile.application.MatchProfileBuildCommand;
 import com.game.backend.matchprofile.application.MatchProfileSnapshotBuilder;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,8 +86,8 @@ class MatchProfileSnapshotBuilderIntegrationTest {
         return authService.register(loginName, "password123").playerId();
     }
 
-    private BuildMatchProfileRequest request(UUID playerId, long catalogVersion, String gameModeId) {
-        return new BuildMatchProfileRequest(
+    private MatchProfileBuildCommand request(UUID playerId, long catalogVersion, String gameModeId) {
+        return new MatchProfileBuildCommand(
                 UUID.randomUUID(),
                 playerId,
                 "global",

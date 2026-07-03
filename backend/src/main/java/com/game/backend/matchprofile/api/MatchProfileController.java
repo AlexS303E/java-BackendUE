@@ -1,5 +1,6 @@
 package com.game.backend.matchprofile.api;
 
+import com.game.backend.matchprofile.application.MatchProfileBuildCommand;
 import com.game.backend.matchprofile.application.MatchProfileService;
 import com.game.backend.serverauth.application.CurrentServer;
 import jakarta.validation.Valid;
@@ -27,6 +28,21 @@ public class MatchProfileController {
         Authentication authentication,
         @Valid @RequestBody BuildMatchProfileRequest request
     ) {
-        return matchProfileService.build(CurrentServer.require(authentication), request);
+        return matchProfileService.build(
+            CurrentServer.require(authentication),
+            new MatchProfileBuildCommand(
+                request.matchId(),
+                request.playerId(),
+                request.realmId(),
+                request.classTag(),
+                request.teamTag(),
+                request.weaponPresetSlot(),
+                request.outfitPresetSlot(),
+                request.supportedCatalogVersions(),
+                request.preferredCatalogVersion(),
+                request.serverBuildId(),
+                request.gameModeId()
+            )
+        );
     }
 }

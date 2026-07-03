@@ -4,7 +4,7 @@ import com.game.backend.serverauth.repository.ServerAuthRepository;
 import com.game.backend.serverauth.repository.ServerAuthRepository.ServerMatch;
 
 import com.game.backend.common.api.ApiException;
-import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
+import com.game.backend.matchprofile.application.MatchProfileBuildCommand;
 import com.game.backend.runtimechanges.application.RuntimePresetChangeCommand;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -30,27 +30,27 @@ public class ServerMatchService {
      * Создает assignment для match profile build или проверяет уже существующий assignment.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void ensureAssignedForBuild(ServerIdentity identity, BuildMatchProfileRequest request) {
-        ensureRealmMatchesIdentity(identity, request.realmId());
-        ensureBuildMatchesIdentity(identity, request.serverBuildId());
+    public void ensureAssignedForBuild(ServerIdentity identity, MatchProfileBuildCommand command) {
+        ensureRealmMatchesIdentity(identity, command.realmId());
+        ensureBuildMatchesIdentity(identity, command.serverBuildId());
 
-        ServerMatch match = insertWithReturning(identity, request);
+        ServerMatch match = insertWithReturning(identity, command);
         if (match == null) {
-            match = loadMatch(request.matchId());
+            match = loadMatch(command.matchId());
         }
         if (match == null) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "MATCH_ASSIGNMENT_FAILED", "Unable to assign match to server");
         }
         ensureOwnedBy(identity, match);
-        ensureRealmMatchesRequest(match, request.realmId());
+        ensureRealmMatchesRequest(match, command.realmId());
         ensureMatchIsActive(match);
     }
 
-    private ServerMatch insertWithReturning(ServerIdentity identity, BuildMatchProfileRequest request) {
+    private ServerMatch insertWithReturning(ServerIdentity identity, MatchProfileBuildCommand command) {
         List<ServerMatch> matches = repository.insertMatchIfAbsent(
-            request.matchId(),
+            command.matchId(),
             identity.serverId(),
-            request.realmId(),
+            command.realmId(),
             OffsetDateTime.now()
         );
         return matches.isEmpty() ? null : matches.getFirst();

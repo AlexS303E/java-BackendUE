@@ -1,9 +1,9 @@
 package com.game.backend;
 
 import com.game.backend.auth.application.AuthService;
-import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import com.game.backend.matchprofile.api.DependencyRevisionsDto;
 import com.game.backend.matchprofile.api.MatchProfileResponse;
+import com.game.backend.matchprofile.application.MatchProfileBuildCommand;
 import com.game.backend.matchprofile.application.MatchProfileCacheService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +45,7 @@ class MatchProfileCacheServiceIntegrationTest {
     void shouldSaveAndFindFreshProfileByDependencyTuple() {
         UUID playerId = registerPlayer();
         long catalogVersion = activeCatalogVersion();
-        BuildMatchProfileRequest request = request(playerId, catalogVersion);
+        MatchProfileBuildCommand request = request(playerId, catalogVersion);
         MatchProfileResponse response = response(request, catalogVersion, 1, 1, accessRevision(playerId), 12345);
 
         assertThat(cacheService.findByDependencyTuple(request, catalogVersion, 1, 1, accessRevision(playerId))).isNull();
@@ -66,8 +66,8 @@ class MatchProfileCacheServiceIntegrationTest {
         return authService.register(loginName, "password123").playerId();
     }
 
-    private BuildMatchProfileRequest request(UUID playerId, long catalogVersion) {
-        return new BuildMatchProfileRequest(
+    private MatchProfileBuildCommand request(UUID playerId, long catalogVersion) {
+        return new MatchProfileBuildCommand(
                 UUID.randomUUID(),
                 playerId,
                 "global",
@@ -83,7 +83,7 @@ class MatchProfileCacheServiceIntegrationTest {
     }
 
     private MatchProfileResponse response(
-            BuildMatchProfileRequest request,
+            MatchProfileBuildCommand request,
             long catalogVersion,
             long weaponPresetRevision,
             long outfitPresetRevision,

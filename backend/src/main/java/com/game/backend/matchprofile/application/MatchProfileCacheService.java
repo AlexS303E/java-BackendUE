@@ -6,7 +6,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.common.api.ApiException;
-import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import com.game.backend.matchprofile.api.MatchProfileResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,26 +31,26 @@ public class MatchProfileCacheService {
     }
 
     public MatchProfileResponse findByDependencyTuple(
-        BuildMatchProfileRequest request,
+        MatchProfileBuildCommand command,
         long catalogVersion,
         long weaponPresetRevision,
         long outfitPresetRevision,
         long accessRevision
     ) {
         MatchProfileResponse cached = cacheService.getMatchProfile(
-            request.playerId(),
-            request.realmId(),
-            request.classTag(),
-            request.teamTag(),
-            request.weaponPresetSlot(),
-            request.outfitPresetSlot(),
+            command.playerId(),
+            command.realmId(),
+            command.classTag(),
+            command.teamTag(),
+            command.weaponPresetSlot(),
+            command.outfitPresetSlot(),
             catalogVersion,
             weaponPresetRevision,
             outfitPresetRevision,
             accessRevision
         ).orElse(null);
         if (cached != null && matchesDependencyTuple(
-            request,
+            command,
             catalogVersion,
             weaponPresetRevision,
             outfitPresetRevision,
@@ -62,12 +61,12 @@ public class MatchProfileCacheService {
         }
 
         List<String> payloads = repository.findFreshPayload(
-            request.playerId(),
-            request.realmId(),
-            request.classTag(),
-            request.teamTag(),
-            request.weaponPresetSlot(),
-            request.outfitPresetSlot(),
+            command.playerId(),
+            command.realmId(),
+            command.classTag(),
+            command.teamTag(),
+            command.weaponPresetSlot(),
+            command.outfitPresetSlot(),
             catalogVersion,
             weaponPresetRevision,
             outfitPresetRevision,
@@ -79,7 +78,7 @@ public class MatchProfileCacheService {
         try {
             MatchProfileResponse response = objectMapper.readValue(payloads.getFirst(), MatchProfileResponse.class);
             if (matchesDependencyTuple(
-                request,
+                command,
                 catalogVersion,
                 weaponPresetRevision,
                 outfitPresetRevision,
@@ -95,13 +94,13 @@ public class MatchProfileCacheService {
         }
     }
 
-    public void save(BuildMatchProfileRequest request, MatchProfileResponse response) {
+    public void save(MatchProfileBuildCommand command, MatchProfileResponse response) {
         OffsetDateTime now = OffsetDateTime.now();
         String payload = toJson(response);
 
         repository.saveProfile(
             UUID.randomUUID(),
-            request.playerId(),
+            command.playerId(),
             response.realmId(),
             response.classTag(),
             response.teamTag(),
@@ -132,7 +131,7 @@ public class MatchProfileCacheService {
     }
 
     private boolean matchesDependencyTuple(
-        BuildMatchProfileRequest request,
+        MatchProfileBuildCommand command,
         long catalogVersion,
         long weaponPresetRevision,
         long outfitPresetRevision,
@@ -141,12 +140,12 @@ public class MatchProfileCacheService {
     ) {
         return response != null
             && response.dependencyRevisions() != null
-            && request.playerId().equals(response.playerId())
-            && request.realmId().equals(response.realmId())
-            && request.classTag().equals(response.classTag())
-            && request.teamTag().equals(response.teamTag())
-            && request.weaponPresetSlot() == response.weaponPresetSlot()
-            && request.outfitPresetSlot() == response.outfitPresetSlot()
+            && command.playerId().equals(response.playerId())
+            && command.realmId().equals(response.realmId())
+            && command.classTag().equals(response.classTag())
+            && command.teamTag().equals(response.teamTag())
+            && command.weaponPresetSlot() == response.weaponPresetSlot()
+            && command.outfitPresetSlot() == response.outfitPresetSlot()
             && catalogVersion == response.catalogVersion()
             && weaponPresetRevision == response.dependencyRevisions().weaponPresetRevision()
             && outfitPresetRevision == response.dependencyRevisions().outfitPresetRevision()

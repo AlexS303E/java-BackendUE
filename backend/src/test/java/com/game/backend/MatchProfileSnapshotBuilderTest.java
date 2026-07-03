@@ -2,8 +2,8 @@ package com.game.backend;
 
 import com.game.backend.access.application.ItemAccessPolicy;
 import com.game.backend.catalog.application.CatalogValidationData;
-import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import com.game.backend.matchprofile.api.MatchWeaponDto;
+import com.game.backend.matchprofile.application.MatchProfileBuildCommand;
 import com.game.backend.matchprofile.application.MatchProfileSnapshotBuilder;
 import com.game.backend.matchprofile.repository.MatchProfileRepository;
 import org.junit.jupiter.api.Test;
@@ -105,8 +105,8 @@ class MatchProfileSnapshotBuilderTest {
         when(catalogValidationData.getMountAllowedModules(CATALOG_VERSION)).thenReturn(Map.of());
     }
 
-    private BuildMatchProfileRequest request(String gameModeId) {
-        return new BuildMatchProfileRequest(
+    private MatchProfileBuildCommand request(String gameModeId) {
+        return new MatchProfileBuildCommand(
             UUID.randomUUID(),
             PLAYER_ID,
             "global",

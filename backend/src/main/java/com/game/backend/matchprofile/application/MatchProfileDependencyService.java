@@ -3,7 +3,6 @@ package com.game.backend.matchprofile.application;
 import com.game.backend.matchprofile.repository.MatchProfileRepository;
 
 import com.game.backend.common.api.ApiException;
-import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -17,13 +16,13 @@ public class MatchProfileDependencyService {
         this.repository = repository;
     }
 
-    public DependencyTuple load(BuildMatchProfileRequest request, long catalogVersion) {
+    public DependencyTuple load(MatchProfileBuildCommand command, long catalogVersion) {
         List<MatchProfileRepository.DependencyRow> rows = repository.loadDependencies(
-            request.playerId(),
-            request.classTag(),
-            request.weaponPresetSlot(),
-            request.teamTag(),
-            request.outfitPresetSlot(),
+            command.playerId(),
+            command.classTag(),
+            command.weaponPresetSlot(),
+            command.teamTag(),
+            command.outfitPresetSlot(),
             catalogVersion
         );
         if (rows.isEmpty()) {

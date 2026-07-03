@@ -5,7 +5,6 @@ import com.game.backend.matchprofile.repository.MatchProfileRepository;
 import com.game.backend.access.application.ItemAccessPolicy;
 import com.game.backend.catalog.application.CatalogValidationData;
 import com.game.backend.common.api.ApiException;
-import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import com.game.backend.matchprofile.api.MatchModuleDto;
 import com.game.backend.matchprofile.api.MatchOutfitItemDto;
 import com.game.backend.matchprofile.api.MatchWeaponDto;
@@ -35,20 +34,20 @@ public class MatchProfileSnapshotBuilder {
         this.itemAccessPolicy = itemAccessPolicy;
     }
 
-    public Snapshot build(BuildMatchProfileRequest request, long catalogVersion) {
-        boolean enforceTeamItemRules = repository.enforceTeamItemRules(request.gameModeId());
-        List<MatchWeaponDto> weapons = weapons(request, catalogVersion);
-        List<MatchOutfitItemDto> outfit = outfit(request, catalogVersion);
+    public Snapshot build(MatchProfileBuildCommand command, long catalogVersion) {
+        boolean enforceTeamItemRules = repository.enforceTeamItemRules(command.gameModeId());
+        List<MatchWeaponDto> weapons = weapons(command, catalogVersion);
+        List<MatchOutfitItemDto> outfit = outfit(command, catalogVersion);
         List<String> warnings = new ArrayList<>();
-        validateLoadout(request, catalogVersion, weapons, outfit, enforceTeamItemRules, warnings);
+        validateLoadout(command, catalogVersion, weapons, outfit, enforceTeamItemRules, warnings);
         return new Snapshot(weapons, outfit, warnings);
     }
 
-    private List<MatchWeaponDto> weapons(BuildMatchProfileRequest request, long catalogVersion) {
+    private List<MatchWeaponDto> weapons(MatchProfileBuildCommand command, long catalogVersion) {
         List<MatchProfileRepository.WeaponRow> rows = repository.findWeaponRows(
-            request.playerId(),
-            request.classTag(),
-            request.weaponPresetSlot(),
+            command.playerId(),
+            command.classTag(),
+            command.weaponPresetSlot(),
             catalogVersion
         );
 
@@ -72,12 +71,12 @@ public class MatchProfileSnapshotBuilder {
         return new ArrayList<>(weaponMap.values());
     }
 
-    private List<MatchOutfitItemDto> outfit(BuildMatchProfileRequest request, long catalogVersion) {
+    private List<MatchOutfitItemDto> outfit(MatchProfileBuildCommand command, long catalogVersion) {
         return new ArrayList<>(repository.findOutfitRows(
-            request.playerId(),
-            request.teamTag(),
-            request.classTag(),
-            request.outfitPresetSlot(),
+            command.playerId(),
+            command.teamTag(),
+            command.classTag(),
+            command.outfitPresetSlot(),
             catalogVersion
         ).stream()
             .map(row -> new MatchOutfitItemDto(row.clothingSlotId(), row.itemId()))
@@ -85,7 +84,7 @@ public class MatchProfileSnapshotBuilder {
     }
 
     private void validateLoadout(
-        BuildMatchProfileRequest request,
+        MatchProfileBuildCommand command,
         long catalogVersion,
         List<MatchWeaponDto> weapons,
         List<MatchOutfitItemDto> outfit,
@@ -112,15 +111,15 @@ public class MatchProfileSnapshotBuilder {
             clothingItemIds.add(item.itemId());
         }
 
-        validateWeaponSlotsAllowedBatch(request.classTag(), weaponSlotIds);
+        validateWeaponSlotsAllowedBatch(command.classTag(), weaponSlotIds);
         Set<String> baseUsableItems = itemAccessPolicy.usableItemsForMatchProfile(
-            request.playerId(),
+            command.playerId(),
             catalogVersion,
-            request.classTag(),
+            command.classTag(),
             itemIds
         );
-        Set<String> teamUsableItems = repository.findTeamCompliantItems(catalogVersion, itemIds, request.teamTag());
-        Set<String> outfitTeamUsableItems = repository.findOutfitTeamCompliantItems(catalogVersion, clothingItemIds, request.teamTag());
+        Set<String> teamUsableItems = repository.findTeamCompliantItems(catalogVersion, itemIds, command.teamTag());
+        Set<String> outfitTeamUsableItems = repository.findOutfitTeamCompliantItems(catalogVersion, clothingItemIds, command.teamTag());
         filterRestrictedItems(weapons, outfit, baseUsableItems, teamUsableItems, outfitTeamUsableItems, enforceTeamItemRules, warnings);
         List<ModuleMountPair> filteredPairs = collectModuleMountPairs(weapons);
         validateMountModulesAllowedBatch(catalogVersion, filteredPairs, baseUsableItems);

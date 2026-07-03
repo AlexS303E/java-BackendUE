@@ -411,3 +411,11 @@ Goal: remove runtime preset change payload/step DTO ownership from application a
 - [x] Add application-level runtime preset change payload/step records.
 - [x] Map transport payload/step DTOs into application records in `RuntimePresetChangeController`.
 - [x] Parse pending post-match runtime payloads into application records.
+
+## Block 51 - Match profile build command decoupling
+
+Goal: remove `BuildMatchProfileRequest` ownership from match-profile and server-match application services.
+
+- [x] Add an application-level match profile build command.
+- [x] Map `/server/match-profile/build` transport request into the application command in `MatchProfileController`.
+- [x] Update catalog selection, dependency loading, cache lookup, snapshot build, and match assignment to use the application command.

@@ -2,9 +2,9 @@ package com.game.backend;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.cache.RedisCacheService;
-import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import com.game.backend.matchprofile.api.DependencyRevisionsDto;
 import com.game.backend.matchprofile.api.MatchProfileResponse;
+import com.game.backend.matchprofile.application.MatchProfileBuildCommand;
 import com.game.backend.matchprofile.application.MatchProfileCacheService;
 import com.game.backend.matchprofile.repository.MatchProfileRepository;
 import org.junit.jupiter.api.Test;
@@ -36,7 +36,7 @@ class MatchProfileCacheServiceTest {
 
     @Test
     void shouldIgnoreCachedProfileWhenPayloadDoesNotMatchDependencyTuple() {
-        BuildMatchProfileRequest request = request();
+        MatchProfileBuildCommand request = request();
         MatchProfileResponse mismatched = response(request, WEAPON_REVISION + 1, OUTFIT_REVISION, ACCESS_REVISION);
         when(cacheService.getMatchProfile(
             request.playerId(),
@@ -87,7 +87,7 @@ class MatchProfileCacheServiceTest {
 
     @Test
     void shouldIgnoreDatabaseProfileWhenPayloadDoesNotMatchDependencyTuple() throws Exception {
-        BuildMatchProfileRequest request = request();
+        MatchProfileBuildCommand request = request();
         MatchProfileResponse mismatched = response(request, WEAPON_REVISION, OUTFIT_REVISION + 1, ACCESS_REVISION);
         when(cacheService.getMatchProfile(
             request.playerId(),
@@ -123,8 +123,8 @@ class MatchProfileCacheServiceTest {
         )).isNull();
     }
 
-    private BuildMatchProfileRequest request() {
-        return new BuildMatchProfileRequest(
+    private MatchProfileBuildCommand request() {
+        return new MatchProfileBuildCommand(
             UUID.randomUUID(),
             UUID.randomUUID(),
             REALM_ID,
@@ -140,7 +140,7 @@ class MatchProfileCacheServiceTest {
     }
 
     private MatchProfileResponse response(
-        BuildMatchProfileRequest request,
+        MatchProfileBuildCommand request,
         long weaponPresetRevision,
         long outfitPresetRevision,
         long accessRevision

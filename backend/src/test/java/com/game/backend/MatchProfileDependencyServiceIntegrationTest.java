@@ -2,7 +2,7 @@ package com.game.backend;
 
 import com.game.backend.auth.application.AuthService;
 import com.game.backend.common.api.ApiException;
-import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
+import com.game.backend.matchprofile.application.MatchProfileBuildCommand;
 import com.game.backend.matchprofile.application.MatchProfileDependencyService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,8 +74,8 @@ class MatchProfileDependencyServiceIntegrationTest {
         return authService.register(loginName, "password123").playerId();
     }
 
-    private BuildMatchProfileRequest request(UUID playerId, long catalogVersion, int outfitPresetSlot) {
-        return new BuildMatchProfileRequest(
+    private MatchProfileBuildCommand request(UUID playerId, long catalogVersion, int outfitPresetSlot) {
+        return new MatchProfileBuildCommand(
                 UUID.randomUUID(),
                 playerId,
                 "global",

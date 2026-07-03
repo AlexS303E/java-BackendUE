@@ -1,7 +1,6 @@
 package com.game.backend.matchprofile.application;
 
 import com.game.backend.common.api.ApiException;
-import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import com.game.backend.matchprofile.api.DependencyRevisionsDto;
 import com.game.backend.matchprofile.api.MatchProfileResponse;
 import com.game.backend.serverauth.application.ServerAuditService;
@@ -45,18 +44,18 @@ public class MatchProfileService {
     }
 
     @Transactional
-    public MatchProfileResponse build(ServerIdentity server, BuildMatchProfileRequest request) {
+    public MatchProfileResponse build(ServerIdentity server, MatchProfileBuildCommand command) {
         boolean matchAssigned = false;
         try {
-            serverMatchService.ensureAssignedForBuild(server, request);
+            serverMatchService.ensureAssignedForBuild(server, command);
             matchAssigned = true;
 
-            long catalogVersion = catalogVersionSelector.select(request);
+            long catalogVersion = catalogVersionSelector.select(command);
 
-            MatchProfileDependencyService.DependencyTuple dependencies = dependencyService.load(request, catalogVersion);
+            MatchProfileDependencyService.DependencyTuple dependencies = dependencyService.load(command, catalogVersion);
 
             MatchProfileResponse existing = matchProfileCacheService.findByDependencyTuple(
-                request, catalogVersion,
+                command, catalogVersion,
                 dependencies.weaponPresetRevision(), dependencies.outfitPresetRevision(), dependencies.accessRevision()
             );
             if (existing != null) {
@@ -64,17 +63,17 @@ public class MatchProfileService {
             }
 
             long profileRevision = System.currentTimeMillis();
-            MatchProfileSnapshotBuilder.Snapshot snapshot = snapshotBuilder.build(request, catalogVersion);
+            MatchProfileSnapshotBuilder.Snapshot snapshot = snapshotBuilder.build(command, catalogVersion);
 
             MatchProfileResponse response = new MatchProfileResponse(
                 1,
-                request.playerId(),
-                request.realmId(),
+                command.playerId(),
+                command.realmId(),
                 catalogVersion,
-                request.classTag(),
-                request.teamTag(),
-                request.weaponPresetSlot(),
-                request.outfitPresetSlot(),
+                command.classTag(),
+                command.teamTag(),
+                command.weaponPresetSlot(),
+                command.outfitPresetSlot(),
                 snapshot.weapons(),
                 snapshot.outfit(),
                 snapshot.warnings(),
@@ -85,32 +84,32 @@ public class MatchProfileService {
                     profileRevision
                 )
             );
-            matchProfileCacheService.save(request, response);
-            auditSuccess(server, request, response);
+            matchProfileCacheService.save(command, response);
+            auditSuccess(server, command, response);
             return response;
         } catch (ApiException exception) {
-            auditFailure(server, request, matchAssigned, auditResult(exception), exception.code(), exception.status().value());
+            auditFailure(server, command, matchAssigned, auditResult(exception), exception.code(), exception.status().value());
             throw exception;
         } catch (RuntimeException exception) {
-            auditFailure(server, request, matchAssigned, "failed", exception.getClass().getSimpleName(), 500);
+            auditFailure(server, command, matchAssigned, "failed", exception.getClass().getSimpleName(), 500);
             throw exception;
         }
     }
 
-    private void auditSuccess(ServerIdentity server, BuildMatchProfileRequest request, MatchProfileResponse response) {
+    private void auditSuccess(ServerIdentity server, MatchProfileBuildCommand command, MatchProfileResponse response) {
         serverAuditService.recordSync(
             server,
-            request.matchId(),
+            command.matchId(),
             AUDIT_ACTION,
             AUDIT_SCOPE,
             "success",
             Map.of(
-                "match_id", request.matchId(),
-                "player_id", request.playerId(),
-                "realm_id", request.realmId(),
-                "class_tag", request.classTag(),
-                "team_tag", request.teamTag(),
-                "game_mode_id", request.gameModeId(),
+                "match_id", command.matchId(),
+                "player_id", command.playerId(),
+                "realm_id", command.realmId(),
+                "class_tag", command.classTag(),
+                "team_tag", command.teamTag(),
+                "game_mode_id", command.gameModeId(),
                 "catalog_version", response.catalogVersion(),
                 "weapon_preset_revision", response.dependencyRevisions().weaponPresetRevision(),
                 "outfit_preset_revision", response.dependencyRevisions().outfitPresetRevision()
@@ -120,7 +119,7 @@ public class MatchProfileService {
 
     private void auditFailure(
         ServerIdentity server,
-        BuildMatchProfileRequest request,
+        MatchProfileBuildCommand command,
         boolean matchAssigned,
         String result,
         String code,
@@ -128,17 +127,17 @@ public class MatchProfileService {
     ) {
         serverAuditService.record(
             server,
-            matchAssigned ? request.matchId() : null,
+            matchAssigned ? command.matchId() : null,
             AUDIT_ACTION,
             AUDIT_SCOPE,
             result,
             Map.of(
-                "match_id", request.matchId(),
-                "player_id", request.playerId(),
-                "realm_id", request.realmId(),
-                "class_tag", request.classTag(),
-                "team_tag", request.teamTag(),
-                "game_mode_id", request.gameModeId(),
+                "match_id", command.matchId(),
+                "player_id", command.playerId(),
+                "realm_id", command.realmId(),
+                "class_tag", command.classTag(),
+                "team_tag", command.teamTag(),
+                "game_mode_id", command.gameModeId(),
                 "code", code,
                 "status", status
             )

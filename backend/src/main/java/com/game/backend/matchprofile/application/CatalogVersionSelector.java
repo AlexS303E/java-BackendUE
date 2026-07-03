@@ -2,7 +2,6 @@ package com.game.backend.matchprofile.application;
 
 import com.game.backend.catalog.application.CatalogService;
 import com.game.backend.common.api.ApiException;
-import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -17,8 +16,8 @@ public class CatalogVersionSelector {
         this.catalogService = catalogService;
     }
 
-    public long select(BuildMatchProfileRequest request) {
-        List<Long> versions = request.supportedCatalogVersions();
+    public long select(MatchProfileBuildCommand command) {
+        List<Long> versions = command.supportedCatalogVersions();
         if (versions.size() != versions.stream().distinct().count()) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
@@ -27,13 +26,13 @@ public class CatalogVersionSelector {
             );
         }
         return versions.stream()
-            .filter(version -> catalogService.catalogVersionAllowsNewMatches(request.realmId(), version))
-            .sorted(preferredFirst(request.preferredCatalogVersion()))
+            .filter(version -> catalogService.catalogVersionAllowsNewMatches(command.realmId(), version))
+            .sorted(preferredFirst(command.preferredCatalogVersion()))
             .findFirst()
             .orElseThrow(() -> new ApiException(
                 HttpStatus.CONFLICT,
                 "CATALOG_VERSION_NOT_SUPPORTED",
-                "Dedicated Server does not support an active catalog version for realm " + request.realmId()
+                "Dedicated Server does not support an active catalog version for realm " + command.realmId()
             ));
     }
 

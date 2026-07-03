@@ -2,8 +2,8 @@ package com.game.backend;
 
 import com.game.backend.catalog.application.CatalogService;
 import com.game.backend.common.api.ApiException;
-import com.game.backend.matchprofile.api.BuildMatchProfileRequest;
 import com.game.backend.matchprofile.application.CatalogVersionSelector;
+import com.game.backend.matchprofile.application.MatchProfileBuildCommand;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -60,8 +60,8 @@ class CatalogVersionSelectorTest {
                         .isEqualTo("CATALOG_VERSION_NOT_SUPPORTED"));
     }
 
-    private BuildMatchProfileRequest request(List<Long> supportedCatalogVersions, Long preferredCatalogVersion) {
-        return new BuildMatchProfileRequest(
+    private MatchProfileBuildCommand request(List<Long> supportedCatalogVersions, Long preferredCatalogVersion) {
+        return new MatchProfileBuildCommand(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 "global",
