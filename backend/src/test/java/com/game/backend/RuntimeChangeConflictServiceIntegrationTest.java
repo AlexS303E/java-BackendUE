@@ -1,10 +1,10 @@
 package com.game.backend;
 
 import com.game.backend.auth.application.AuthService;
-import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
-import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
 import com.game.backend.runtimechanges.application.RuntimeChangeConflictService;
 import com.game.backend.runtimechanges.application.RuntimePresetChangeCommand;
+import com.game.backend.runtimechanges.application.RuntimePresetChangePayload;
+import com.game.backend.runtimechanges.application.RuntimePresetChangeStep;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

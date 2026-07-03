@@ -403,3 +403,11 @@ Goal: remove runtime preset change request/response DTO ownership from runtime c
 - [x] Add application-level runtime preset change command/result records.
 - [x] Move runtime preset request/result mapping into `RuntimePresetChangeController`.
 - [x] Update runtime operation recorder/stream/conflict helpers to use the application command.
+
+## Block 50 - Runtime preset payload application decoupling
+
+Goal: remove runtime preset change payload/step DTO ownership from application and post-match services.
+
+- [x] Add application-level runtime preset change payload/step records.
+- [x] Map transport payload/step DTOs into application records in `RuntimePresetChangeController`.
+- [x] Parse pending post-match runtime payloads into application records.

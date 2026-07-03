@@ -1,8 +1,8 @@
 package com.game.backend;
 
 import com.game.backend.common.api.ApiException;
-import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
-import com.game.backend.runtimechanges.api.RuntimePresetChangeStep;
+import com.game.backend.runtimechanges.application.RuntimePresetChangePayload;
+import com.game.backend.runtimechanges.application.RuntimePresetChangeStep;
 import com.game.backend.runtimechanges.application.RuntimePresetChangeCommand;
 import com.game.backend.runtimechanges.application.RuntimeOperationStreamService;
 import org.junit.jupiter.api.Test;

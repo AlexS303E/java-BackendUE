@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.notifications.application.PlayerNotificationService;
 import com.game.backend.outbox.application.OutboxService;
-import com.game.backend.runtimechanges.api.RuntimePresetChangePayload;
+import com.game.backend.runtimechanges.application.RuntimePresetChangePayload;
 import com.game.backend.runtimechanges.application.WeaponPresetRuntimeChangeApplier;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

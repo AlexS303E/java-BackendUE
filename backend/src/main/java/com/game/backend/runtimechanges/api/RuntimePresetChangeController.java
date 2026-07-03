@@ -42,7 +42,7 @@ public class RuntimePresetChangeController {
             request.classTag(),
             request.weaponPresetSlot(),
             request.baseWeaponPresetRevision(),
-            request.runtimeChangePayload()
+            toApplicationPayload(request.runtimeChangePayload())
         );
         RuntimePresetChangeResult result = runtimePresetChangeService.submit(
             CurrentServer.require(authentication),
@@ -74,6 +74,21 @@ public class RuntimePresetChangeController {
             result.pendingChangeId(),
             result.duplicate(),
             result.errorCode()
+        );
+    }
+
+    private com.game.backend.runtimechanges.application.RuntimePresetChangePayload toApplicationPayload(RuntimePresetChangePayload payload) {
+        return new com.game.backend.runtimechanges.application.RuntimePresetChangePayload(
+            payload.schemaVersion(),
+            payload.changes().stream()
+                .map(change -> new com.game.backend.runtimechanges.application.RuntimePresetChangeStep(
+                    change.op(),
+                    change.weaponSlotId(),
+                    change.weaponId(),
+                    change.mountId(),
+                    change.moduleId()
+                ))
+                .toList()
         );
     }
 }
