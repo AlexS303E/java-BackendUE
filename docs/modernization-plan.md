@@ -355,3 +355,11 @@ Goal: remove auth request/response DTO ownership from `AuthService` while preser
 - [x] Add application-level registered-player and token-pair records.
 - [x] Move auth request/response DTO mapping into `AuthController`.
 - [x] Update integration helpers to call the application registration API directly.
+
+## Block 44 - Catalog snapshot application API decoupling
+
+Goal: remove catalog snapshot API DTO ownership from `CatalogService` and catalog cache while preserving `/catalog/snapshot`.
+
+- [x] Add application-level catalog snapshot/item/mount/module records.
+- [x] Move `/catalog/snapshot` API DTO mapping into `CatalogController`.
+- [x] Store the catalog snapshot cache payload as the application snapshot instead of the API response DTO.

@@ -6,9 +6,9 @@ import com.game.backend.access.application.AccessItem;
 import com.game.backend.access.application.AccessSnapshot;
 import com.game.backend.access.application.AccessService;
 import com.game.backend.cache.RedisCacheService;
-import com.game.backend.catalog.api.CatalogItemDto;
-import com.game.backend.catalog.api.CatalogSnapshotResponse;
+import com.game.backend.catalog.application.CatalogItem;
 import com.game.backend.catalog.application.CatalogService;
+import com.game.backend.catalog.application.CatalogSnapshot;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -84,13 +84,13 @@ class RedisCacheIntegrationTest {
 
     @Test
     void shouldCacheCatalogSnapshotUntilRealmSnapshotEviction() {
-        CatalogSnapshotResponse first = catalogService.getSnapshot("global");
+        CatalogSnapshot first = catalogService.getSnapshot("global");
         assertThat(first.items()).isNotEmpty();
 
         String cacheKey = cacheService.catalogSnapshotKey("global", first.catalogVersion());
         assertThat(redisTemplate.hasKey(cacheKey)).isTrue();
 
-        CatalogItemDto item = first.items().getFirst();
+        CatalogItem item = first.items().getFirst();
         String mutatedName = item.displayName() + " cache-test";
         try {
             jdbcTemplate.update(
@@ -100,13 +100,13 @@ class RedisCacheIntegrationTest {
                 item.catalogVersion()
             );
 
-            CatalogSnapshotResponse cached = catalogService.getSnapshot("global");
+            CatalogSnapshot cached = catalogService.getSnapshot("global");
             assertThat(item(cached, item.itemId()).displayName()).isEqualTo(item.displayName());
 
             cacheService.evictCatalogSnapshots("global");
             assertThat(redisTemplate.hasKey(cacheKey)).isFalse();
 
-            CatalogSnapshotResponse afterEvict = catalogService.getSnapshot("global");
+            CatalogSnapshot afterEvict = catalogService.getSnapshot("global");
             assertThat(item(afterEvict, item.itemId()).displayName()).isEqualTo(mutatedName);
         } finally {
             jdbcTemplate.update(
@@ -176,7 +176,7 @@ class RedisCacheIntegrationTest {
         return UUID.fromString(registered.path("player_id").asText());
     }
 
-    private CatalogItemDto item(CatalogSnapshotResponse response, String itemId) {
+    private CatalogItem item(CatalogSnapshot response, String itemId) {
         return response.items().stream()
             .filter(item -> item.itemId().equals(itemId))
             .findFirst()

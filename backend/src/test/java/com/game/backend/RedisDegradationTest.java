@@ -6,7 +6,7 @@ import com.game.backend.admin.application.AdminStatusService;
 import com.game.backend.admin.repository.AdminRepository;
 import com.game.backend.cache.BackendCacheProperties;
 import com.game.backend.cache.RedisCacheService;
-import com.game.backend.catalog.api.CatalogSnapshotResponse;
+import com.game.backend.catalog.application.CatalogSnapshot;
 import com.game.backend.matchprofile.api.DependencyRevisionsDto;
 import com.game.backend.matchprofile.api.MatchProfileResponse;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -39,7 +39,7 @@ class RedisDegradationTest {
             new SimpleMeterRegistry()
         );
 
-        Optional<CatalogSnapshotResponse> catalog = cacheService.getCatalogSnapshot("global", 1L);
+        Optional<CatalogSnapshot> catalog = cacheService.getCatalogSnapshot("global", 1L);
         Optional<AccessSnapshot> access = cacheService.getAccess(PLAYER_ID, 1L, 1L);
         Optional<MatchProfileResponse> matchProfile = cacheService.getMatchProfile(
             PLAYER_ID,
@@ -60,7 +60,7 @@ class RedisDegradationTest {
         assertThat(matchProfile).isEmpty();
         assertThat(allowsNewMatches).isEmpty();
         assertThatCode(() -> cacheService.putCatalogSnapshot(
-            new CatalogSnapshotResponse("global", 1L, List.of(), List.of(), List.of())
+            new CatalogSnapshot("global", 1L, List.of(), List.of(), List.of())
         )).doesNotThrowAnyException();
         assertThatCode(() -> cacheService.putAccess(
             new AccessSnapshot(PLAYER_ID, 1L, 1L, List.of())

@@ -3,7 +3,7 @@ package com.game.backend;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.cache.BackendCacheProperties;
 import com.game.backend.cache.RedisCacheService;
-import com.game.backend.catalog.api.CatalogSnapshotResponse;
+import com.game.backend.catalog.application.CatalogSnapshot;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.RedisConnectionFailureException;
@@ -28,7 +28,7 @@ class RedisCacheMetricsTest {
         ValueOperations<String, String> operations = mock(ValueOperations.class);
         when(redisTemplate.opsForValue()).thenReturn(operations);
 
-        CatalogSnapshotResponse response = new CatalogSnapshotResponse("global", 1L, List.of(), List.of(), List.of());
+        CatalogSnapshot response = new CatalogSnapshot("global", 1L, List.of(), List.of(), List.of());
         String key = "ue:catalog:snapshot:global:1";
         when(operations.get(key))
             .thenReturn(objectMapper.writeValueAsString(response))

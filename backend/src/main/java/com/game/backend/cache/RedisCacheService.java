@@ -3,7 +3,7 @@ package com.game.backend.cache;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.access.application.AccessSnapshot;
-import com.game.backend.catalog.api.CatalogSnapshotResponse;
+import com.game.backend.catalog.application.CatalogSnapshot;
 import com.game.backend.matchprofile.api.MatchProfileResponse;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -42,11 +42,11 @@ public class RedisCacheService {
         this.meterRegistry = meterRegistry;
     }
 
-    public Optional<CatalogSnapshotResponse> getCatalogSnapshot(String realmId, long catalogVersion) {
-        return read(CATALOG_SNAPSHOT_CACHE, catalogSnapshotKey(realmId, catalogVersion), CatalogSnapshotResponse.class);
+    public Optional<CatalogSnapshot> getCatalogSnapshot(String realmId, long catalogVersion) {
+        return read(CATALOG_SNAPSHOT_CACHE, catalogSnapshotKey(realmId, catalogVersion), CatalogSnapshot.class);
     }
 
-    public void putCatalogSnapshot(CatalogSnapshotResponse response) {
+    public void putCatalogSnapshot(CatalogSnapshot response) {
         String key = catalogSnapshotKey(response.realmId(), response.catalogVersion());
         String indexKey = catalogSnapshotIndexKey(response.realmId());
         write(key, indexKey, response, properties.getCatalogSnapshotTtl());

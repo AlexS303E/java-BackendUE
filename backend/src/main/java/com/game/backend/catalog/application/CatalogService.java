@@ -2,10 +2,6 @@ package com.game.backend.catalog.application;
 
 import com.game.backend.catalog.repository.CatalogRepository;
 
-import com.game.backend.catalog.api.AllowedModuleDto;
-import com.game.backend.catalog.api.CatalogItemDto;
-import com.game.backend.catalog.api.CatalogSnapshotResponse;
-import com.game.backend.catalog.api.WeaponMountDto;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.catalog.repository.CatalogRepository.AllowedModuleRecord;
@@ -33,11 +29,11 @@ public class CatalogService {
     /**
      * Собирает клиентский snapshot активной версии каталога для realm.
      */
-    public CatalogSnapshotResponse getSnapshot(String realmId) {
+    public CatalogSnapshot getSnapshot(String realmId) {
         long catalogVersion = activeCatalogVersion(realmId);
         return cacheService.getCatalogSnapshot(realmId, catalogVersion)
             .orElseGet(() -> {
-                CatalogSnapshotResponse response = new CatalogSnapshotResponse(
+                CatalogSnapshot response = new CatalogSnapshot(
                     realmId,
                     catalogVersion,
                     items(catalogVersion),
@@ -74,29 +70,29 @@ public class CatalogService {
         return allowed;
     }
 
-    private List<CatalogItemDto> items(long catalogVersion) {
+    private List<CatalogItem> items(long catalogVersion) {
         return repository.findItems(catalogVersion)
             .stream()
-            .map(this::toCatalogItemDto)
+            .map(this::toCatalogItem)
             .toList();
     }
 
-    private List<WeaponMountDto> weaponMounts(long catalogVersion) {
+    private List<WeaponMount> weaponMounts(long catalogVersion) {
         return repository.findWeaponMounts(catalogVersion)
             .stream()
-            .map(this::toWeaponMountDto)
+            .map(this::toWeaponMount)
             .toList();
     }
 
-    private List<AllowedModuleDto> allowedModules(long catalogVersion) {
+    private List<AllowedModule> allowedModules(long catalogVersion) {
         return repository.findAllowedModules(catalogVersion)
             .stream()
-            .map(this::toAllowedModuleDto)
+            .map(this::toAllowedModule)
             .toList();
     }
 
-    private CatalogItemDto toCatalogItemDto(CatalogItemRecord item) {
-        return new CatalogItemDto(
+    private CatalogItem toCatalogItem(CatalogItemRecord item) {
+        return new CatalogItem(
             item.itemId(),
             item.catalogVersion(),
             item.itemType(),
@@ -105,8 +101,8 @@ public class CatalogService {
         );
     }
 
-    private WeaponMountDto toWeaponMountDto(WeaponMountRecord mount) {
-        return new WeaponMountDto(
+    private WeaponMount toWeaponMount(WeaponMountRecord mount) {
+        return new WeaponMount(
             mount.mountId(),
             mount.catalogVersion(),
             mount.weaponId(),
@@ -117,8 +113,8 @@ public class CatalogService {
         );
     }
 
-    private AllowedModuleDto toAllowedModuleDto(AllowedModuleRecord module) {
-        return new AllowedModuleDto(
+    private AllowedModule toAllowedModule(AllowedModuleRecord module) {
+        return new AllowedModule(
             module.mountId(),
             module.moduleId(),
             module.catalogVersion()
