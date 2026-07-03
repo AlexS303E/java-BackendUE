@@ -363,3 +363,11 @@ Goal: remove catalog snapshot API DTO ownership from `CatalogService` and catalo
 - [x] Add application-level catalog snapshot/item/mount/module records.
 - [x] Move `/catalog/snapshot` API DTO mapping into `CatalogController`.
 - [x] Store the catalog snapshot cache payload as the application snapshot instead of the API response DTO.
+
+## Block 45 - Catalog lifecycle application API decoupling
+
+Goal: remove catalog lifecycle request/response DTO ownership from `CatalogLifecycleService` while preserving admin publish/rollback contracts.
+
+- [x] Add application-level publish/rollback command records and lifecycle result record.
+- [x] Move admin catalog request/result mapping into `AdminCatalogController`.
+- [x] Keep idempotency replay payload shape compatible through matching lifecycle result fields.

@@ -18,9 +18,6 @@ import com.game.backend.admin.application.AdminAuditService;
 import com.game.backend.admin.application.AdminIdentity;
 import com.game.backend.admin.application.AdminMutationIdempotencyService;
 import com.game.backend.cache.RedisCacheService;
-import com.game.backend.catalog.api.CatalogLifecycleResponse;
-import com.game.backend.catalog.api.CatalogPublishRequest;
-import com.game.backend.catalog.api.CatalogRollbackRequest;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.outbox.application.OutboxService;
 import org.springframework.http.HttpStatus;
@@ -78,33 +75,33 @@ public class CatalogLifecycleService {
     /**
      * Публикует validated/canary catalog_version как единственную active для новых матчей realm.
      */
-    public CatalogLifecycleResponse publish(AdminIdentity admin, String idempotencyKey, CatalogPublishRequest request) {
+    public CatalogLifecycleResult publish(AdminIdentity admin, String idempotencyKey, CatalogPublishCommand command) {
         return idempotencyService.execute(
             admin,
             "admin.catalog.publish",
             "/admin/catalog/publish",
             idempotencyKey,
-            request,
-            CatalogLifecycleResponse.class,
-            () -> publishOnce(admin, request)
+            command,
+            CatalogLifecycleResult.class,
+            () -> publishOnce(admin, command)
         );
     }
 
     @Transactional
-    protected CatalogLifecycleResponse publishOnce(AdminIdentity admin, CatalogPublishRequest request) {
+    protected CatalogLifecycleResult publishOnce(AdminIdentity admin, CatalogPublishCommand command) {
         UUID operationId = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now();
-        String realmId = normalize(request.realmId(), "realm_id");
-        long targetVersion = request.catalogVersion();
-        int rolloutPercent = request.rolloutPercent() == null ? 100 : request.rolloutPercent();
-        boolean allowExistingMatches = request.allowExistingMatches() == null || request.allowExistingMatches();
+        String realmId = normalize(command.realmId(), "realm_id");
+        long targetVersion = command.catalogVersion();
+        int rolloutPercent = command.rolloutPercent() == null ? 100 : command.rolloutPercent();
+        boolean allowExistingMatches = command.allowExistingMatches() == null || command.allowExistingMatches();
 
         try {
             ensureRealmExists(realmId);
             ensurePublishableCatalogVersion(targetVersion);
             CatalogDeployment active = activeDeployment(realmId);
             if (active != null && active.catalogVersion() == targetVersion && active.allowNewMatches()) {
-                CatalogLifecycleResponse response = new CatalogLifecycleResponse(
+                CatalogLifecycleResult response = new CatalogLifecycleResult(
                     operationId,
                     realmId,
                     targetVersion,
@@ -115,7 +112,7 @@ public class CatalogLifecycleService {
                     0,
                     0
                 );
-                audit(admin, ACTION_PUBLISH, realmId, targetVersion, "success", response, Map.of("noop", true, "reason", request.reason()));
+                audit(admin, ACTION_PUBLISH, realmId, targetVersion, "success", response, Map.of("noop", true, "reason", command.reason()));
                 return response;
             }
 
@@ -131,7 +128,7 @@ public class CatalogLifecycleService {
             int staleProfiles = invalidateRealmProfiles(realmId, "catalog_published", operationId, now);
             recordOutbox(ACTION_PUBLISH, operationId, realmId, previousVersion, targetVersion, migration, staleProfiles, now);
 
-            CatalogLifecycleResponse response = new CatalogLifecycleResponse(
+            CatalogLifecycleResult response = new CatalogLifecycleResult(
                 operationId,
                 realmId,
                 previousVersion,
@@ -142,10 +139,10 @@ public class CatalogLifecycleService {
                 migration.accessPlayers(),
                 staleProfiles
             );
-            audit(admin, ACTION_PUBLISH, realmId, targetVersion, "success", response, Map.of("reason", request.reason()));
+            audit(admin, ACTION_PUBLISH, realmId, targetVersion, "success", response, Map.of("reason", command.reason()));
             return response;
         } catch (ApiException exception) {
-            auditFailure(admin, ACTION_PUBLISH, realmId, targetVersion, request.reason(), exception);
+            auditFailure(admin, ACTION_PUBLISH, realmId, targetVersion, command.reason(), exception);
             throw exception;
         }
     }
@@ -153,33 +150,33 @@ public class CatalogLifecycleService {
     /**
      * Откатывает realm к previous deployment или к явно указанной версии каталога.
      */
-    public CatalogLifecycleResponse rollback(AdminIdentity admin, String idempotencyKey, CatalogRollbackRequest request) {
+    public CatalogLifecycleResult rollback(AdminIdentity admin, String idempotencyKey, CatalogRollbackCommand command) {
         return idempotencyService.execute(
             admin,
             "admin.catalog.rollback",
             "/admin/catalog/rollback",
             idempotencyKey,
-            request,
-            CatalogLifecycleResponse.class,
-            () -> rollbackOnce(admin, request)
+            command,
+            CatalogLifecycleResult.class,
+            () -> rollbackOnce(admin, command)
         );
     }
 
     @Transactional
-    protected CatalogLifecycleResponse rollbackOnce(AdminIdentity admin, CatalogRollbackRequest request) {
+    protected CatalogLifecycleResult rollbackOnce(AdminIdentity admin, CatalogRollbackCommand command) {
         UUID operationId = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now();
-        String realmId = normalize(request.realmId(), "realm_id");
+        String realmId = normalize(command.realmId(), "realm_id");
 
         try {
             ensureRealmExists(realmId);
             CatalogDeployment active = requireActiveDeployment(realmId);
-            long targetVersion = request.targetCatalogVersion() == null
+            long targetVersion = command.targetCatalogVersion() == null
                 ? latestPreviousDeploymentVersion(realmId)
-                : request.targetCatalogVersion();
+                : command.targetCatalogVersion();
             ensureRollbackTarget(realmId, targetVersion);
             if (active.catalogVersion() == targetVersion) {
-                CatalogLifecycleResponse response = new CatalogLifecycleResponse(
+                CatalogLifecycleResult response = new CatalogLifecycleResult(
                     operationId,
                     realmId,
                     targetVersion,
@@ -190,7 +187,7 @@ public class CatalogLifecycleService {
                     0,
                     0
                 );
-                audit(admin, ACTION_ROLLBACK, realmId, targetVersion, "success", response, Map.of("noop", true, "reason", request.reason()));
+                audit(admin, ACTION_ROLLBACK, realmId, targetVersion, "success", response, Map.of("noop", true, "reason", command.reason()));
                 return response;
             }
 
@@ -201,7 +198,7 @@ public class CatalogLifecycleService {
             int staleProfiles = invalidateRealmProfiles(realmId, "catalog_rolled_back", operationId, now);
             recordOutbox(ACTION_ROLLBACK, operationId, realmId, active.catalogVersion(), targetVersion, migration, staleProfiles, now);
 
-            CatalogLifecycleResponse response = new CatalogLifecycleResponse(
+            CatalogLifecycleResult response = new CatalogLifecycleResult(
                 operationId,
                 realmId,
                 active.catalogVersion(),
@@ -212,10 +209,10 @@ public class CatalogLifecycleService {
                 migration.accessPlayers(),
                 staleProfiles
             );
-            audit(admin, ACTION_ROLLBACK, realmId, targetVersion, "success", response, Map.of("reason", request.reason()));
+            audit(admin, ACTION_ROLLBACK, realmId, targetVersion, "success", response, Map.of("reason", command.reason()));
             return response;
         } catch (ApiException exception) {
-            auditFailure(admin, ACTION_ROLLBACK, realmId, request.targetCatalogVersion(), request.reason(), exception);
+            auditFailure(admin, ACTION_ROLLBACK, realmId, command.targetCatalogVersion(), command.reason(), exception);
             throw exception;
         }
     }
@@ -504,7 +501,7 @@ public class CatalogLifecycleService {
         String realmId,
         long targetVersion,
         String result,
-        CatalogLifecycleResponse response,
+        CatalogLifecycleResult response,
         Map<String, Object> extra
     ) {
         Map<String, Object> payload = new LinkedHashMap<>();
