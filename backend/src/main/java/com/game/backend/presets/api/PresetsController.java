@@ -2,12 +2,16 @@ package com.game.backend.presets.api;
 
 import com.game.backend.auth.application.CurrentPlayer;
 import com.game.backend.presets.application.ModuleSelection;
+import com.game.backend.presets.application.ModuleSave;
 import com.game.backend.presets.application.OutfitItem;
 import com.game.backend.presets.application.OutfitPreset;
 import com.game.backend.presets.application.PlayerPresetsSnapshot;
 import com.game.backend.presets.application.PresetsService;
 import com.game.backend.presets.application.WeaponPreset;
+import com.game.backend.presets.application.WeaponPresetSaveCommand;
+import com.game.backend.presets.application.WeaponPresetSaveResult;
 import com.game.backend.presets.application.WeaponSlotPreset;
+import com.game.backend.presets.application.WeaponSlotSave;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -51,17 +55,37 @@ public class PresetsController {
             @Valid @RequestBody WeaponPresetSaveRequest request
     ) {
         UUID playerId = CurrentPlayer.require(authentication).playerId();
-        WeaponPresetSaveResponse response = presetsService.saveWeaponPreset(
+        WeaponPresetSaveResult result = presetsService.saveWeaponPreset(
                 playerId,
                 classTag,
                 presetSlot,
                 ifMatch,
-                request
+                toCommand(request)
         );
+        WeaponPresetSaveResponse response = toSaveResponse(result);
         return ResponseEntity
                 .ok()
                 .eTag(Long.toString(response.revision()))
                 .body(response);
+    }
+
+    private WeaponPresetSaveCommand toCommand(WeaponPresetSaveRequest request) {
+        return new WeaponPresetSaveCommand(
+                request.catalogVersion(),
+                request.slots().stream().map(this::toWeaponSlotSave).toList()
+        );
+    }
+
+    private WeaponSlotSave toWeaponSlotSave(SaveWeaponSlotRequest slot) {
+        return new WeaponSlotSave(
+                slot.weaponSlotId(),
+                slot.weaponId(),
+                slot.modules().stream().map(this::toModuleSave).toList()
+        );
+    }
+
+    private ModuleSave toModuleSave(SaveModuleRequest module) {
+        return new ModuleSave(module.mountId(), module.moduleId());
     }
 
     private PlayerPresetsResponse toResponse(PlayerPresetsSnapshot snapshot) {
@@ -109,5 +133,16 @@ public class PresetsController {
 
     private OutfitItemDto toOutfitItemDto(OutfitItem item) {
         return new OutfitItemDto(item.clothingSlotId(), item.itemId());
+    }
+
+    private WeaponPresetSaveResponse toSaveResponse(WeaponPresetSaveResult result) {
+        return new WeaponPresetSaveResponse(
+                result.playerId(),
+                result.classTag(),
+                result.presetSlot(),
+                result.catalogVersion(),
+                result.revision(),
+                result.slots().stream().map(this::toWeaponSlotPresetDto).toList()
+        );
     }
 }

@@ -18,11 +18,6 @@ import com.game.backend.presets.repository.PresetsRepository.WeaponSlotRecord;
 
 import com.game.backend.common.api.ApiException;
 import com.game.backend.outbox.application.OutboxService;
-import com.game.backend.presets.api.SaveModuleRequest;
-import com.game.backend.presets.api.SaveWeaponSlotRequest;
-import com.game.backend.presets.api.WeaponPresetSaveRequest;
-import com.game.backend.presets.api.WeaponPresetSaveResponse;
-import com.game.backend.presets.api.WeaponSlotPresetDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,15 +54,15 @@ public class PresetsService {
      * Полностью сохраняет weapon preset, если If-Match совпал с текущей ревизией.
      */
     @Transactional
-    public WeaponPresetSaveResponse saveWeaponPreset(
+    public WeaponPresetSaveResult saveWeaponPreset(
         UUID playerId,
         String classTag,
         int presetSlot,
         String ifMatch,
-        WeaponPresetSaveRequest request
+        WeaponPresetSaveCommand command
     ) {
         long expectedRevision = parseIfMatch(ifMatch);
-        long catalogVersion = request.catalogVersion();
+        long catalogVersion = command.catalogVersion();
         // FOR UPDATE удерживает текущую ревизию до конца транзакции и защищает от гонок сохранения.
         PresetHeader current = lockWeaponPreset(playerId, classTag, presetSlot, catalogVersion);
 
@@ -79,10 +74,10 @@ public class PresetsService {
             );
         }
 
-        validateSaveRequest(playerId, classTag, request);
+        validateSaveCommand(playerId, classTag, command);
         OffsetDateTime now = OffsetDateTime.now();
 
-        for (SaveWeaponSlotRequest slot : request.slots()) {
+        for (WeaponSlotSave slot : command.slots()) {
             upsertSelectedSlot(playerId, classTag, presetSlot, catalogVersion, slot);
             if (slot.weaponId() != null) {
                 upsertWeaponConfig(playerId, classTag, presetSlot, catalogVersion, slot, now);
@@ -109,13 +104,13 @@ public class PresetsService {
             now
         );
 
-        return new WeaponPresetSaveResponse(
+        return new WeaponPresetSaveResult(
             playerId,
             classTag,
             presetSlot,
             catalogVersion,
             newRevision,
-            toWeaponSlotPresetDtos(weaponSlots(playerId, classTag, presetSlot, catalogVersion))
+            weaponSlots(playerId, classTag, presetSlot, catalogVersion)
         );
     }
 
@@ -292,10 +287,10 @@ public class PresetsService {
     /**
      * Валидирует структуру save-запроса, доступность предметов и совместимость модулей с mount.
      */
-    private void validateSaveRequest(UUID playerId, String classTag, WeaponPresetSaveRequest request) {
+    private void validateSaveCommand(UUID playerId, String classTag, WeaponPresetSaveCommand command) {
         Set<String> weaponSlotIds = new HashSet<>();
         List<LoadoutValidationService.WeaponSlotSelection> slots = new ArrayList<>();
-        for (SaveWeaponSlotRequest slot : request.slots()) {
+        for (WeaponSlotSave slot : command.slots()) {
             if (!weaponSlotIds.add(slot.weaponSlotId())) {
                 throw new ApiException(
                     HttpStatus.BAD_REQUEST,
@@ -306,7 +301,7 @@ public class PresetsService {
 
             Set<String> mountIds = new HashSet<>();
             List<LoadoutValidationService.ModuleSelection> modules = new ArrayList<>();
-            for (SaveModuleRequest module : slot.modules()) {
+            for (ModuleSave module : slot.modules()) {
                 if (!mountIds.add(module.mountId())) {
                     throw new ApiException(
                         HttpStatus.BAD_REQUEST,
@@ -318,7 +313,7 @@ public class PresetsService {
             }
             slots.add(new LoadoutValidationService.WeaponSlotSelection(slot.weaponSlotId(), slot.weaponId(), modules));
         }
-        loadoutValidationService.validateForPresetSave(playerId, classTag, request.catalogVersion(), slots);
+        loadoutValidationService.validateForPresetSave(playerId, classTag, command.catalogVersion(), slots);
     }
 
     private void upsertSelectedSlot(
@@ -326,7 +321,7 @@ public class PresetsService {
         String classTag,
         int presetSlot,
         long catalogVersion,
-        SaveWeaponSlotRequest slot
+        WeaponSlotSave slot
     ) {
         repository.upsertSelectedSlot(playerId, classTag, presetSlot, catalogVersion, toSaveWeaponSlotCommand(slot));
     }
@@ -336,7 +331,7 @@ public class PresetsService {
         String classTag,
         int presetSlot,
         long catalogVersion,
-        SaveWeaponSlotRequest slot,
+        WeaponSlotSave slot,
         OffsetDateTime now
     ) {
         repository.upsertWeaponConfig(playerId, classTag, presetSlot, catalogVersion, toSaveWeaponSlotCommand(slot), now);
@@ -350,7 +345,7 @@ public class PresetsService {
         String classTag,
         int presetSlot,
         long catalogVersion,
-        SaveWeaponSlotRequest slot
+        WeaponSlotSave slot
     ) {
         repository.deleteWeaponConfigModules(
             playerId,
@@ -361,7 +356,7 @@ public class PresetsService {
             slot.weaponId()
         );
 
-        for (SaveModuleRequest module : slot.modules()) {
+        for (ModuleSave module : slot.modules()) {
             repository.insertWeaponConfigModule(
                 playerId,
                 classTag,
@@ -421,23 +416,11 @@ public class PresetsService {
         return new OutfitItem(item.clothingSlotId(), item.itemId());
     }
 
-    private List<WeaponSlotPresetDto> toWeaponSlotPresetDtos(List<WeaponSlotPreset> slots) {
-        return slots.stream()
-            .map(slot -> new WeaponSlotPresetDto(
-                slot.weaponSlotId(),
-                slot.selectedWeaponId(),
-                slot.modules().stream()
-                    .map(module -> new com.game.backend.presets.api.ModuleSelectionDto(module.mountId(), module.moduleId()))
-                    .toList()
-            ))
-            .toList();
-    }
-
-    private SaveWeaponSlotCommand toSaveWeaponSlotCommand(SaveWeaponSlotRequest slot) {
+    private SaveWeaponSlotCommand toSaveWeaponSlotCommand(WeaponSlotSave slot) {
         return new SaveWeaponSlotCommand(slot.weaponSlotId(), slot.weaponId());
     }
 
-    private SaveModuleCommand toSaveModuleCommand(SaveModuleRequest module) {
+    private SaveModuleCommand toSaveModuleCommand(ModuleSave module) {
         return new SaveModuleCommand(module.mountId(), module.moduleId());
     }
 }

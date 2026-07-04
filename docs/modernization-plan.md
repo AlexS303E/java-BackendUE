@@ -435,3 +435,11 @@ Goal: remove `/me/presets` read response DTO ownership from `PresetsService`.
 - [x] Add application-level player presets, weapon preset, outfit preset, slot, module, and outfit item records.
 - [x] Return application snapshots from preset read methods.
 - [x] Move `/me/presets` response mapping into `PresetsController`.
+
+## Block 54 - Presets save command decoupling
+
+Goal: remove weapon preset save request/response DTO ownership from `PresetsService`.
+
+- [x] Add application-level weapon preset save command/result records.
+- [x] Move weapon preset save request mapping into `PresetsController`.
+- [x] Move weapon preset save response mapping into `PresetsController`.
