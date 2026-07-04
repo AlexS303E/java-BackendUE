@@ -475,3 +475,11 @@ Goal: remove admin control request DTO ownership from `AdminControlService`.
 - [x] Add application-level admin control reason and weapon access commands.
 - [x] Move admin control request mapping into `AdminControlController`.
 - [x] Remove remaining non-common API DTO imports from application services.
+
+## Block 59 - Application feature API dependency guard
+
+Goal: prevent feature API DTOs from returning to application services after the decoupling pass.
+
+- [x] Discover application packages automatically in the architecture boundary test.
+- [x] Fail CI when application code depends on non-common `*.api` packages.
+- [x] Keep `common.api.ApiException` available as the shared exception contract.

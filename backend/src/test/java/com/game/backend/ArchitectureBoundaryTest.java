@@ -205,6 +205,23 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void everyApplicationPackageShouldStayIndependentFromFeatureApiContracts() throws IOException {
+        List<Path> applicationRoots = applicationPackageRoots();
+
+        assertThat(applicationRoots)
+            .as("Architecture guard must discover application packages automatically")
+            .isNotEmpty();
+
+        List<Path> offenders = filesUnder(applicationRoots).stream()
+            .filter(ArchitectureBoundaryTest::dependsOnFeatureApiPackage)
+            .toList();
+
+        assertThat(offenders)
+            .as("Application services must use application commands/results instead of feature API DTOs")
+            .isEmpty();
+    }
+
+    @Test
     void everyRepositoryPackageShouldStayIndependentFromApiContracts() throws IOException {
         List<Path> repositoryRoots = packageRoots("repository");
 
@@ -408,6 +425,16 @@ class ArchitectureBoundaryTest {
     private static boolean dependsOnApiPackage(Path path) {
         try {
             return Files.readString(path).contains(".api.");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean dependsOnFeatureApiPackage(Path path) {
+        try {
+            String source = Files.readString(path);
+            return source.contains(".api.")
+                && !source.contains(".common.api.");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }
