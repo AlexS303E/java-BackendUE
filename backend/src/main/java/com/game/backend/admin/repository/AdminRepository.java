@@ -8,6 +8,7 @@ import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -57,6 +58,85 @@ public class AdminRepository extends JdbcRepository {
     ) {
     }
 
+    public record ServerStatusRow(
+        UUID serverId,
+        String realmId,
+        String serverBuildId,
+        String status,
+        List<String> allowedScopes,
+        OffsetDateTime createdAt,
+        OffsetDateTime expiresAt,
+        OffsetDateTime revokedAt
+    ) {
+    }
+
+    public record MatchStatusRow(
+        UUID matchId,
+        UUID serverId,
+        String realmId,
+        String status,
+        OffsetDateTime createdAt,
+        OffsetDateTime finishedAt
+    ) {
+    }
+
+    public record RecentAuditEventRow(
+        UUID eventId,
+        String actorId,
+        String action,
+        String targetType,
+        String targetId,
+        String result,
+        OffsetDateTime createdAt
+    ) {
+    }
+
+    public record PlayerSearchRow(
+        UUID playerId,
+        String loginName,
+        String status,
+        Long accessRevision
+    ) {
+    }
+
+    public record WeaponAccessStatusRow(
+        String itemId,
+        long catalogVersion,
+        boolean hidden,
+        boolean lockedInShop,
+        boolean lockedByQuest,
+        boolean disabled,
+        String disabledReason,
+        String unlockHintCode,
+        OffsetDateTime updatedAt,
+        long accessRevision,
+        boolean catalogEnabled
+    ) {
+    }
+
+    public record WeaponAccessAuditRow(
+        UUID ledgerEventId,
+        String eventType,
+        String action,
+        String sourceType,
+        String sourceRef,
+        String actorType,
+        String actorId,
+        String result,
+        String payload,
+        OffsetDateTime createdAt
+    ) {
+    }
+
+    public record ActiveCatalogRow(
+        long activeVersion,
+        String deploymentState,
+        boolean allowNewMatches,
+        boolean allowExistingMatches,
+        OffsetDateTime activatedAt
+    ) {
+    }
+
     public AdminRepository(JdbcTemplate jdbcTemplate) {
         super(jdbcTemplate);
     }
@@ -74,7 +154,7 @@ public class AdminRepository extends JdbcRepository {
         return count("SELECT count(*) FROM post_match_pending_changes WHERE status = 'pending'");
     }
 
-    public List<Map<String, Object>> listServers(int limit) {
+    public List<ServerStatusRow> listServers(int limit) {
         return query(
             """
                 SELECT server_id, realm_id, server_build_id, status, allowed_scopes, created_at, expires_at, revoked_at
@@ -82,23 +162,21 @@ public class AdminRepository extends JdbcRepository {
                 ORDER BY created_at DESC
                 LIMIT ?
                 """,
-            (rs, rowNum) -> {
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("serverId", rs.getObject("server_id", UUID.class));
-                row.put("realmId", rs.getString("realm_id"));
-                row.put("serverBuildId", rs.getString("server_build_id"));
-                row.put("status", rs.getString("status"));
-                row.put("allowedScopes", rs.getArray("allowed_scopes") == null ? List.of() : List.of((String[]) rs.getArray("allowed_scopes").getArray()));
-                row.put("createdAt", rs.getObject("created_at", OffsetDateTime.class));
-                row.put("expiresAt", rs.getObject("expires_at", OffsetDateTime.class));
-                row.put("revokedAt", rs.getObject("revoked_at", OffsetDateTime.class));
-                return row;
-            },
+            (rs, rowNum) -> new ServerStatusRow(
+                rs.getObject("server_id", UUID.class),
+                rs.getString("realm_id"),
+                rs.getString("server_build_id"),
+                rs.getString("status"),
+                rs.getArray("allowed_scopes") == null ? List.of() : List.of((String[]) rs.getArray("allowed_scopes").getArray()),
+                rs.getObject("created_at", OffsetDateTime.class),
+                rs.getObject("expires_at", OffsetDateTime.class),
+                rs.getObject("revoked_at", OffsetDateTime.class)
+            ),
             limit
         );
     }
 
-    public List<Map<String, Object>> listMatches(int limit) {
+    public List<MatchStatusRow> listMatches(int limit) {
         return query(
             """
                 SELECT match_id, server_id, realm_id, status, created_at, finished_at
@@ -106,21 +184,19 @@ public class AdminRepository extends JdbcRepository {
                 ORDER BY created_at DESC
                 LIMIT ?
                 """,
-            (rs, rowNum) -> {
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("matchId", rs.getObject("match_id", UUID.class));
-                row.put("serverId", rs.getObject("server_id", UUID.class));
-                row.put("realmId", rs.getString("realm_id"));
-                row.put("status", rs.getString("status"));
-                row.put("createdAt", rs.getObject("created_at", OffsetDateTime.class));
-                row.put("finishedAt", rs.getObject("finished_at", OffsetDateTime.class));
-                return row;
-            },
+            (rs, rowNum) -> new MatchStatusRow(
+                rs.getObject("match_id", UUID.class),
+                rs.getObject("server_id", UUID.class),
+                rs.getString("realm_id"),
+                rs.getString("status"),
+                rs.getObject("created_at", OffsetDateTime.class),
+                rs.getObject("finished_at", OffsetDateTime.class)
+            ),
             limit
         );
     }
 
-    public List<Map<String, Object>> listRecentAuditEvents(int limit) {
+    public List<RecentAuditEventRow> listRecentAuditEvents(int limit) {
         return query(
             """
                 SELECT event_id, actor_id, action, target_type, target_id, result, created_at
@@ -128,17 +204,15 @@ public class AdminRepository extends JdbcRepository {
                 ORDER BY created_at DESC
                 LIMIT ?
                 """,
-            (rs, rowNum) -> {
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("eventId", rs.getObject("event_id", UUID.class));
-                row.put("actorId", rs.getString("actor_id"));
-                row.put("action", rs.getString("action"));
-                row.put("targetType", rs.getString("target_type"));
-                row.put("targetId", rs.getString("target_id"));
-                row.put("result", rs.getString("result"));
-                row.put("createdAt", rs.getObject("created_at", OffsetDateTime.class));
-                return row;
-            },
+            (rs, rowNum) -> new RecentAuditEventRow(
+                rs.getObject("event_id", UUID.class),
+                rs.getString("actor_id"),
+                rs.getString("action"),
+                rs.getString("target_type"),
+                rs.getString("target_id"),
+                rs.getString("result"),
+                rs.getObject("created_at", OffsetDateTime.class)
+            ),
             limit
         );
     }
@@ -290,7 +364,7 @@ public class AdminRepository extends JdbcRepository {
         );
     }
 
-    public List<Map<String, Object>> findPlayer(UUID playerId) {
+    public List<PlayerSearchRow> findPlayer(UUID playerId) {
         return query(
             """
                 SELECT pa.player_id, pa.login_name, pa.status, ps.access_revision
@@ -298,7 +372,7 @@ public class AdminRepository extends JdbcRepository {
                 LEFT JOIN player_access_projection_state ps ON ps.player_id = pa.player_id
                 WHERE pa.player_id = ?
                 """,
-            (rs, rowNum) -> playerRow(
+            (rs, rowNum) -> new PlayerSearchRow(
                 rs.getObject("player_id", UUID.class),
                 rs.getString("login_name"),
                 rs.getString("status"),
@@ -308,7 +382,7 @@ public class AdminRepository extends JdbcRepository {
         );
     }
 
-    public List<Map<String, Object>> searchPlayersByLogin(String loginFragment, int limit) {
+    public List<PlayerSearchRow> searchPlayersByLogin(String loginFragment, int limit) {
         return query(
             """
                 SELECT pa.player_id, pa.login_name, pa.status, ps.access_revision
@@ -318,7 +392,7 @@ public class AdminRepository extends JdbcRepository {
                 ORDER BY pa.created_at DESC
                 LIMIT ?
                 """,
-            (rs, rowNum) -> playerRow(
+            (rs, rowNum) -> new PlayerSearchRow(
                 rs.getObject("player_id", UUID.class),
                 rs.getString("login_name"),
                 rs.getString("status"),
@@ -329,7 +403,7 @@ public class AdminRepository extends JdbcRepository {
         );
     }
 
-    public List<Map<String, Object>> findWeaponAccess(UUID playerId, String weaponId, long catalogVersion) {
+    public List<WeaponAccessStatusRow> findWeaponAccess(UUID playerId, String weaponId, long catalogVersion) {
         return query(
             """
                 SELECT
@@ -353,7 +427,7 @@ public class AdminRepository extends JdbcRepository {
                   AND pia.item_id = ?
                   AND pia.catalog_version = ?
                 """,
-            (rs, rowNum) -> accessRow(
+            (rs, rowNum) -> new WeaponAccessStatusRow(
                 rs.getString("item_id"),
                 rs.getLong("catalog_version"),
                 rs.getBoolean("is_hidden"),
@@ -673,7 +747,7 @@ public class AdminRepository extends JdbcRepository {
         );
     }
 
-    public List<Map<String, Object>> listWeaponAccessAudit(UUID playerId, String weaponId, long catalogVersion, int limit) {
+    public List<WeaponAccessAuditRow> listWeaponAccessAudit(UUID playerId, String weaponId, long catalogVersion, int limit) {
         return query(
             """
                 SELECT ledger_event_id, event_type, source_type, source_ref, actor_type, actor_id, payload, created_at
@@ -684,20 +758,18 @@ public class AdminRepository extends JdbcRepository {
                 ORDER BY created_at DESC
                 LIMIT ?
                 """,
-            (rs, rowNum) -> {
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("ledgerEventId", rs.getObject("ledger_event_id", UUID.class));
-                row.put("eventType", rs.getString("event_type"));
-                row.put("action", rs.getString("event_type"));
-                row.put("sourceType", rs.getString("source_type"));
-                row.put("sourceRef", rs.getString("source_ref"));
-                row.put("actorType", rs.getString("actor_type"));
-                row.put("actorId", rs.getString("actor_id"));
-                row.put("result", "success");
-                row.put("payload", rs.getString("payload"));
-                row.put("createdAt", rs.getObject("created_at", OffsetDateTime.class));
-                return row;
-            },
+            (rs, rowNum) -> new WeaponAccessAuditRow(
+                rs.getObject("ledger_event_id", UUID.class),
+                rs.getString("event_type"),
+                rs.getString("event_type"),
+                rs.getString("source_type"),
+                rs.getString("source_ref"),
+                rs.getString("actor_type"),
+                rs.getString("actor_id"),
+                "success",
+                rs.getString("payload"),
+                rs.getObject("created_at", OffsetDateTime.class)
+            ),
             playerId,
             weaponId,
             catalogVersion,
@@ -705,8 +777,8 @@ public class AdminRepository extends JdbcRepository {
         );
     }
 
-    public Map<String, Object> activeCatalog() {
-        List<Map<String, Object>> rows = query(
+    public Optional<ActiveCatalogRow> activeCatalog() {
+        List<ActiveCatalogRow> rows = query(
             """
                 SELECT catalog_version, deployment_state, allow_new_matches, allow_existing_matches, activated_at
                 FROM catalog_deployments
@@ -715,17 +787,15 @@ public class AdminRepository extends JdbcRepository {
                 ORDER BY activated_at DESC NULLS LAST, catalog_version DESC
                 LIMIT 1
                 """,
-            (rs, rowNum) -> {
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("activeVersion", rs.getLong("catalog_version"));
-                row.put("deploymentState", rs.getString("deployment_state"));
-                row.put("allowNewMatches", rs.getBoolean("allow_new_matches"));
-                row.put("allowExistingMatches", rs.getBoolean("allow_existing_matches"));
-                row.put("activatedAt", rs.getObject("activated_at", OffsetDateTime.class));
-                return row;
-            }
+            (rs, rowNum) -> new ActiveCatalogRow(
+                rs.getLong("catalog_version"),
+                rs.getString("deployment_state"),
+                rs.getBoolean("allow_new_matches"),
+                rs.getBoolean("allow_existing_matches"),
+                rs.getObject("activated_at", OffsetDateTime.class)
+            )
         );
-        return rows.isEmpty() ? Map.of() : rows.getFirst();
+        return rows.stream().findFirst();
     }
 
     public Map<String, Long> outboxStatusCounts() {
@@ -751,43 +821,4 @@ public class AdminRepository extends JdbcRepository {
         return count == null ? 0 : count;
     }
 
-    private Map<String, Object> playerRow(UUID playerId, String loginName, String status, Long accessRevision) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("playerId", playerId);
-        row.put("loginName", loginName);
-        row.put("status", status);
-        row.put("accessRevision", accessRevision);
-        return row;
-    }
-
-    private Map<String, Object> accessRow(
-        String itemId,
-        long catalogVersion,
-        boolean hidden,
-        boolean lockedInShop,
-        boolean lockedByQuest,
-        boolean disabled,
-        String disabledReason,
-        String unlockHintCode,
-        OffsetDateTime updatedAt,
-        long accessRevision,
-        boolean catalogEnabled
-    ) {
-        boolean playerCanUse = !hidden && !lockedInShop && !lockedByQuest && !disabled;
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("itemId", itemId);
-        row.put("catalogVersion", catalogVersion);
-        row.put("isHidden", hidden);
-        row.put("isLockedInShop", lockedInShop);
-        row.put("isLockedByQuest", lockedByQuest);
-        row.put("isDisabled", disabled);
-        row.put("disabledReason", disabledReason);
-        row.put("unlockHintCode", unlockHintCode);
-        row.put("updatedAt", updatedAt);
-        row.put("accessRevision", accessRevision);
-        row.put("catalogEnabled", catalogEnabled);
-        row.put("playerCanUse", playerCanUse);
-        row.put("effectiveCanUse", catalogEnabled && playerCanUse);
-        return row;
-    }
 }

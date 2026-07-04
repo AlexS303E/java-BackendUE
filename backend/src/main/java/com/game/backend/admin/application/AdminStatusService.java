@@ -79,7 +79,9 @@ public class AdminStatusService {
             "databaseOk", databaseOk(),
             "redisOk", redisOk()
         ));
-        response.put("catalog", repository.activeCatalog());
+        response.put("catalog", repository.activeCatalog()
+            .map(AdminStatusService::activeCatalogResponse)
+            .orElseGet(Map::of));
         response.put("runtime", Map.of(
             "runningMatches", repository.countRunningMatches(),
             "runtimeConflicts", repository.countPendingRuntimeConflicts()
@@ -99,14 +101,14 @@ public class AdminStatusService {
     public List<AdminMatchStatus> matches() {
         return repository.listMatches(DASHBOARD_LIST_LIMIT)
             .stream()
-            .map(AdminMatchStatus::new)
+            .map(AdminMatchStatus::from)
             .toList();
     }
 
     public List<AdminAuditStatusEvent> recentAudit() {
         return repository.listRecentAuditEvents(DASHBOARD_LIST_LIMIT)
             .stream()
-            .map(AdminAuditStatusEvent::new)
+            .map(AdminAuditStatusEvent::from)
             .toList();
     }
 
@@ -120,18 +122,18 @@ public class AdminStatusService {
         if (playerId != null) {
             return repository.findPlayer(playerId)
                 .stream()
-                .map(AdminPlayerSearchResult::new)
+                .map(AdminPlayerSearchResult::from)
                 .toList();
         }
 
         return repository.searchPlayersByLogin(trimmed, PLAYER_SEARCH_LIMIT)
             .stream()
-            .map(AdminPlayerSearchResult::new)
+            .map(AdminPlayerSearchResult::from)
             .toList();
     }
 
     public AdminWeaponAccessStatus weaponAccess(UUID playerId, String weaponId, long catalogVersion) {
-        List<Map<String, Object>> rows = repository.findWeaponAccess(playerId, weaponId, catalogVersion);
+        List<AdminRepository.WeaponAccessStatusRow> rows = repository.findWeaponAccess(playerId, weaponId, catalogVersion);
         if (rows.isEmpty()) {
             throw new ApiException(HttpStatus.NOT_FOUND, "ACCESS_ITEM_NOT_FOUND", "Weapon access state was not found");
         }
@@ -141,7 +143,7 @@ public class AdminStatusService {
     public List<AdminWeaponAccessAuditEvent> weaponAccessAudit(UUID playerId, String weaponId, long catalogVersion) {
         return repository.listWeaponAccessAudit(playerId, weaponId, catalogVersion, DASHBOARD_LIST_LIMIT)
             .stream()
-            .map(AdminWeaponAccessAuditEvent::new)
+            .map(AdminWeaponAccessAuditEvent::from)
             .toList();
     }
 
@@ -197,21 +199,29 @@ public class AdminStatusService {
         return remainingSeconds + "s";
     }
 
-    private AdminServerStatus serverStatusRow(Map<String, Object> source, OffsetDateTime now) {
-        Map<String, Object> row = new LinkedHashMap<>(source);
-        OffsetDateTime expiresAt = (OffsetDateTime) row.get("expiresAt");
-        OffsetDateTime revokedAt = (OffsetDateTime) row.get("revokedAt");
-        String status = (String) row.get("status");
+    private AdminServerStatus serverStatusRow(AdminRepository.ServerStatusRow source, OffsetDateTime now) {
+        OffsetDateTime expiresAt = source.expiresAt();
+        OffsetDateTime revokedAt = source.revokedAt();
+        String status = source.status();
 
         boolean revoked = revokedAt != null || "revoked".equals(status);
         boolean expired = expiresAt == null || !expiresAt.isAfter(now) || "expired".equals(status);
         boolean expiresSoon = !expired && Duration.between(now, expiresAt).compareTo(CERTIFICATE_EXPIRY_WARNING_WINDOW) <= 0;
 
-        row.put("revoked", revoked);
-        row.put("certificateExpired", expired);
-        row.put("certificateExpiresSoon", expiresSoon);
-        row.put("effectiveAuthState", effectiveAuthState(status, revoked, expired, expiresSoon));
-        return new AdminServerStatus(row);
+        return new AdminServerStatus(
+            source.serverId(),
+            source.realmId(),
+            source.serverBuildId(),
+            status,
+            source.allowedScopes(),
+            source.createdAt(),
+            expiresAt,
+            revokedAt,
+            revoked,
+            expired,
+            expiresSoon,
+            effectiveAuthState(status, revoked, expired, expiresSoon)
+        );
     }
 
     private OffsetDateTime now() {
@@ -240,33 +250,168 @@ public class AdminStatusService {
         }
     }
 
-    public record AdminServerStatus(Map<String, Object> values) {
+    public record AdminServerStatus(
+        UUID serverId,
+        String realmId,
+        String serverBuildId,
+        String status,
+        List<String> allowedScopes,
+        OffsetDateTime createdAt,
+        OffsetDateTime expiresAt,
+        OffsetDateTime revokedAt,
+        boolean revoked,
+        boolean certificateExpired,
+        boolean certificateExpiresSoon,
+        String effectiveAuthState
+    ) {
         public Map<String, Object> asResponse() {
-            return values;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("serverId", serverId);
+            row.put("realmId", realmId);
+            row.put("serverBuildId", serverBuildId);
+            row.put("status", status);
+            row.put("allowedScopes", allowedScopes);
+            row.put("createdAt", createdAt);
+            row.put("expiresAt", expiresAt);
+            row.put("revokedAt", revokedAt);
+            row.put("revoked", revoked);
+            row.put("certificateExpired", certificateExpired);
+            row.put("certificateExpiresSoon", certificateExpiresSoon);
+            row.put("effectiveAuthState", effectiveAuthState);
+            return row;
         }
     }
 
-    public record AdminMatchStatus(Map<String, Object> values) {
+    public record AdminMatchStatus(
+        UUID matchId,
+        UUID serverId,
+        String realmId,
+        String status,
+        OffsetDateTime createdAt,
+        OffsetDateTime finishedAt
+    ) {
+        private static AdminMatchStatus from(AdminRepository.MatchStatusRow row) {
+            return new AdminMatchStatus(
+                row.matchId(),
+                row.serverId(),
+                row.realmId(),
+                row.status(),
+                row.createdAt(),
+                row.finishedAt()
+            );
+        }
+
         public Map<String, Object> asResponse() {
-            return values;
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("matchId", matchId);
+            response.put("serverId", serverId);
+            response.put("realmId", realmId);
+            response.put("status", status);
+            response.put("createdAt", createdAt);
+            response.put("finishedAt", finishedAt);
+            return response;
         }
     }
 
-    public record AdminAuditStatusEvent(Map<String, Object> values) {
+    public record AdminAuditStatusEvent(
+        UUID eventId,
+        String actorId,
+        String action,
+        String targetType,
+        String targetId,
+        String result,
+        OffsetDateTime createdAt
+    ) {
+        private static AdminAuditStatusEvent from(AdminRepository.RecentAuditEventRow row) {
+            return new AdminAuditStatusEvent(
+                row.eventId(),
+                row.actorId(),
+                row.action(),
+                row.targetType(),
+                row.targetId(),
+                row.result(),
+                row.createdAt()
+            );
+        }
+
         public Map<String, Object> asResponse() {
-            return values;
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("eventId", eventId);
+            response.put("actorId", actorId);
+            response.put("action", action);
+            response.put("targetType", targetType);
+            response.put("targetId", targetId);
+            response.put("result", result);
+            response.put("createdAt", createdAt);
+            return response;
         }
     }
 
-    public record AdminPlayerSearchResult(Map<String, Object> values) {
+    public record AdminPlayerSearchResult(
+        UUID playerId,
+        String loginName,
+        String status,
+        Long accessRevision
+    ) {
+        private static AdminPlayerSearchResult from(AdminRepository.PlayerSearchRow row) {
+            return new AdminPlayerSearchResult(
+                row.playerId(),
+                row.loginName(),
+                row.status(),
+                row.accessRevision()
+            );
+        }
+
         public Map<String, Object> asResponse() {
-            return values;
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("playerId", playerId);
+            response.put("loginName", loginName);
+            response.put("status", status);
+            response.put("accessRevision", accessRevision);
+            return response;
         }
     }
 
-    public record AdminWeaponAccessAuditEvent(Map<String, Object> values) {
+    public record AdminWeaponAccessAuditEvent(
+        UUID ledgerEventId,
+        String eventType,
+        String action,
+        String sourceType,
+        String sourceRef,
+        String actorType,
+        String actorId,
+        String result,
+        String payload,
+        OffsetDateTime createdAt
+    ) {
+        private static AdminWeaponAccessAuditEvent from(AdminRepository.WeaponAccessAuditRow row) {
+            return new AdminWeaponAccessAuditEvent(
+                row.ledgerEventId(),
+                row.eventType(),
+                row.action(),
+                row.sourceType(),
+                row.sourceRef(),
+                row.actorType(),
+                row.actorId(),
+                row.result(),
+                row.payload(),
+                row.createdAt()
+            );
+        }
+
         public Map<String, Object> asResponse() {
-            return values;
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("ledgerEventId", ledgerEventId);
+            response.put("eventType", eventType);
+            response.put("action", action);
+            response.put("sourceType", sourceType);
+            response.put("sourceRef", sourceRef);
+            response.put("actorType", actorType);
+            response.put("actorId", actorId);
+            response.put("result", result);
+            response.put("payload", payload);
+            response.put("createdAt", createdAt);
+            return response;
         }
     }
 
@@ -285,21 +430,22 @@ public class AdminStatusService {
         boolean playerCanUse,
         boolean effectiveCanUse
     ) {
-        private static AdminWeaponAccessStatus from(Map<String, Object> row) {
+        private static AdminWeaponAccessStatus from(AdminRepository.WeaponAccessStatusRow row) {
+            boolean playerCanUse = !row.hidden() && !row.lockedInShop() && !row.lockedByQuest() && !row.disabled();
             return new AdminWeaponAccessStatus(
-                (String) row.get("itemId"),
-                ((Number) row.get("catalogVersion")).longValue(),
-                Boolean.TRUE.equals(row.get("isHidden")),
-                Boolean.TRUE.equals(row.get("isLockedInShop")),
-                Boolean.TRUE.equals(row.get("isLockedByQuest")),
-                Boolean.TRUE.equals(row.get("isDisabled")),
-                (String) row.get("disabledReason"),
-                (String) row.get("unlockHintCode"),
-                (OffsetDateTime) row.get("updatedAt"),
-                ((Number) row.get("accessRevision")).longValue(),
-                Boolean.TRUE.equals(row.get("catalogEnabled")),
-                Boolean.TRUE.equals(row.get("playerCanUse")),
-                Boolean.TRUE.equals(row.get("effectiveCanUse"))
+                row.itemId(),
+                row.catalogVersion(),
+                row.hidden(),
+                row.lockedInShop(),
+                row.lockedByQuest(),
+                row.disabled(),
+                row.disabledReason(),
+                row.unlockHintCode(),
+                row.updatedAt(),
+                row.accessRevision(),
+                row.catalogEnabled(),
+                playerCanUse,
+                row.catalogEnabled() && playerCanUse
             );
         }
 
@@ -320,5 +466,15 @@ public class AdminStatusService {
             row.put("effectiveCanUse", effectiveCanUse);
             return row;
         }
+    }
+
+    private static Map<String, Object> activeCatalogResponse(AdminRepository.ActiveCatalogRow row) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("activeVersion", row.activeVersion());
+        response.put("deploymentState", row.deploymentState());
+        response.put("allowNewMatches", row.allowNewMatches());
+        response.put("allowExistingMatches", row.allowExistingMatches());
+        response.put("activatedAt", row.activatedAt());
+        return response;
     }
 }

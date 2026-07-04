@@ -79,7 +79,9 @@ class RedisDegradationTest {
     void adminOverviewShouldReportRedisDownWithoutFailingDashboard() {
         AdminRepository repository = mock(AdminRepository.class);
         when(repository.databasePingOk()).thenReturn(true);
-        when(repository.activeCatalog()).thenReturn(Map.of("activeVersion", 1L));
+        when(repository.activeCatalog()).thenReturn(Optional.of(
+            new AdminRepository.ActiveCatalogRow(1L, "active", true, true, null)
+        ));
         when(repository.countRunningMatches()).thenReturn(2L);
         when(repository.countPendingRuntimeConflicts()).thenReturn(1L);
         when(repository.outboxStatusCounts()).thenReturn(Map.of(

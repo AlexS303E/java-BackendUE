@@ -499,3 +499,11 @@ Goal: remove raw dashboard response maps from the public `AdminStatusService` AP
 - [x] Return typed application status records from overview, list, search, and weapon access methods.
 - [x] Map typed status records back to legacy JSON envelopes in `AdminStatusController`.
 - [x] Add an architecture guard against top-level application service methods exposing raw response maps.
+
+## Block 62 - Admin status repository row typing
+
+Goal: remove raw dashboard row maps from `AdminRepository` query APIs while preserving existing admin JSON responses.
+
+- [x] Return typed repository row records for dashboard servers, matches, audit events, players, weapon access, and active catalog.
+- [x] Move derived dashboard response maps into `AdminStatusService` response adapters.
+- [x] Add an architecture guard against repository components exposing raw `Map<String, Object>` row APIs.

@@ -12,9 +12,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,7 +34,7 @@ class AdminStatusServiceTest {
     @Test
     void overviewShouldUseOnlyLightweightAggregateQueriesForPolling() {
         when(repository.databasePingOk()).thenReturn(true);
-        when(repository.activeCatalog()).thenReturn(Map.of("activeVersion", 1L));
+        when(repository.activeCatalog()).thenReturn(Optional.of(activeCatalogRow()));
         when(repository.countRunningMatches()).thenReturn(2L);
         when(repository.countPendingRuntimeConflicts()).thenReturn(1L);
         when(repository.outboxStatusCounts()).thenReturn(Map.of(
@@ -69,7 +69,7 @@ class AdminStatusServiceTest {
             Duration.ofSeconds(5)
         );
         when(repository.databasePingOk()).thenReturn(true);
-        when(repository.activeCatalog()).thenReturn(Map.of("activeVersion", 1L));
+        when(repository.activeCatalog()).thenReturn(Optional.of(activeCatalogRow()));
         when(repository.countRunningMatches()).thenReturn(2L, 9L);
         when(repository.countPendingRuntimeConflicts()).thenReturn(1L);
         when(repository.outboxStatusCounts()).thenReturn(Map.of(
@@ -153,17 +153,21 @@ class AdminStatusServiceTest {
         return redisTemplate;
     }
 
-    private Map<String, Object> serverRow(String status, OffsetDateTime expiresAt, OffsetDateTime revokedAt) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("serverId", UUID.randomUUID());
-        row.put("realmId", "global");
-        row.put("serverBuildId", "dev-build");
-        row.put("status", status);
-        row.put("allowedScopes", List.of("runtime_event:write"));
-        row.put("createdAt", OffsetDateTime.now().minusDays(1));
-        row.put("expiresAt", expiresAt);
-        row.put("revokedAt", revokedAt);
-        return row;
+    private AdminRepository.ServerStatusRow serverRow(String status, OffsetDateTime expiresAt, OffsetDateTime revokedAt) {
+        return new AdminRepository.ServerStatusRow(
+            UUID.randomUUID(),
+            "global",
+            "dev-build",
+            status,
+            List.of("runtime_event:write"),
+            OffsetDateTime.now().minusDays(1),
+            expiresAt,
+            revokedAt
+        );
+    }
+
+    private AdminRepository.ActiveCatalogRow activeCatalogRow() {
+        return new AdminRepository.ActiveCatalogRow(1L, "active", true, true, OffsetDateTime.now());
     }
 
     private static final class MutableClock extends Clock {

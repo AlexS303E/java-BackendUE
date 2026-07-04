@@ -86,6 +86,24 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void repositoryComponentsShouldExposeTypedRowsInsteadOfRawObjectMaps() throws IOException {
+        List<Path> repositoryRoots = packageRoots("repository");
+
+        assertThat(repositoryRoots)
+            .as("Architecture guard must discover repository packages automatically")
+            .isNotEmpty();
+
+        List<Path> offenders = filesUnder(repositoryRoots).stream()
+            .filter(ArchitectureBoundaryTest::isRepositoryComponent)
+            .filter(ArchitectureBoundaryTest::exposesRawObjectMapFromTopLevelPublicMethod)
+            .toList();
+
+        assertThat(offenders)
+            .as("Repository query APIs should expose typed row records instead of raw Map<String, Object> rows")
+            .isEmpty();
+    }
+
+    @Test
     void webControllersShouldOnlyLiveInApiPackages() throws IOException {
         Path sourceRoot = Path.of("src/main/java/com/game/backend");
         List<Path> offenders;
@@ -459,6 +477,20 @@ class ArchitectureBoundaryTest {
     }
 
     private static boolean exposesRawMapFromTopLevelPublicMethod(Path path) {
+        try {
+            return Files.readString(path)
+                .lines()
+                .map(String::stripTrailing)
+                .anyMatch(line -> line.startsWith("    public Map<String, Object>")
+                    || line.startsWith("    public List<Map<String, Object>>")
+                    || line.startsWith("    protected Map<String, Object>")
+                    || line.startsWith("    protected List<Map<String, Object>>"));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean exposesRawObjectMapFromTopLevelPublicMethod(Path path) {
         try {
             return Files.readString(path)
                 .lines()
