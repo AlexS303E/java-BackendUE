@@ -6,8 +6,6 @@ import com.game.backend.outbox.application.OutboxEventHandler;
 import com.game.backend.outbox.application.OutboxPayloadParser;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
-
 @Component
 public class CatalogRolledBackHandler implements OutboxEventHandler {
     private final OutboxPayloadParser payloadParser;
@@ -28,8 +26,7 @@ public class CatalogRolledBackHandler implements OutboxEventHandler {
 
     @Override
     public void handle(OutboxEvent event) {
-        Map<String, Object> payload = payloadParser.parseRequired(event);
-        String realmId = payloadParser.stringRequired(event, payload, "realm_id");
+        String realmId = payloadParser.stringRequired(event, "realm_id");
         cacheService.evictCatalogSnapshots(realmId);
         cacheService.evictCatalogAllowsNewMatches(realmId);
     }

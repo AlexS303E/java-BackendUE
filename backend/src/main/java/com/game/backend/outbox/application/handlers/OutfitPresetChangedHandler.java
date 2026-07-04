@@ -7,7 +7,6 @@ import com.game.backend.outbox.application.OutboxPayloadParser;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
-import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -30,8 +29,7 @@ public class OutfitPresetChangedHandler implements OutboxEventHandler {
 
     @Override
     public void handle(OutboxEvent event) {
-        Map<String, Object> payload = payloadParser.parseRequired(event);
-        UUID playerId = payloadParser.playerIdRequired(event, payload);
+        UUID playerId = payloadParser.playerIdRequired(event);
         invalidationService.invalidateForPlayer(playerId, "preset_updated", event.eventId(), OffsetDateTime.now());
     }
 }

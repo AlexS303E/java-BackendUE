@@ -6,7 +6,6 @@ import com.game.backend.outbox.application.OutboxEventHandler;
 import com.game.backend.outbox.application.OutboxPayloadParser;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -29,8 +28,7 @@ public class PlayerCacheInvalidatedHandler implements OutboxEventHandler {
 
     @Override
     public void handle(OutboxEvent event) {
-        Map<String, Object> payload = payloadParser.parseRequired(event);
-        UUID playerId = payloadParser.playerIdRequired(event, payload);
+        UUID playerId = payloadParser.playerIdRequired(event);
         cacheService.evictPlayerAccess(playerId);
     }
 }

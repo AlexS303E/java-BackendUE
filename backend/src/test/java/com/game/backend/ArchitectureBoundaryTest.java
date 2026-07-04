@@ -275,6 +275,28 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void outboxHandlersShouldUseTypedPayloadParserAccessors() throws IOException {
+        Path handlersRoot = Path.of("src/main/java/com/game/backend/outbox/application/handlers");
+
+        assertThat(handlersRoot)
+            .as("Outbox handler package must exist")
+            .isDirectory();
+
+        List<Path> offenders;
+        try (var paths = Files.walk(handlersRoot)) {
+            offenders = paths
+                .filter(Files::isRegularFile)
+                .filter(path -> path.toString().endsWith(".java"))
+                .filter(ArchitectureBoundaryTest::usesRawOutboxPayloadMap)
+                .toList();
+        }
+
+        assertThat(offenders)
+            .as("Outbox handlers should use typed OutboxPayloadParser accessors instead of raw payload maps")
+            .isEmpty();
+    }
+
+    @Test
     void everyRepositoryPackageShouldStayIndependentFromApiContracts() throws IOException {
         List<Path> repositoryRoots = packageRoots("repository");
 
@@ -510,6 +532,16 @@ class ArchitectureBoundaryTest {
     private static boolean ownsTransportResponseMapper(Path path) {
         try {
             return Files.readString(path).contains("asResponse()");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean usesRawOutboxPayloadMap(Path path) {
+        try {
+            String source = Files.readString(path);
+            return source.contains("Map<String, Object>")
+                || source.contains("parseRequired(event)");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

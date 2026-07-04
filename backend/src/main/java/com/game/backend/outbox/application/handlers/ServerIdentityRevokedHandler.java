@@ -20,6 +20,6 @@ public class ServerIdentityRevokedHandler implements OutboxEventHandler {
 
     @Override
     public void handle(OutboxEvent event) {
-        payloadParser.parseRequired(event);
+        payloadParser.validateRequired(event);
     }
 }

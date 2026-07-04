@@ -515,3 +515,11 @@ Goal: move admin status JSON response mapping out of application records and bac
 - [x] Replace `AdminOverview` raw response map with typed overview records.
 - [x] Remove `asResponse()` transport helpers from admin status application records.
 - [x] Map typed admin status records to legacy JSON only inside `AdminStatusController`.
+
+## Block 64 - Outbox handler payload parser boundary
+
+Goal: keep raw outbox JSON payload maps inside the parser instead of leaking them into event handlers.
+
+- [x] Add typed `OutboxPayloadParser` accessors for required player id, string fields, and payload validation.
+- [x] Update outbox handlers to use parser accessors instead of local `Map<String, Object>` payloads.
+- [x] Add an architecture guard that prevents handlers from calling raw payload parsing directly.

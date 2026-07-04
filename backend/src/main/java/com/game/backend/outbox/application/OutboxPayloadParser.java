@@ -17,7 +17,19 @@ public class OutboxPayloadParser {
         this.objectMapper = objectMapper;
     }
 
-    public Map<String, Object> parseRequired(OutboxEvent event) {
+    public void validateRequired(OutboxEvent event) {
+        parseRequired(event);
+    }
+
+    public UUID playerIdRequired(OutboxEvent event) {
+        return playerIdRequired(event, parseRequired(event));
+    }
+
+    public String stringRequired(OutboxEvent event, String fieldName) {
+        return stringRequired(event, parseRequired(event), fieldName);
+    }
+
+    private Map<String, Object> parseRequired(OutboxEvent event) {
         String payload = event.payload();
         if (payload == null || payload.isBlank()) {
             throw new RuntimeException("Missing payload for event " + event.eventId());
@@ -29,7 +41,7 @@ public class OutboxPayloadParser {
         }
     }
 
-    public UUID playerIdRequired(OutboxEvent event, Map<String, Object> payload) {
+    private UUID playerIdRequired(OutboxEvent event, Map<String, Object> payload) {
         Object raw = payload.get("player_id");
         if (raw instanceof UUID uuid) {
             return uuid;
@@ -44,7 +56,7 @@ public class OutboxPayloadParser {
         throw new RuntimeException("Missing player_id in event " + event.eventId());
     }
 
-    public String stringRequired(OutboxEvent event, Map<String, Object> payload, String fieldName) {
+    private String stringRequired(OutboxEvent event, Map<String, Object> payload, String fieldName) {
         Object raw = payload.get(fieldName);
         if (raw instanceof String value && !value.isBlank()) {
             return value;

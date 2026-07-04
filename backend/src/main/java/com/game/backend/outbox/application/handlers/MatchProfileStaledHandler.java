@@ -25,7 +25,7 @@ public class MatchProfileStaledHandler implements OutboxEventHandler {
     @Override
     public void handle(OutboxEvent event) {
         try {
-            payloadParser.parseRequired(event);
+            payloadParser.validateRequired(event);
         } catch (RuntimeException exception) {
             log.warn("Ignoring malformed notification-like outbox event event_id={} event_type={}: {}",
                 event.eventId(), event.eventType(), exception.getMessage());
