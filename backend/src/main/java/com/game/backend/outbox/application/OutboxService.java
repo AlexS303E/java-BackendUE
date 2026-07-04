@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -43,6 +44,63 @@ public class OutboxService {
             aggregateId,
             toJson(payload),
             payloadSchemaVersion,
+            now
+        );
+    }
+
+    public void recordPlayerAccessChanged(
+        UUID playerId,
+        String itemId,
+        long catalogVersion,
+        long accessRevision,
+        UUID ledgerEventId,
+        String actorId,
+        String source,
+        OffsetDateTime now
+    ) {
+        record(
+            "player_access.changed",
+            "player_access",
+            playerId.toString(),
+            1,
+            Map.of(
+                "player_id", playerId,
+                "item_id", itemId,
+                "catalog_version", catalogVersion,
+                "access_revision", accessRevision,
+                "ledger_event_id", ledgerEventId,
+                "actor_id", actorId,
+                "source", source
+            ),
+            now
+        );
+    }
+
+    public void recordMatchProfileStaled(
+        UUID playerId,
+        Long catalogVersion,
+        String staleReason,
+        int staleProfiles,
+        UUID sourceEventId,
+        String source,
+        OffsetDateTime now
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("player_id", playerId);
+        if (catalogVersion != null) {
+            payload.put("catalog_version", catalogVersion);
+        }
+        payload.put("stale_reason", staleReason);
+        payload.put("stale_profiles", staleProfiles);
+        payload.put("source_event_id", sourceEventId);
+        payload.put("source", source);
+
+        record(
+            "match_profile.staled",
+            "player_match_profile",
+            playerId.toString(),
+            1,
+            payload,
             now
         );
     }

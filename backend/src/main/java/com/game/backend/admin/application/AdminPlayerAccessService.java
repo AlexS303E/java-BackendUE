@@ -292,20 +292,14 @@ public class AdminPlayerAccessService {
         UUID ledgerEventId,
         OffsetDateTime now
     ) {
-        outboxService.record(
-            "player_access.changed",
-            "player_access",
-            playerId.toString(),
-            1,
-            Map.of(
-                "player_id", playerId,
-                "item_id", itemId,
-                "catalog_version", request.catalogVersion(),
-                "access_revision", accessRevision,
-                "ledger_event_id", ledgerEventId,
-                "actor_id", admin.actorId(),
-                "source", "admin"
-            ),
+        outboxService.recordPlayerAccessChanged(
+            playerId,
+            itemId,
+            request.catalogVersion(),
+            accessRevision,
+            ledgerEventId,
+            admin.actorId(),
+            "admin",
             now
         );
     }

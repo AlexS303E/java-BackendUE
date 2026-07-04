@@ -523,3 +523,11 @@ Goal: keep raw outbox JSON payload maps inside the parser instead of leaking the
 - [x] Add typed `OutboxPayloadParser` accessors for required player id, string fields, and payload validation.
 - [x] Update outbox handlers to use parser accessors instead of local `Map<String, Object>` payloads.
 - [x] Add an architecture guard that prevents handlers from calling raw payload parsing directly.
+
+## Block 65 - Typed outbox recording for access invalidation
+
+Goal: stop high-traffic access and match-profile invalidation events from being recorded through generic payload maps.
+
+- [x] Add typed `OutboxService` methods for `player_access.changed` and `match_profile.staled`.
+- [x] Update admin access and match-profile invalidation services to use typed outbox recording.
+- [x] Add an architecture guard that blocks these typed events from going through generic `outboxService.record(...)` calls.

@@ -297,6 +297,23 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void typedOutboxEventsShouldNotBeRecordedThroughGenericPayloadMaps() throws IOException {
+        Path sourceRoot = Path.of("src/main/java/com/game/backend");
+        List<Path> offenders;
+        try (var paths = Files.walk(sourceRoot)) {
+            offenders = paths
+                .filter(Files::isRegularFile)
+                .filter(path -> path.toString().endsWith(".java"))
+                .filter(ArchitectureBoundaryTest::recordsTypedOutboxEventThroughGenericMap)
+                .toList();
+        }
+
+        assertThat(offenders)
+            .as("Outbox events with typed service methods should not be recorded through generic payload maps")
+            .isEmpty();
+    }
+
+    @Test
     void everyRepositoryPackageShouldStayIndependentFromApiContracts() throws IOException {
         List<Path> repositoryRoots = packageRoots("repository");
 
@@ -542,6 +559,21 @@ class ArchitectureBoundaryTest {
             String source = Files.readString(path);
             return source.contains("Map<String, Object>")
                 || source.contains("parseRequired(event)");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean recordsTypedOutboxEventThroughGenericMap(Path path) {
+        String normalized = path.toString().replace('\\', '/');
+        if (normalized.endsWith("/outbox/application/OutboxService.java")) {
+            return false;
+        }
+        try {
+            String source = Files.readString(path);
+            return source.contains("outboxService.record(")
+                && (source.contains("\"player_access.changed\"")
+                    || source.contains("\"match_profile.staled\""));
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -41,19 +40,13 @@ public class MatchProfileInvalidationService {
         );
 
         if (!staleProfiles.isEmpty()) {
-            outboxService.record(
-                "match_profile.staled",
-                "player_match_profile",
-                playerId.toString(),
-                1,
-                Map.of(
-                    "player_id", playerId,
-                    "catalog_version", catalogVersion,
-                    "stale_reason", staleReason,
-                    "stale_profiles", staleProfiles.size(),
-                    "source_event_id", sourceEventId,
-                    "source", "access_change"
-                ),
+            outboxService.recordMatchProfileStaled(
+                playerId,
+                catalogVersion,
+                staleReason,
+                staleProfiles.size(),
+                sourceEventId,
+                "access_change",
                 now
             );
         }
@@ -76,18 +69,13 @@ public class MatchProfileInvalidationService {
         );
 
         if (!staleProfileIds.isEmpty()) {
-            outboxService.record(
-                "match_profile.staled",
-                "player_match_profile",
-                playerId.toString(),
-                1,
-                Map.of(
-                    "player_id", playerId,
-                    "stale_reason", staleReason,
-                    "stale_profiles", staleProfileIds.size(),
-                    "source_event_id", sourceEventId,
-                    "source", "admin_control"
-                ),
+            outboxService.recordMatchProfileStaled(
+                playerId,
+                null,
+                staleReason,
+                staleProfileIds.size(),
+                sourceEventId,
+                "admin_control",
                 now
             );
         }
