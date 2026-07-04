@@ -59,4 +59,28 @@ class OutboxServiceTest {
         assertThat(json.path("migrated_access_players").asInt()).isEqualTo(5);
         assertThat(json.path("stale_match_profiles").asInt()).isEqualTo(6);
     }
+
+    @Test
+    void playerCacheInvalidatedRecorderShouldPersistExpectedPayloadShape() throws Exception {
+        UUID playerId = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.parse("2026-07-04T12:10:00Z");
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+
+        service.recordPlayerCacheInvalidated(playerId, 7, "admin:test", "manual", now);
+
+        verify(repository).insertPendingEvent(
+            any(UUID.class),
+            eq("player_cache.invalidated"),
+            eq("player"),
+            eq(playerId.toString()),
+            payload.capture(),
+            eq(1),
+            eq(now)
+        );
+        JsonNode json = objectMapper.readTree(payload.getValue());
+        assertThat(json.path("player_id").asText()).isEqualTo(playerId.toString());
+        assertThat(json.path("stale_match_profiles").asInt()).isEqualTo(7);
+        assertThat(json.path("actor_id").asText()).isEqualTo("admin:test");
+        assertThat(json.path("reason").asText()).isEqualTo("manual");
+    }
 }

@@ -231,6 +231,78 @@ public class OutboxService {
         );
     }
 
+    public void recordAccessProjectionRebuilt(
+        UUID playerId,
+        long accessRevision,
+        int itemsRebuilt,
+        int ledgerEventsApplied,
+        int staleMatchProfiles,
+        String actorId,
+        String reason,
+        OffsetDateTime now
+    ) {
+        record(
+            "player_access.projection_rebuilt",
+            "player_access",
+            playerId.toString(),
+            1,
+            Map.of(
+                "player_id", playerId,
+                "access_revision", accessRevision,
+                "items_rebuilt", itemsRebuilt,
+                "ledger_events_applied", ledgerEventsApplied,
+                "stale_match_profiles", staleMatchProfiles,
+                "actor_id", actorId,
+                "reason", reason
+            ),
+            now
+        );
+    }
+
+    public void recordPlayerCacheInvalidated(
+        UUID playerId,
+        int staleMatchProfiles,
+        String actorId,
+        String reason,
+        OffsetDateTime now
+    ) {
+        record(
+            "player_cache.invalidated",
+            "player",
+            playerId.toString(),
+            1,
+            Map.of(
+                "player_id", playerId,
+                "stale_match_profiles", staleMatchProfiles,
+                "actor_id", actorId,
+                "reason", reason
+            ),
+            now
+        );
+    }
+
+    public void recordServerIdentityRevoked(
+        UUID serverId,
+        boolean updated,
+        String actorId,
+        String reason,
+        OffsetDateTime now
+    ) {
+        record(
+            "server_identity.revoked",
+            "server_identity",
+            serverId.toString(),
+            1,
+            Map.of(
+                "server_id", serverId,
+                "updated", updated,
+                "actor_id", actorId,
+                "reason", reason
+            ),
+            now
+        );
+    }
+
     private Map<String, Object> presetSanitizedPayload(
         UUID playerId,
         String classTag,

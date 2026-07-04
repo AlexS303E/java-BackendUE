@@ -547,3 +547,11 @@ Goal: move catalog publish/rollback outbox payload creation behind a typed `Outb
 - [x] Add a typed catalog lifecycle outbox recorder for publish and rollback events.
 - [x] Update `CatalogLifecycleService` to use typed catalog outbox recording.
 - [x] Extend the typed outbox guard to block catalog lifecycle events from generic `outboxService.record(...)` calls.
+
+## Block 68 - Typed outbox recording for admin maintenance
+
+Goal: move admin maintenance outbox payload creation behind typed `OutboxService` methods.
+
+- [x] Add typed outbox recorders for projection rebuild, player cache invalidation, and server identity revoke events.
+- [x] Update `AdminAccessMaintenanceService` to use typed maintenance outbox recording.
+- [x] Extend the typed outbox guard to block maintenance events from generic `outboxService.record(...)` calls.

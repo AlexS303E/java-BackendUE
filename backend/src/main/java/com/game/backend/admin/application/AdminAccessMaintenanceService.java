@@ -134,20 +134,14 @@ public class AdminAccessMaintenanceService {
             eventId,
             now
         );
-        outboxService.record(
-            "player_access.projection_rebuilt",
-            "player_access",
-            request.playerId().toString(),
-            1,
-            Map.of(
-                "player_id", request.playerId(),
-                "access_revision", nextRevision,
-                "items_rebuilt", projection.size(),
-                "ledger_events_applied", ledgerRows.size(),
-                "stale_match_profiles", staleProfiles,
-                "actor_id", admin.actorId(),
-                "reason", request.reason()
-            ),
+        outboxService.recordAccessProjectionRebuilt(
+            request.playerId(),
+            nextRevision,
+            projection.size(),
+            ledgerRows.size(),
+            staleProfiles,
+            admin.actorId(),
+            request.reason(),
             now
         );
         adminAuditService.record(
@@ -187,17 +181,11 @@ public class AdminAccessMaintenanceService {
             now
         );
         cacheService.evictPlayerAccess(request.playerId());
-        outboxService.record(
-            "player_cache.invalidated",
-            "player",
-            request.playerId().toString(),
-            1,
-            Map.of(
-                "player_id", request.playerId(),
-                "stale_match_profiles", staleProfiles,
-                "actor_id", admin.actorId(),
-                "reason", request.reason()
-            ),
+        outboxService.recordPlayerCacheInvalidated(
+            request.playerId(),
+            staleProfiles,
+            admin.actorId(),
+            request.reason(),
             now
         );
         adminAuditService.record(
@@ -220,17 +208,11 @@ public class AdminAccessMaintenanceService {
         }
         boolean updated = repository.revokeServerIdentity(request.serverId(), OffsetDateTime.now()) > 0;
         OffsetDateTime now = OffsetDateTime.now();
-        outboxService.record(
-            "server_identity.revoked",
-            "server_identity",
-            request.serverId().toString(),
-            1,
-            Map.of(
-                "server_id", request.serverId(),
-                "updated", updated,
-                "actor_id", admin.actorId(),
-                "reason", request.reason()
-            ),
+        outboxService.recordServerIdentityRevoked(
+            request.serverId(),
+            updated,
+            admin.actorId(),
+            request.reason(),
             now
         );
         adminAuditService.record(

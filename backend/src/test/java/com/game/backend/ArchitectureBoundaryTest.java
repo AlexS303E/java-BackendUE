@@ -578,7 +578,10 @@ class ArchitectureBoundaryTest {
                     || source.contains("\"weapon_preset.sanitized\"")
                     || source.contains("\"outfit_preset.sanitized\"")
                     || source.contains("\"catalog.publish\"")
-                    || source.contains("\"catalog.rollback\""));
+                    || source.contains("\"catalog.rollback\"")
+                    || source.contains("\"player_access.projection_rebuilt\"")
+                    || source.contains("\"player_cache.invalidated\"")
+                    || source.contains("\"server_identity.revoked\""));
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }
