@@ -16,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class OpenApiContractMatrixTest {
     private static final Path OPENAPI_ROOT = Path.of("..", "contracts", "openapi");
+    private static final Path PUBLIC_API = OPENAPI_ROOT.resolve("public-api.yaml");
     private static final Path ADMIN_API = OPENAPI_ROOT.resolve("admin-api.yaml");
     private static final Path SERVER_API = OPENAPI_ROOT.resolve("server-api.yaml");
     private static final Path MATRIX = Path.of("..", "docs", "openapi-contract-test-matrix.md");
@@ -179,6 +180,13 @@ class OpenApiContractMatrixTest {
             .containsAll(implementedOperations("/server/"));
     }
 
+    @Test
+    void publicOpenApiCoversEveryImplementedPublicRoute() throws IOException {
+        assertThat(openApiOperations(PUBLIC_API))
+            .as("contracts/openapi/public-api.yaml must list every literal /auth, /catalog, and /me controller mapping")
+            .containsAll(implementedOperations(Set.of("/auth/", "/catalog/", "/me/")));
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -200,6 +208,10 @@ class OpenApiContractMatrixTest {
     }
 
     private static Set<String> implementedOperations(String pathPrefix) throws IOException {
+        return implementedOperations(Set.of(pathPrefix));
+    }
+
+    private static Set<String> implementedOperations(Set<String> pathPrefixes) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         try (var files = Files.walk(BACKEND_JAVA_ROOT)) {
             for (Path file : files
@@ -209,13 +221,17 @@ class OpenApiContractMatrixTest {
                 .toList()) {
                 for (String line : Files.readAllLines(file)) {
                     Matcher matcher = SPRING_MAPPING.matcher(line);
-                    if (matcher.find() && matcher.group(2).startsWith(pathPrefix)) {
+                    if (matcher.find() && startsWithAny(matcher.group(2), pathPrefixes)) {
                         operations.add(matcher.group(1).toUpperCase(Locale.ROOT) + " " + matcher.group(2));
                     }
                 }
             }
         }
         return operations;
+    }
+
+    private static boolean startsWithAny(String path, Set<String> prefixes) {
+        return prefixes.stream().anyMatch(path::startsWith);
     }
 
     private static Set<String> matrixOperations() throws IOException {

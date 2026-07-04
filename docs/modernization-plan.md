@@ -587,3 +587,11 @@ Goal: move dedicated-server runtime event outbox payload creation behind a typed
 - [x] Add a typed outbox recorder for `server_runtime_event.recorded`.
 - [x] Update `RuntimeEventsService` to use typed runtime event outbox recording.
 - [x] Extend the typed outbox guard to block runtime event recording from generic `outboxService.record(...)` calls.
+
+## Block 73 - Stage 3 public OpenAPI route drift guard
+
+Goal: keep implemented public HTTP routes synchronized with `contracts/openapi/public-api.yaml`.
+
+- [x] Add a contract test that compares implemented `/auth`, `/catalog`, and `/me` controller mappings with public OpenAPI operations.
+- [x] Keep operational health routes outside the public API contract guard.
+- [x] Run the Stage 3 OpenAPI verifier after adding the guard.
