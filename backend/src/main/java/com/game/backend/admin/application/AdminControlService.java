@@ -2,8 +2,6 @@ package com.game.backend.admin.application;
 
 import com.game.backend.admin.repository.AdminRepository;
 
-import com.game.backend.admin.api.AdminControlReasonRequest;
-import com.game.backend.admin.api.AdminWeaponAccessControlRequest;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
 import org.springframework.http.HttpStatus;
@@ -57,7 +55,7 @@ public class AdminControlService {
         AdminIdentity admin,
         String idempotencyKey,
         UUID playerId,
-        AdminControlReasonRequest request
+        AdminControlReasonCommand request
     ) {
         Map<String, Object> idempotencyPayload = controlPayload("player_id", playerId, request);
         return idempotencyService.execute(
@@ -75,7 +73,7 @@ public class AdminControlService {
     protected Map<String, Object> invalidatePlayerCacheOnce(
         AdminIdentity admin,
         UUID playerId,
-        AdminControlReasonRequest request,
+        AdminControlReasonCommand request,
         String requestHash
     ) {
         OffsetDateTime now = OffsetDateTime.now();
@@ -108,7 +106,7 @@ public class AdminControlService {
         AdminIdentity admin,
         String idempotencyKey,
         UUID serverId,
-        AdminControlReasonRequest request
+        AdminControlReasonCommand request
     ) {
         Map<String, Object> idempotencyPayload = controlPayload("server_id", serverId, request);
         return idempotencyService.execute(
@@ -126,7 +124,7 @@ public class AdminControlService {
     protected Map<String, Object> revokeServerIdentityOnce(
         AdminIdentity admin,
         UUID serverId,
-        AdminControlReasonRequest request,
+        AdminControlReasonCommand request,
         String requestHash
     ) {
         int updated = repository.revokeServerIdentity(serverId, OffsetDateTime.now());
@@ -154,7 +152,7 @@ public class AdminControlService {
     public Map<String, Object> retryFailedOutbox(
         AdminIdentity admin,
         String idempotencyKey,
-        AdminControlReasonRequest request
+        AdminControlReasonCommand request
     ) {
         Map<String, Object> idempotencyPayload = controlPayload("action", "retry_failed", request);
         return idempotencyService.execute(
@@ -171,7 +169,7 @@ public class AdminControlService {
     @Transactional
     protected Map<String, Object> retryFailedOutboxOnce(
         AdminIdentity admin,
-        AdminControlReasonRequest request,
+        AdminControlReasonCommand request,
         String requestHash
     ) {
         OffsetDateTime now = OffsetDateTime.now();
@@ -195,7 +193,7 @@ public class AdminControlService {
         AdminIdentity admin,
         String idempotencyKey,
         UUID playerId,
-        AdminWeaponAccessControlRequest request
+        AdminWeaponAccessControlCommand request
     ) {
         Map<String, Object> current = adminStatusService.weaponAccess(playerId, request.weaponId(), request.catalogVersion());
         AccessFlags flags = AccessFlags.from(current);
@@ -241,7 +239,7 @@ public class AdminControlService {
             );
         }
 
-        AccessFlags apply(String action, AdminWeaponAccessControlRequest request) {
+        AccessFlags apply(String action, AdminWeaponAccessControlCommand request) {
             String normalizedAction = action == null ? "" : action.trim();
             return switch (normalizedAction) {
                 case "shop_lock" -> new AccessFlags(hidden, true, lockedByQuest, disabled, disabledReason, "shop_locked");
@@ -264,7 +262,7 @@ public class AdminControlService {
             return row.containsKey(primaryKey) ? row.get(primaryKey) : row.get(fallbackKey);
         }
 
-        private static String reasonOrComment(AdminWeaponAccessControlRequest request) {
+        private static String reasonOrComment(AdminWeaponAccessControlCommand request) {
             if (request.comment() != null && !request.comment().isBlank()) {
                 return request.comment().trim();
             }
@@ -281,7 +279,7 @@ public class AdminControlService {
         return (Class<Map<String, Object>>) (Class<?>) Map.class;
     }
 
-    private static Map<String, Object> controlPayload(String targetKey, Object targetValue, AdminControlReasonRequest request) {
+    private static Map<String, Object> controlPayload(String targetKey, Object targetValue, AdminControlReasonCommand request) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put(targetKey, targetValue);
         payload.put("reason", request.reason());
@@ -291,7 +289,7 @@ public class AdminControlService {
         return payload;
     }
 
-    private static Map<String, Object> auditPayload(AdminControlReasonRequest request, Map<String, Object> values) {
+    private static Map<String, Object> auditPayload(AdminControlReasonCommand request, Map<String, Object> values) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("reason", request.reason());
         if (request.comment() != null && !request.comment().isBlank()) {

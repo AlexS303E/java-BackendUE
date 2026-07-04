@@ -1,6 +1,8 @@
 package com.game.backend.admin.api;
 
+import com.game.backend.admin.application.AdminControlReasonCommand;
 import com.game.backend.admin.application.AdminControlService;
+import com.game.backend.admin.application.AdminWeaponAccessControlCommand;
 import com.game.backend.admin.application.CurrentAdmin;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -34,7 +36,7 @@ public class AdminControlController {
         @PathVariable("player_id") UUID playerId,
         @Valid @RequestBody AdminControlReasonRequest request
     ) {
-        return adminControlService.invalidatePlayerCache(CurrentAdmin.require(authentication), idempotencyKey, playerId, request);
+        return adminControlService.invalidatePlayerCache(CurrentAdmin.require(authentication), idempotencyKey, playerId, toCommand(request));
     }
 
     /**
@@ -47,7 +49,7 @@ public class AdminControlController {
         @PathVariable("server_id") UUID serverId,
         @Valid @RequestBody AdminControlReasonRequest request
     ) {
-        return adminControlService.revokeServerIdentity(CurrentAdmin.require(authentication), idempotencyKey, serverId, request);
+        return adminControlService.revokeServerIdentity(CurrentAdmin.require(authentication), idempotencyKey, serverId, toCommand(request));
     }
 
     /**
@@ -59,7 +61,7 @@ public class AdminControlController {
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody AdminControlReasonRequest request
     ) {
-        return adminControlService.retryFailedOutbox(CurrentAdmin.require(authentication), idempotencyKey, request);
+        return adminControlService.retryFailedOutbox(CurrentAdmin.require(authentication), idempotencyKey, toCommand(request));
     }
 
     /**
@@ -72,6 +74,20 @@ public class AdminControlController {
             @PathVariable("player_id") UUID playerId,
             @Valid @RequestBody AdminWeaponAccessControlRequest request
     ) {
-        return AdminItemAccessApiMapper.toResponse(adminControlService.changeWeaponAccess(CurrentAdmin.require(authentication), idempotencyKey, playerId, request));
+        return AdminItemAccessApiMapper.toResponse(adminControlService.changeWeaponAccess(CurrentAdmin.require(authentication), idempotencyKey, playerId, toCommand(request)));
+    }
+
+    private AdminControlReasonCommand toCommand(AdminControlReasonRequest request) {
+        return new AdminControlReasonCommand(request.reason(), request.comment());
+    }
+
+    private AdminWeaponAccessControlCommand toCommand(AdminWeaponAccessControlRequest request) {
+        return new AdminWeaponAccessControlCommand(
+            request.weaponId(),
+            request.catalogVersion(),
+            request.action(),
+            request.reason(),
+            request.comment()
+        );
     }
 }

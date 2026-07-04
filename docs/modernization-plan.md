@@ -467,3 +467,11 @@ Goal: remove admin maintenance request/response DTO ownership from `AdminAccessM
 - [x] Add application-level projection rebuild, cache invalidate, and server identity revoke command/result records.
 - [x] Move maintenance request/result mapping into `AdminMaintenanceController`.
 - [x] Keep maintenance idempotency replay on application command/result types.
+
+## Block 58 - Admin control command decoupling
+
+Goal: remove admin control request DTO ownership from `AdminControlService`.
+
+- [x] Add application-level admin control reason and weapon access commands.
+- [x] Move admin control request mapping into `AdminControlController`.
+- [x] Remove remaining non-common API DTO imports from application services.
