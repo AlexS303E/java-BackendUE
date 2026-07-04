@@ -51,7 +51,7 @@ public class AdminStatusService {
     /**
      * Компактный обзор health/counts, который dashboard обновляет периодически.
      */
-    public Map<String, Object> overview() {
+    public AdminOverview overview() {
         OffsetDateTime now = now();
         OverviewSnapshot snapshot = overviewSnapshot;
         if (snapshot != null && snapshot.expiresAt().isAfter(now)) {
@@ -63,13 +63,13 @@ public class AdminStatusService {
             if (snapshot != null && snapshot.expiresAt().isAfter(now)) {
                 return snapshot.response();
             }
-            Map<String, Object> response = buildOverview(now);
+            AdminOverview response = buildOverview(now);
             overviewSnapshot = new OverviewSnapshot(response, now.plus(overviewSnapshotTtl));
             return response;
         }
     }
 
-    private Map<String, Object> buildOverview(OffsetDateTime now) {
+    private AdminOverview buildOverview(OffsetDateTime now) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("backend", Map.of(
             "ok", true,
@@ -85,10 +85,10 @@ public class AdminStatusService {
             "runtimeConflicts", repository.countPendingRuntimeConflicts()
         ));
         response.put("outbox", outboxOverview());
-        return response;
+        return new AdminOverview(response);
     }
 
-    public List<Map<String, Object>> servers() {
+    public List<AdminServerStatus> servers() {
         OffsetDateTime now = OffsetDateTime.now();
         return repository.listServers(DASHBOARD_LIST_LIMIT)
             .stream()
@@ -96,15 +96,21 @@ public class AdminStatusService {
             .toList();
     }
 
-    public List<Map<String, Object>> matches() {
-        return repository.listMatches(DASHBOARD_LIST_LIMIT);
+    public List<AdminMatchStatus> matches() {
+        return repository.listMatches(DASHBOARD_LIST_LIMIT)
+            .stream()
+            .map(AdminMatchStatus::new)
+            .toList();
     }
 
-    public List<Map<String, Object>> recentAudit() {
-        return repository.listRecentAuditEvents(DASHBOARD_LIST_LIMIT);
+    public List<AdminAuditStatusEvent> recentAudit() {
+        return repository.listRecentAuditEvents(DASHBOARD_LIST_LIMIT)
+            .stream()
+            .map(AdminAuditStatusEvent::new)
+            .toList();
     }
 
-    public List<Map<String, Object>> searchPlayers(String query) {
+    public List<AdminPlayerSearchResult> searchPlayers(String query) {
         String trimmed = query == null ? "" : query.trim();
         if (trimmed.isBlank()) {
             return List.of();
@@ -112,22 +118,31 @@ public class AdminStatusService {
 
         UUID playerId = parseUuid(trimmed);
         if (playerId != null) {
-            return repository.findPlayer(playerId);
+            return repository.findPlayer(playerId)
+                .stream()
+                .map(AdminPlayerSearchResult::new)
+                .toList();
         }
 
-        return repository.searchPlayersByLogin(trimmed, PLAYER_SEARCH_LIMIT);
+        return repository.searchPlayersByLogin(trimmed, PLAYER_SEARCH_LIMIT)
+            .stream()
+            .map(AdminPlayerSearchResult::new)
+            .toList();
     }
 
-    public Map<String, Object> weaponAccess(UUID playerId, String weaponId, long catalogVersion) {
+    public AdminWeaponAccessStatus weaponAccess(UUID playerId, String weaponId, long catalogVersion) {
         List<Map<String, Object>> rows = repository.findWeaponAccess(playerId, weaponId, catalogVersion);
         if (rows.isEmpty()) {
             throw new ApiException(HttpStatus.NOT_FOUND, "ACCESS_ITEM_NOT_FOUND", "Weapon access state was not found");
         }
-        return rows.getFirst();
+        return AdminWeaponAccessStatus.from(rows.getFirst());
     }
 
-    public List<Map<String, Object>> weaponAccessAudit(UUID playerId, String weaponId, long catalogVersion) {
-        return repository.listWeaponAccessAudit(playerId, weaponId, catalogVersion, DASHBOARD_LIST_LIMIT);
+    public List<AdminWeaponAccessAuditEvent> weaponAccessAudit(UUID playerId, String weaponId, long catalogVersion) {
+        return repository.listWeaponAccessAudit(playerId, weaponId, catalogVersion, DASHBOARD_LIST_LIMIT)
+            .stream()
+            .map(AdminWeaponAccessAuditEvent::new)
+            .toList();
     }
 
     private boolean databaseOk() {
@@ -182,7 +197,7 @@ public class AdminStatusService {
         return remainingSeconds + "s";
     }
 
-    private Map<String, Object> serverStatusRow(Map<String, Object> source, OffsetDateTime now) {
+    private AdminServerStatus serverStatusRow(Map<String, Object> source, OffsetDateTime now) {
         Map<String, Object> row = new LinkedHashMap<>(source);
         OffsetDateTime expiresAt = (OffsetDateTime) row.get("expiresAt");
         OffsetDateTime revokedAt = (OffsetDateTime) row.get("revokedAt");
@@ -196,14 +211,14 @@ public class AdminStatusService {
         row.put("certificateExpired", expired);
         row.put("certificateExpiresSoon", expiresSoon);
         row.put("effectiveAuthState", effectiveAuthState(status, revoked, expired, expiresSoon));
-        return row;
+        return new AdminServerStatus(row);
     }
 
     private OffsetDateTime now() {
         return OffsetDateTime.now(clock);
     }
 
-    private record OverviewSnapshot(Map<String, Object> response, OffsetDateTime expiresAt) {
+    private record OverviewSnapshot(AdminOverview response, OffsetDateTime expiresAt) {
     }
 
     private String effectiveAuthState(String status, boolean revoked, boolean expired, boolean expiresSoon) {
@@ -217,5 +232,93 @@ public class AdminStatusService {
             return "inactive";
         }
         return expiresSoon ? "expiring_soon" : "active";
+    }
+
+    public record AdminOverview(Map<String, Object> values) {
+        public Map<String, Object> asResponse() {
+            return values;
+        }
+    }
+
+    public record AdminServerStatus(Map<String, Object> values) {
+        public Map<String, Object> asResponse() {
+            return values;
+        }
+    }
+
+    public record AdminMatchStatus(Map<String, Object> values) {
+        public Map<String, Object> asResponse() {
+            return values;
+        }
+    }
+
+    public record AdminAuditStatusEvent(Map<String, Object> values) {
+        public Map<String, Object> asResponse() {
+            return values;
+        }
+    }
+
+    public record AdminPlayerSearchResult(Map<String, Object> values) {
+        public Map<String, Object> asResponse() {
+            return values;
+        }
+    }
+
+    public record AdminWeaponAccessAuditEvent(Map<String, Object> values) {
+        public Map<String, Object> asResponse() {
+            return values;
+        }
+    }
+
+    public record AdminWeaponAccessStatus(
+        String itemId,
+        long catalogVersion,
+        boolean hidden,
+        boolean lockedInShop,
+        boolean lockedByQuest,
+        boolean disabled,
+        String disabledReason,
+        String unlockHintCode,
+        OffsetDateTime updatedAt,
+        long accessRevision,
+        boolean catalogEnabled,
+        boolean playerCanUse,
+        boolean effectiveCanUse
+    ) {
+        private static AdminWeaponAccessStatus from(Map<String, Object> row) {
+            return new AdminWeaponAccessStatus(
+                (String) row.get("itemId"),
+                ((Number) row.get("catalogVersion")).longValue(),
+                Boolean.TRUE.equals(row.get("isHidden")),
+                Boolean.TRUE.equals(row.get("isLockedInShop")),
+                Boolean.TRUE.equals(row.get("isLockedByQuest")),
+                Boolean.TRUE.equals(row.get("isDisabled")),
+                (String) row.get("disabledReason"),
+                (String) row.get("unlockHintCode"),
+                (OffsetDateTime) row.get("updatedAt"),
+                ((Number) row.get("accessRevision")).longValue(),
+                Boolean.TRUE.equals(row.get("catalogEnabled")),
+                Boolean.TRUE.equals(row.get("playerCanUse")),
+                Boolean.TRUE.equals(row.get("effectiveCanUse"))
+            );
+        }
+
+        public Map<String, Object> asResponse() {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("itemId", itemId);
+            row.put("catalogVersion", catalogVersion);
+            row.put("isHidden", hidden);
+            row.put("isLockedInShop", lockedInShop);
+            row.put("isLockedByQuest", lockedByQuest);
+            row.put("isDisabled", disabled);
+            row.put("disabledReason", disabledReason);
+            row.put("unlockHintCode", unlockHintCode);
+            row.put("updatedAt", updatedAt);
+            row.put("accessRevision", accessRevision);
+            row.put("catalogEnabled", catalogEnabled);
+            row.put("playerCanUse", playerCanUse);
+            row.put("effectiveCanUse", effectiveCanUse);
+            return row;
+        }
     }
 }

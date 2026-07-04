@@ -491,3 +491,11 @@ Goal: remove raw response maps from `AdminControlService` while preserving legac
 - [x] Add typed application results for player cache invalidation, server identity revoke, and outbox retry.
 - [x] Keep idempotency replay on typed application result classes.
 - [x] Map typed results back to legacy response maps in `AdminControlController`.
+
+## Block 61 - Admin status typed service boundary
+
+Goal: remove raw dashboard response maps from the public `AdminStatusService` API while preserving existing admin JSON responses.
+
+- [x] Return typed application status records from overview, list, search, and weapon access methods.
+- [x] Map typed status records back to legacy JSON envelopes in `AdminStatusController`.
+- [x] Add an architecture guard against top-level application service methods exposing raw response maps.

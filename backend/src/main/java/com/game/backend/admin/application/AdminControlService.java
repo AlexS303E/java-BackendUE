@@ -189,7 +189,7 @@ public class AdminControlService {
         UUID playerId,
         AdminWeaponAccessControlCommand request
     ) {
-        Map<String, Object> current = adminStatusService.weaponAccess(playerId, request.weaponId(), request.catalogVersion());
+        AdminStatusService.AdminWeaponAccessStatus current = adminStatusService.weaponAccess(playerId, request.weaponId(), request.catalogVersion());
         AccessFlags flags = AccessFlags.from(current);
         AccessFlags updated = flags.apply(request.action(), request);
 
@@ -222,14 +222,14 @@ public class AdminControlService {
         String disabledReason,
         String unlockHintCode
     ) {
-        static AccessFlags from(Map<String, Object> row) {
+        static AccessFlags from(AdminStatusService.AdminWeaponAccessStatus status) {
             return new AccessFlags(
-                bool(value(row, "isHidden", "is_hidden")),
-                bool(value(row, "isLockedInShop", "is_locked_in_shop")),
-                bool(value(row, "isLockedByQuest", "is_locked_by_quest")),
-                bool(value(row, "isDisabled", "is_disabled")),
-                (String) value(row, "disabledReason", "disabled_reason"),
-                (String) value(row, "unlockHintCode", "unlock_hint_code")
+                status.hidden(),
+                status.lockedInShop(),
+                status.lockedByQuest(),
+                status.disabled(),
+                status.disabledReason(),
+                status.unlockHintCode()
             );
         }
 
@@ -246,14 +246,6 @@ public class AdminControlService {
                 case "reveal_item" -> new AccessFlags(false, lockedInShop, lockedByQuest, disabled, disabledReason, unlockHintCode);
                 default -> throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Unsupported weapon access action: " + action);
             };
-        }
-
-        private static boolean bool(Object value) {
-            return value instanceof Boolean booleanValue && booleanValue;
-        }
-
-        private static Object value(Map<String, Object> row, String primaryKey, String fallbackKey) {
-            return row.containsKey(primaryKey) ? row.get(primaryKey) : row.get(fallbackKey);
         }
 
         private static String reasonOrComment(AdminWeaponAccessControlCommand request) {

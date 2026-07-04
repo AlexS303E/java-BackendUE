@@ -28,7 +28,7 @@ public class AdminStatusController {
     @GetMapping("/admin/status/overview")
     Map<String, Object> overview(Authentication authentication) {
         CurrentAdmin.require(authentication);
-        return adminStatusService.overview();
+        return adminStatusService.overview().asResponse();
     }
 
     /**
@@ -37,7 +37,10 @@ public class AdminStatusController {
     @GetMapping("/admin/status/servers")
     Map<String, Object> servers(Authentication authentication) {
         CurrentAdmin.require(authentication);
-        return Map.of("servers", adminStatusService.servers());
+        return Map.of("servers", adminStatusService.servers()
+            .stream()
+            .map(AdminStatusService.AdminServerStatus::asResponse)
+            .toList());
     }
 
     /**
@@ -46,7 +49,10 @@ public class AdminStatusController {
     @GetMapping("/admin/status/matches")
     Map<String, Object> matches(Authentication authentication) {
         CurrentAdmin.require(authentication);
-        return Map.of("matches", adminStatusService.matches());
+        return Map.of("matches", adminStatusService.matches()
+            .stream()
+            .map(AdminStatusService.AdminMatchStatus::asResponse)
+            .toList());
     }
 
     /**
@@ -55,7 +61,10 @@ public class AdminStatusController {
     @GetMapping("/admin/status/recent-audit")
     Map<String, Object> recentAudit(Authentication authentication) {
         CurrentAdmin.require(authentication);
-        return Map.of("events", adminStatusService.recentAudit());
+        return Map.of("events", adminStatusService.recentAudit()
+            .stream()
+            .map(AdminStatusService.AdminAuditStatusEvent::asResponse)
+            .toList());
     }
 
     /**
@@ -67,7 +76,10 @@ public class AdminStatusController {
             @RequestParam("query") String query
     ) {
         CurrentAdmin.require(authentication);
-        return Map.of("players", adminStatusService.searchPlayers(query));
+        return Map.of("players", adminStatusService.searchPlayers(query)
+            .stream()
+            .map(AdminStatusService.AdminPlayerSearchResult::asResponse)
+            .toList());
     }
 
     /**
@@ -81,7 +93,7 @@ public class AdminStatusController {
             @RequestParam("catalog_version") long catalogVersion
     ) {
         CurrentAdmin.require(authentication);
-        return adminStatusService.weaponAccess(playerId, weaponId, catalogVersion);
+        return adminStatusService.weaponAccess(playerId, weaponId, catalogVersion).asResponse();
     }
 
     /**
@@ -95,6 +107,9 @@ public class AdminStatusController {
             @RequestParam("catalog_version") long catalogVersion
     ) {
         CurrentAdmin.require(authentication);
-        return Map.of("events", adminStatusService.weaponAccessAudit(playerId, weaponId, catalogVersion));
+        return Map.of("events", adminStatusService.weaponAccessAudit(playerId, weaponId, catalogVersion)
+            .stream()
+            .map(AdminStatusService.AdminWeaponAccessAuditEvent::asResponse)
+            .toList());
     }
 }

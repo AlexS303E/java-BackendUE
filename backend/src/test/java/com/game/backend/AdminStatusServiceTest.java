@@ -44,7 +44,7 @@ class AdminStatusServiceTest {
         ));
         when(repository.oldestPendingOutboxCreatedAt()).thenReturn(null);
 
-        Map<String, Object> overview = service.overview();
+        Map<String, Object> overview = service.overview().asResponse();
 
         assertThat(overview).containsKeys("backend", "infrastructure", "catalog", "runtime", "outbox");
         verify(repository).databasePingOk();
@@ -79,10 +79,10 @@ class AdminStatusServiceTest {
         ));
         when(repository.oldestPendingOutboxCreatedAt()).thenReturn(null);
 
-        Map<String, Object> first = cachedService.overview();
-        Map<String, Object> second = cachedService.overview();
+        AdminStatusService.AdminOverview first = cachedService.overview();
+        AdminStatusService.AdminOverview second = cachedService.overview();
         clock.advance(Duration.ofSeconds(6));
-        Map<String, Object> third = cachedService.overview();
+        AdminStatusService.AdminOverview third = cachedService.overview();
 
         assertThat(second).isSameAs(first);
         assertThat(third).isNotSameAs(first);
@@ -108,7 +108,10 @@ class AdminStatusServiceTest {
             serverRow("revoked", now.plusDays(30), now.minusMinutes(1))
         ));
 
-        List<Map<String, Object>> servers = service.servers();
+        List<Map<String, Object>> servers = service.servers()
+            .stream()
+            .map(AdminStatusService.AdminServerStatus::asResponse)
+            .toList();
 
         assertThat(servers).extracting(row -> row.get("effectiveAuthState"))
             .containsExactly("active", "expiring_soon", "expired", "revoked");

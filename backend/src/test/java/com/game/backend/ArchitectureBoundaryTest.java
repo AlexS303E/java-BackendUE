@@ -222,6 +222,24 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void applicationServiceMethodsShouldExposeTypedResultsInsteadOfRawMaps() throws IOException {
+        List<Path> applicationRoots = applicationPackageRoots();
+
+        assertThat(applicationRoots)
+            .as("Architecture guard must discover application packages automatically")
+            .isNotEmpty();
+
+        List<Path> offenders = filesUnder(applicationRoots).stream()
+            .filter(ArchitectureBoundaryTest::isServiceComponent)
+            .filter(ArchitectureBoundaryTest::exposesRawMapFromTopLevelPublicMethod)
+            .toList();
+
+        assertThat(offenders)
+            .as("Application services should expose typed command/result records instead of raw response maps")
+            .isEmpty();
+    }
+
+    @Test
     void everyRepositoryPackageShouldStayIndependentFromApiContracts() throws IOException {
         List<Path> repositoryRoots = packageRoots("repository");
 
@@ -435,6 +453,20 @@ class ArchitectureBoundaryTest {
             String source = Files.readString(path);
             return source.contains(".api.")
                 && !source.contains(".common.api.");
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean exposesRawMapFromTopLevelPublicMethod(Path path) {
+        try {
+            return Files.readString(path)
+                .lines()
+                .map(String::stripTrailing)
+                .anyMatch(line -> line.startsWith("    public Map<String, Object>")
+                    || line.startsWith("    public List<Map<String, Object>>")
+                    || line.startsWith("    protected Map<String, Object>")
+                    || line.startsWith("    protected List<Map<String, Object>>"));
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

@@ -91,7 +91,7 @@ class RedisDegradationTest {
 
         AdminStatusService service = new AdminStatusService(repository, redisDownTemplate());
 
-        Map<String, Object> overview = service.overview();
+        Map<String, Object> overview = service.overview().asResponse();
 
         @SuppressWarnings("unchecked")
         Map<String, Object> infrastructure = (Map<String, Object>) overview.get("infrastructure");
