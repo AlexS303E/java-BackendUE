@@ -5,8 +5,6 @@ import com.game.backend.admin.repository.AdminRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.game.backend.admin.api.AdminItemAccessUpdateRequest;
-import com.game.backend.admin.api.AdminItemAccessUpdateResponse;
 import com.game.backend.admin.api.AdminItemOperationRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,60 +40,60 @@ public class AdminItemOperationService {
     /**
      * Скрывает предмет для игрока.
      */
-    public AdminItemAccessUpdateResponse hide(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult hide(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
         return apply(admin, idempotencyKey, ItemOperation.HIDE, request);
     }
 
     /**
      * Снимает hidden-флаг с предмета для игрока.
      */
-    public AdminItemAccessUpdateResponse reveal(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult reveal(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
         return apply(admin, idempotencyKey, ItemOperation.REVEAL, request);
     }
 
     /**
      * Ставит shop lock для игрока.
      */
-    public AdminItemAccessUpdateResponse shopLock(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult shopLock(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
         return apply(admin, idempotencyKey, ItemOperation.SHOP_LOCK, request);
     }
 
     /**
      * Снимает shop lock для игрока.
      */
-    public AdminItemAccessUpdateResponse shopUnlock(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult shopUnlock(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
         return apply(admin, idempotencyKey, ItemOperation.SHOP_UNLOCK, request);
     }
 
     /**
      * Ставит quest lock для игрока.
      */
-    public AdminItemAccessUpdateResponse questLock(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult questLock(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
         return apply(admin, idempotencyKey, ItemOperation.QUEST_LOCK, request);
     }
 
     /**
      * Снимает quest lock для игрока.
      */
-    public AdminItemAccessUpdateResponse questUnlock(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult questUnlock(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
         return apply(admin, idempotencyKey, ItemOperation.QUEST_UNLOCK, request);
     }
 
     /**
      * Отключает предмет для конкретного игрока через access projection.
      */
-    public AdminItemAccessUpdateResponse disable(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult disable(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
         return apply(admin, idempotencyKey, ItemOperation.DISABLE, request);
     }
 
     /**
      * Снимает player-level disable с предмета.
      */
-    public AdminItemAccessUpdateResponse enable(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult enable(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
         return apply(admin, idempotencyKey, ItemOperation.ENABLE, request);
     }
 
-    private AdminItemAccessUpdateResponse apply(
+    private AdminItemAccessUpdateResult apply(
         AdminIdentity admin,
         String idempotencyKey,
         ItemOperation operation,
@@ -107,13 +105,13 @@ public class AdminItemOperationService {
             "/admin/items/" + operation.routeName(),
             idempotencyKey,
             request,
-            AdminItemAccessUpdateResponse.class,
+            AdminItemAccessUpdateResult.class,
             () -> applyWithoutReplay(admin, idempotencyKey, operation, request)
         );
     }
 
     @Transactional
-    protected AdminItemAccessUpdateResponse applyWithoutReplay(
+    protected AdminItemAccessUpdateResult applyWithoutReplay(
         AdminIdentity admin,
         String externalIdempotencyKey,
         ItemOperation operation,
@@ -121,7 +119,7 @@ public class AdminItemOperationService {
     ) {
         AccessFlags current = currentFlags(request);
         AccessFlags updated = operation.apply(current, request);
-        AdminItemAccessUpdateRequest updateRequest = new AdminItemAccessUpdateRequest(
+        AdminItemAccessUpdateCommand updateRequest = new AdminItemAccessUpdateCommand(
             request.catalogVersion(),
             updated.hidden(),
             updated.lockedInShop(),

@@ -34,12 +34,12 @@ public class AdminPlayerAccessController {
             @PathVariable("item_id") String itemId,
             @Valid @RequestBody AdminItemAccessUpdateRequest request
     ) {
-        return adminPlayerAccessService.updateItemAccess(
+        return AdminItemAccessApiMapper.toResponse(adminPlayerAccessService.updateItemAccess(
                 CurrentAdmin.require(authentication),
                 idempotencyKey,
                 playerId,
                 itemId,
-                request
-        );
+                AdminItemAccessApiMapper.toCommand(request)
+        ));
     }
 }

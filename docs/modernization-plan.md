@@ -443,3 +443,11 @@ Goal: remove weapon preset save request/response DTO ownership from `PresetsServ
 - [x] Add application-level weapon preset save command/result records.
 - [x] Move weapon preset save request mapping into `PresetsController`.
 - [x] Move weapon preset save response mapping into `PresetsController`.
+
+## Block 55 - Admin item access update DTO decoupling
+
+Goal: remove admin item access update request/response DTO ownership from application services.
+
+- [x] Add application-level admin item access update command/result records.
+- [x] Move direct admin item access request/result mapping into admin API controllers.
+- [x] Update item operation and weapon access adapters to call the application command/result API.

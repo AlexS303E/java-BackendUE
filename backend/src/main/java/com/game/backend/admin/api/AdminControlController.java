@@ -72,6 +72,6 @@ public class AdminControlController {
             @PathVariable("player_id") UUID playerId,
             @Valid @RequestBody AdminWeaponAccessControlRequest request
     ) {
-        return adminControlService.changeWeaponAccess(CurrentAdmin.require(authentication), idempotencyKey, playerId, request);
+        return AdminItemAccessApiMapper.toResponse(adminControlService.changeWeaponAccess(CurrentAdmin.require(authentication), idempotencyKey, playerId, request));
     }
 }

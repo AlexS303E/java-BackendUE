@@ -2,8 +2,6 @@ package com.game.backend.admin.application;
 
 import com.game.backend.admin.repository.AdminRepository;
 
-import com.game.backend.admin.api.AdminItemAccessUpdateRequest;
-import com.game.backend.admin.api.AdminItemAccessUpdateResponse;
 import com.game.backend.admin.api.AdminControlReasonRequest;
 import com.game.backend.admin.api.AdminWeaponAccessControlRequest;
 import com.game.backend.common.api.ApiException;
@@ -193,7 +191,7 @@ public class AdminControlService {
     /**
      * Переводит dashboard action в полный access update, чтобы сохранить один источник истины для ledger/audit/outbox.
      */
-    public AdminItemAccessUpdateResponse changeWeaponAccess(
+    public AdminItemAccessUpdateResult changeWeaponAccess(
         AdminIdentity admin,
         String idempotencyKey,
         UUID playerId,
@@ -203,7 +201,7 @@ public class AdminControlService {
         AccessFlags flags = AccessFlags.from(current);
         AccessFlags updated = flags.apply(request.action(), request);
 
-        AdminItemAccessUpdateRequest updateRequest = new AdminItemAccessUpdateRequest(
+        AdminItemAccessUpdateCommand updateRequest = new AdminItemAccessUpdateCommand(
             request.catalogVersion(),
             updated.hidden(),
             updated.lockedInShop(),

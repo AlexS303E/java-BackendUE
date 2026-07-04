@@ -7,8 +7,6 @@ import com.game.backend.admin.repository.AdminRepository.ExistingAccessLedgerEve
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.game.backend.admin.api.AdminItemAccessUpdateRequest;
-import com.game.backend.admin.api.AdminItemAccessUpdateResponse;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
@@ -72,12 +70,12 @@ public class AdminPlayerAccessService {
      * Валидирует команду, пишет ledger, обновляет projection revision и публикует событие для downstream-систем.
      */
     @Transactional
-    public AdminItemAccessUpdateResponse updateItemAccess(
+    public AdminItemAccessUpdateResult updateItemAccess(
         AdminIdentity admin,
         String idempotencyKey,
         UUID playerId,
         String itemId,
-        AdminItemAccessUpdateRequest request
+        AdminItemAccessUpdateCommand request
     ) {
         String targetId = playerId + ":" + itemId + ":" + request.catalogVersion();
         String requestHash = null;
@@ -99,7 +97,7 @@ public class AdminPlayerAccessService {
                         "Idempotency-Key was reused with a different admin access request"
                     );
                 }
-                AdminItemAccessUpdateResponse response = duplicateResponse(playerId, itemId, request, existing);
+                AdminItemAccessUpdateResult response = duplicateResponse(playerId, itemId, request, existing);
                 auditSuccess(admin, targetId, requestHash, request, response);
                 return response;
             }
@@ -122,7 +120,7 @@ public class AdminPlayerAccessService {
             recordOutboxEvent(admin, playerId, itemId, request, accessRevision, ledgerEventId, now);
             recordPlayerAccessNotification(playerId, itemId, request, accessRevision, ledgerEventId, sanitization, staleMatchProfiles, now);
 
-            AdminItemAccessUpdateResponse response = new AdminItemAccessUpdateResponse(
+            AdminItemAccessUpdateResult response = new AdminItemAccessUpdateResult(
                 playerId,
                 itemId,
                 request.catalogVersion(),
@@ -162,7 +160,7 @@ public class AdminPlayerAccessService {
         }
     }
 
-    private void validateRequest(AdminItemAccessUpdateRequest request) {
+    private void validateRequest(AdminItemAccessUpdateCommand request) {
         if (Boolean.TRUE.equals(request.disabled()) && normalized(request.disabledReason()) == null) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
@@ -207,7 +205,7 @@ public class AdminPlayerAccessService {
         long accessRevision,
         LoadoutSanitizationResult sanitization,
         int staleMatchProfiles,
-        AdminItemAccessUpdateRequest request,
+        AdminItemAccessUpdateCommand request,
         OffsetDateTime now
     ) {
         repository.insertEntitlementLedgerEvent(
@@ -227,7 +225,7 @@ public class AdminPlayerAccessService {
     private void upsertProjection(
         UUID playerId,
         String itemId,
-        AdminItemAccessUpdateRequest request,
+        AdminItemAccessUpdateCommand request,
         OffsetDateTime now
     ) {
         repository.upsertPlayerItemAccess(
@@ -249,10 +247,10 @@ public class AdminPlayerAccessService {
         repository.updateAccessProjectionRevision(playerId, accessRevision, ledgerEventId, now);
     }
 
-    private AdminItemAccessUpdateResponse duplicateResponse(
+    private AdminItemAccessUpdateResult duplicateResponse(
         UUID playerId,
         String itemId,
-        AdminItemAccessUpdateRequest request,
+        AdminItemAccessUpdateCommand request,
         ExistingAccessLedgerEvent existing
     ) {
         if (existing.resultAccessRevision() == null) {
@@ -264,7 +262,7 @@ public class AdminPlayerAccessService {
                 true
             );
         }
-        return new AdminItemAccessUpdateResponse(
+        return new AdminItemAccessUpdateResult(
             playerId,
             itemId,
             request.catalogVersion(),
@@ -289,7 +287,7 @@ public class AdminPlayerAccessService {
         AdminIdentity admin,
         UUID playerId,
         String itemId,
-        AdminItemAccessUpdateRequest request,
+        AdminItemAccessUpdateCommand request,
         long accessRevision,
         UUID ledgerEventId,
         OffsetDateTime now
@@ -315,7 +313,7 @@ public class AdminPlayerAccessService {
     private void recordPlayerAccessNotification(
         UUID playerId,
         String itemId,
-        AdminItemAccessUpdateRequest request,
+        AdminItemAccessUpdateCommand request,
         long accessRevision,
         UUID ledgerEventId,
         LoadoutSanitizationResult sanitization,
@@ -355,7 +353,7 @@ public class AdminPlayerAccessService {
         );
     }
 
-    private AdminItemAccessUpdateResponse responseFromProjection(
+    private AdminItemAccessUpdateResult responseFromProjection(
         UUID playerId,
         String itemId,
         long catalogVersion,
@@ -367,7 +365,7 @@ public class AdminPlayerAccessService {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "ACCESS_ITEM_NOT_FOUND", "Access item was not found");
         }
         AccessProjectionRow row = rows.getFirst();
-        return new AdminItemAccessUpdateResponse(
+        return new AdminItemAccessUpdateResult(
             playerId,
             itemId,
             catalogVersion,
@@ -392,8 +390,8 @@ public class AdminPlayerAccessService {
         AdminIdentity admin,
         String targetId,
         String requestHash,
-        AdminItemAccessUpdateRequest request,
-        AdminItemAccessUpdateResponse response
+        AdminItemAccessUpdateCommand request,
+        AdminItemAccessUpdateResult response
     ) {
         adminAuditService.record(
             admin,
@@ -419,7 +417,7 @@ public class AdminPlayerAccessService {
         AdminIdentity admin,
         String targetId,
         String requestHash,
-        AdminItemAccessUpdateRequest request,
+        AdminItemAccessUpdateCommand request,
         String code,
         int status
     ) {
@@ -445,7 +443,7 @@ public class AdminPlayerAccessService {
         long accessRevision,
         LoadoutSanitizationResult sanitization,
         int staleMatchProfiles,
-        AdminItemAccessUpdateRequest request
+        AdminItemAccessUpdateCommand request
     ) {
         Map<String, Object> flags = new LinkedHashMap<>();
         flags.put("hidden", request.hidden());
@@ -472,7 +470,7 @@ public class AdminPlayerAccessService {
     private LoadoutSanitizationResult sanitizeIfUnavailable(
         UUID playerId,
         String itemId,
-        AdminItemAccessUpdateRequest request,
+        AdminItemAccessUpdateCommand request,
         UUID ledgerEventId,
         OffsetDateTime now
     ) {
@@ -501,7 +499,7 @@ public class AdminPlayerAccessService {
         return existing.staleMatchProfiles() == null ? 0 : existing.staleMatchProfiles();
     }
 
-    private String requestHash(UUID playerId, String itemId, AdminItemAccessUpdateRequest request) {
+    private String requestHash(UUID playerId, String itemId, AdminItemAccessUpdateCommand request) {
         Map<String, Object> hashPayload = new LinkedHashMap<>();
         hashPayload.put("player_id", playerId);
         hashPayload.put("item_id", itemId);
@@ -509,7 +507,7 @@ public class AdminPlayerAccessService {
         return sha256(toJson(hashPayload));
     }
 
-    private String normalizedDisabledReason(AdminItemAccessUpdateRequest request) {
+    private String normalizedDisabledReason(AdminItemAccessUpdateCommand request) {
         return Boolean.TRUE.equals(request.disabled()) ? normalized(request.disabledReason()) : null;
     }
 
@@ -520,7 +518,7 @@ public class AdminPlayerAccessService {
         return value.trim();
     }
 
-    private boolean canUse(AdminItemAccessUpdateRequest request) {
+    private boolean canUse(AdminItemAccessUpdateCommand request) {
         return !request.hidden() && !request.lockedInShop() && !request.lockedByQuest() && !request.disabled();
     }
 

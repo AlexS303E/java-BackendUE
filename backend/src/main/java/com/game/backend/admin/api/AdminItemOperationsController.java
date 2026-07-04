@@ -26,7 +26,7 @@ public class AdminItemOperationsController {
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody AdminItemOperationRequest request
     ) {
-        return adminItemOperationService.hide(CurrentAdmin.require(authentication), idempotencyKey, request);
+        return AdminItemAccessApiMapper.toResponse(adminItemOperationService.hide(CurrentAdmin.require(authentication), idempotencyKey, request));
     }
 
     @PostMapping("/admin/items/reveal")
@@ -35,7 +35,7 @@ public class AdminItemOperationsController {
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody AdminItemOperationRequest request
     ) {
-        return adminItemOperationService.reveal(CurrentAdmin.require(authentication), idempotencyKey, request);
+        return AdminItemAccessApiMapper.toResponse(adminItemOperationService.reveal(CurrentAdmin.require(authentication), idempotencyKey, request));
     }
 
     @PostMapping("/admin/items/shop-lock")
@@ -44,7 +44,7 @@ public class AdminItemOperationsController {
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody AdminItemOperationRequest request
     ) {
-        return adminItemOperationService.shopLock(CurrentAdmin.require(authentication), idempotencyKey, request);
+        return AdminItemAccessApiMapper.toResponse(adminItemOperationService.shopLock(CurrentAdmin.require(authentication), idempotencyKey, request));
     }
 
     @PostMapping("/admin/items/shop-unlock")
@@ -53,7 +53,7 @@ public class AdminItemOperationsController {
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody AdminItemOperationRequest request
     ) {
-        return adminItemOperationService.shopUnlock(CurrentAdmin.require(authentication), idempotencyKey, request);
+        return AdminItemAccessApiMapper.toResponse(adminItemOperationService.shopUnlock(CurrentAdmin.require(authentication), idempotencyKey, request));
     }
 
     @PostMapping("/admin/items/quest-lock")
@@ -62,7 +62,7 @@ public class AdminItemOperationsController {
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody AdminItemOperationRequest request
     ) {
-        return adminItemOperationService.questLock(CurrentAdmin.require(authentication), idempotencyKey, request);
+        return AdminItemAccessApiMapper.toResponse(adminItemOperationService.questLock(CurrentAdmin.require(authentication), idempotencyKey, request));
     }
 
     @PostMapping("/admin/items/quest-unlock")
@@ -71,7 +71,7 @@ public class AdminItemOperationsController {
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody AdminItemOperationRequest request
     ) {
-        return adminItemOperationService.questUnlock(CurrentAdmin.require(authentication), idempotencyKey, request);
+        return AdminItemAccessApiMapper.toResponse(adminItemOperationService.questUnlock(CurrentAdmin.require(authentication), idempotencyKey, request));
     }
 
     @PostMapping("/admin/items/disable")
@@ -80,7 +80,7 @@ public class AdminItemOperationsController {
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody AdminItemOperationRequest request
     ) {
-        return adminItemOperationService.disable(CurrentAdmin.require(authentication), idempotencyKey, request);
+        return AdminItemAccessApiMapper.toResponse(adminItemOperationService.disable(CurrentAdmin.require(authentication), idempotencyKey, request));
     }
 
     @PostMapping("/admin/items/enable")
@@ -89,6 +89,6 @@ public class AdminItemOperationsController {
         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
         @Valid @RequestBody AdminItemOperationRequest request
     ) {
-        return adminItemOperationService.enable(CurrentAdmin.require(authentication), idempotencyKey, request);
+        return AdminItemAccessApiMapper.toResponse(adminItemOperationService.enable(CurrentAdmin.require(authentication), idempotencyKey, request));
     }
 }
