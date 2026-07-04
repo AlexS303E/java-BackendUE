@@ -180,6 +180,18 @@ public class LoadoutSanitizationService {
         UUID sourceEventId,
         OffsetDateTime now
     ) {
+        outboxService.recordWeaponPresetSanitized(
+            playerId,
+            preset.classTag(),
+            preset.presetSlot(),
+            preset.catalogVersion(),
+            revision,
+            removedItemId,
+            removedItemType,
+            source,
+            sourceEventId,
+            now
+        );
         Map<String, Object> payload = Map.of(
             "player_id", playerId,
             "class_tag", preset.classTag(),
@@ -190,14 +202,6 @@ public class LoadoutSanitizationService {
             "removed_item_type", removedItemType,
             "source", source,
             "source_event_id", sourceEventId
-        );
-        outboxService.record(
-            "weapon_preset.sanitized",
-            "weapon_preset",
-            weaponPresetAggregateId(playerId, preset),
-            1,
-            payload,
-            now
         );
         playerNotificationService.record(
             playerId,
@@ -219,6 +223,18 @@ public class LoadoutSanitizationService {
         UUID sourceEventId,
         OffsetDateTime now
     ) {
+        outboxService.recordOutfitPresetSanitized(
+            playerId,
+            preset.teamTag(),
+            preset.classTag(),
+            preset.outfitPresetSlot(),
+            preset.catalogVersion(),
+            revision,
+            removedItemId,
+            source,
+            sourceEventId,
+            now
+        );
         Map<String, Object> payload = Map.of(
             "player_id", playerId,
             "team_tag", preset.teamTag(),
@@ -230,14 +246,6 @@ public class LoadoutSanitizationService {
             "removed_item_type", "clothing",
             "source", source,
             "source_event_id", sourceEventId
-        );
-        outboxService.record(
-            "outfit_preset.sanitized",
-            "outfit_preset",
-            outfitPresetAggregateId(playerId, preset),
-            1,
-            payload,
-            now
         );
         playerNotificationService.record(
             playerId,

@@ -87,20 +87,14 @@ public class PresetsService {
 
         long newRevision = expectedRevision + 1;
         repository.updateWeaponPresetRevision(playerId, classTag, presetSlot, catalogVersion, newRevision, now);
-        outboxService.record(
-            "weapon_preset.saved",
-            "weapon_preset",
-            weaponPresetAggregateId(playerId, classTag, presetSlot, catalogVersion),
-            1,
-            Map.of(
-                "player_id", playerId,
-                "class_tag", classTag,
-                "preset_slot", presetSlot,
-                "catalog_version", catalogVersion,
-                "previous_revision", expectedRevision,
-                "revision", newRevision,
-                "source", "player_save"
-            ),
+        outboxService.recordWeaponPresetSaved(
+            playerId,
+            classTag,
+            presetSlot,
+            catalogVersion,
+            expectedRevision,
+            newRevision,
+            "player_save",
             now
         );
 
@@ -112,10 +106,6 @@ public class PresetsService {
             newRevision,
             weaponSlots(playerId, classTag, presetSlot, catalogVersion)
         );
-    }
-
-    private String weaponPresetAggregateId(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
-        return playerId + ":" + classTag + ":" + presetSlot + ":" + catalogVersion;
     }
 
     /**

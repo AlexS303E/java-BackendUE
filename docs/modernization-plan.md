@@ -531,3 +531,11 @@ Goal: stop high-traffic access and match-profile invalidation events from being 
 - [x] Add typed `OutboxService` methods for `player_access.changed` and `match_profile.staled`.
 - [x] Update admin access and match-profile invalidation services to use typed outbox recording.
 - [x] Add an architecture guard that blocks these typed events from going through generic `outboxService.record(...)` calls.
+
+## Block 66 - Typed outbox recording for preset events
+
+Goal: move preset save and sanitization outbox payload creation behind typed `OutboxService` methods.
+
+- [x] Add typed outbox recorders for weapon preset saves and weapon/outfit preset sanitization.
+- [x] Update preset save and loadout sanitization services to use typed outbox recording.
+- [x] Extend the typed outbox guard to block preset events from generic `outboxService.record(...)` calls.

@@ -105,6 +105,155 @@ public class OutboxService {
         );
     }
 
+    public void recordWeaponPresetSaved(
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        long previousRevision,
+        long revision,
+        String source,
+        OffsetDateTime now
+    ) {
+        record(
+            "weapon_preset.saved",
+            "weapon_preset",
+            weaponPresetAggregateId(playerId, classTag, presetSlot, catalogVersion),
+            1,
+            Map.of(
+                "player_id", playerId,
+                "class_tag", classTag,
+                "preset_slot", presetSlot,
+                "catalog_version", catalogVersion,
+                "previous_revision", previousRevision,
+                "revision", revision,
+                "source", source
+            ),
+            now
+        );
+    }
+
+    public void recordWeaponPresetSanitized(
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        long revision,
+        String removedItemId,
+        String removedItemType,
+        String source,
+        UUID sourceEventId,
+        OffsetDateTime now
+    ) {
+        record(
+            "weapon_preset.sanitized",
+            "weapon_preset",
+            weaponPresetAggregateId(playerId, classTag, presetSlot, catalogVersion),
+            1,
+            presetSanitizedPayload(
+                playerId,
+                classTag,
+                presetSlot,
+                catalogVersion,
+                revision,
+                removedItemId,
+                removedItemType,
+                source,
+                sourceEventId
+            ),
+            now
+        );
+    }
+
+    public void recordOutfitPresetSanitized(
+        UUID playerId,
+        String teamTag,
+        String classTag,
+        int outfitPresetSlot,
+        long catalogVersion,
+        long revision,
+        String removedItemId,
+        String source,
+        UUID sourceEventId,
+        OffsetDateTime now
+    ) {
+        record(
+            "outfit_preset.sanitized",
+            "outfit_preset",
+            outfitPresetAggregateId(playerId, teamTag, classTag, outfitPresetSlot, catalogVersion),
+            1,
+            outfitPresetSanitizedPayload(
+                playerId,
+                teamTag,
+                classTag,
+                outfitPresetSlot,
+                catalogVersion,
+                revision,
+                removedItemId,
+                source,
+                sourceEventId
+            ),
+            now
+        );
+    }
+
+    private Map<String, Object> presetSanitizedPayload(
+        UUID playerId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        long revision,
+        String removedItemId,
+        String removedItemType,
+        String source,
+        UUID sourceEventId
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("player_id", playerId);
+        payload.put("class_tag", classTag);
+        payload.put("preset_slot", presetSlot);
+        payload.put("catalog_version", catalogVersion);
+        payload.put("revision", revision);
+        payload.put("removed_item_id", removedItemId);
+        payload.put("removed_item_type", removedItemType);
+        payload.put("source", source);
+        payload.put("source_event_id", sourceEventId);
+        return payload;
+    }
+
+    private Map<String, Object> outfitPresetSanitizedPayload(
+        UUID playerId,
+        String teamTag,
+        String classTag,
+        int outfitPresetSlot,
+        long catalogVersion,
+        long revision,
+        String removedItemId,
+        String source,
+        UUID sourceEventId
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("player_id", playerId);
+        payload.put("team_tag", teamTag);
+        payload.put("class_tag", classTag);
+        payload.put("outfit_preset_slot", outfitPresetSlot);
+        payload.put("catalog_version", catalogVersion);
+        payload.put("revision", revision);
+        payload.put("removed_item_id", removedItemId);
+        payload.put("removed_item_type", "clothing");
+        payload.put("source", source);
+        payload.put("source_event_id", sourceEventId);
+        return payload;
+    }
+
+    private String weaponPresetAggregateId(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
+        return playerId + ":" + classTag + ":" + presetSlot + ":" + catalogVersion;
+    }
+
+    private String outfitPresetAggregateId(UUID playerId, String teamTag, String classTag, int outfitPresetSlot, long catalogVersion) {
+        return playerId + ":" + teamTag + ":" + classTag + ":" + outfitPresetSlot + ":" + catalogVersion;
+    }
+
     private String toJson(Map<String, Object> payload) {
         try {
             return objectMapper.writeValueAsString(payload);

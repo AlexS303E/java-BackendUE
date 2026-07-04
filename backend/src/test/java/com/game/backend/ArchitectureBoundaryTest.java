@@ -573,7 +573,10 @@ class ArchitectureBoundaryTest {
             String source = Files.readString(path);
             return source.contains("outboxService.record(")
                 && (source.contains("\"player_access.changed\"")
-                    || source.contains("\"match_profile.staled\""));
+                    || source.contains("\"match_profile.staled\"")
+                    || source.contains("\"weapon_preset.saved\"")
+                    || source.contains("\"weapon_preset.sanitized\"")
+                    || source.contains("\"outfit_preset.sanitized\""));
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }
