@@ -258,6 +258,23 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    void applicationPackageShouldNotOwnTransportResponseMappers() throws IOException {
+        List<Path> applicationRoots = applicationPackageRoots();
+
+        assertThat(applicationRoots)
+            .as("Architecture guard must discover application packages automatically")
+            .isNotEmpty();
+
+        List<Path> offenders = filesUnder(applicationRoots).stream()
+            .filter(ArchitectureBoundaryTest::ownsTransportResponseMapper)
+            .toList();
+
+        assertThat(offenders)
+            .as("Transport response mapping belongs in API controllers, not application records")
+            .isEmpty();
+    }
+
+    @Test
     void everyRepositoryPackageShouldStayIndependentFromApiContracts() throws IOException {
         List<Path> repositoryRoots = packageRoots("repository");
 
@@ -485,6 +502,14 @@ class ArchitectureBoundaryTest {
                     || line.startsWith("    public List<Map<String, Object>>")
                     || line.startsWith("    protected Map<String, Object>")
                     || line.startsWith("    protected List<Map<String, Object>>"));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read " + path, exception);
+        }
+    }
+
+    private static boolean ownsTransportResponseMapper(Path path) {
+        try {
+            return Files.readString(path).contains("asResponse()");
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -70,24 +69,18 @@ public class AdminStatusService {
     }
 
     private AdminOverview buildOverview(OffsetDateTime now) {
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("backend", Map.of(
-            "ok", true,
-            "uptime", formatDuration(Duration.between(startedAt, now))
-        ));
-        response.put("infrastructure", Map.of(
-            "databaseOk", databaseOk(),
-            "redisOk", redisOk()
-        ));
-        response.put("catalog", repository.activeCatalog()
-            .map(AdminStatusService::activeCatalogResponse)
-            .orElseGet(Map::of));
-        response.put("runtime", Map.of(
-            "runningMatches", repository.countRunningMatches(),
-            "runtimeConflicts", repository.countPendingRuntimeConflicts()
-        ));
-        response.put("outbox", outboxOverview());
-        return new AdminOverview(response);
+        return new AdminOverview(
+            new AdminBackendOverview(true, formatDuration(Duration.between(startedAt, now))),
+            new AdminInfrastructureOverview(databaseOk(), redisOk()),
+            repository.activeCatalog()
+                .map(AdminCatalogOverview::from)
+                .orElse(null),
+            new AdminRuntimeOverview(
+                repository.countRunningMatches(),
+                repository.countPendingRuntimeConflicts()
+            ),
+            outboxOverview()
+        );
     }
 
     public List<AdminServerStatus> servers() {
@@ -165,16 +158,16 @@ public class AdminStatusService {
         }
     }
 
-    private Map<String, Object> outboxOverview() {
+    private AdminOutboxOverview outboxOverview() {
         Map<String, Long> counts = repository.outboxStatusCounts();
         OffsetDateTime oldest = repository.oldestPendingOutboxCreatedAt();
 
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("pending", counts.get("pending"));
-        response.put("failed", counts.get("failed"));
-        response.put("processed", counts.get("processed"));
-        response.put("oldestPendingAge", oldest == null ? "0s" : formatDuration(Duration.between(oldest, now())));
-        return response;
+        return new AdminOutboxOverview(
+            counts.get("pending"),
+            counts.get("failed"),
+            counts.get("processed"),
+            oldest == null ? "0s" : formatDuration(Duration.between(oldest, now()))
+        );
     }
 
     private UUID parseUuid(String value) {
@@ -244,10 +237,43 @@ public class AdminStatusService {
         return expiresSoon ? "expiring_soon" : "active";
     }
 
-    public record AdminOverview(Map<String, Object> values) {
-        public Map<String, Object> asResponse() {
-            return values;
+    public record AdminOverview(
+        AdminBackendOverview backend,
+        AdminInfrastructureOverview infrastructure,
+        AdminCatalogOverview catalog,
+        AdminRuntimeOverview runtime,
+        AdminOutboxOverview outbox
+    ) {
+    }
+
+    public record AdminBackendOverview(boolean ok, String uptime) {
+    }
+
+    public record AdminInfrastructureOverview(boolean databaseOk, boolean redisOk) {
+    }
+
+    public record AdminCatalogOverview(
+        long activeVersion,
+        String deploymentState,
+        boolean allowNewMatches,
+        boolean allowExistingMatches,
+        OffsetDateTime activatedAt
+    ) {
+        private static AdminCatalogOverview from(AdminRepository.ActiveCatalogRow row) {
+            return new AdminCatalogOverview(
+                row.activeVersion(),
+                row.deploymentState(),
+                row.allowNewMatches(),
+                row.allowExistingMatches(),
+                row.activatedAt()
+            );
         }
+    }
+
+    public record AdminRuntimeOverview(long runningMatches, long runtimeConflicts) {
+    }
+
+    public record AdminOutboxOverview(long pending, long failed, long processed, String oldestPendingAge) {
     }
 
     public record AdminServerStatus(
@@ -264,22 +290,6 @@ public class AdminStatusService {
         boolean certificateExpiresSoon,
         String effectiveAuthState
     ) {
-        public Map<String, Object> asResponse() {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("serverId", serverId);
-            row.put("realmId", realmId);
-            row.put("serverBuildId", serverBuildId);
-            row.put("status", status);
-            row.put("allowedScopes", allowedScopes);
-            row.put("createdAt", createdAt);
-            row.put("expiresAt", expiresAt);
-            row.put("revokedAt", revokedAt);
-            row.put("revoked", revoked);
-            row.put("certificateExpired", certificateExpired);
-            row.put("certificateExpiresSoon", certificateExpiresSoon);
-            row.put("effectiveAuthState", effectiveAuthState);
-            return row;
-        }
     }
 
     public record AdminMatchStatus(
@@ -301,16 +311,6 @@ public class AdminStatusService {
             );
         }
 
-        public Map<String, Object> asResponse() {
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("matchId", matchId);
-            response.put("serverId", serverId);
-            response.put("realmId", realmId);
-            response.put("status", status);
-            response.put("createdAt", createdAt);
-            response.put("finishedAt", finishedAt);
-            return response;
-        }
     }
 
     public record AdminAuditStatusEvent(
@@ -334,17 +334,6 @@ public class AdminStatusService {
             );
         }
 
-        public Map<String, Object> asResponse() {
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("eventId", eventId);
-            response.put("actorId", actorId);
-            response.put("action", action);
-            response.put("targetType", targetType);
-            response.put("targetId", targetId);
-            response.put("result", result);
-            response.put("createdAt", createdAt);
-            return response;
-        }
     }
 
     public record AdminPlayerSearchResult(
@@ -362,14 +351,6 @@ public class AdminStatusService {
             );
         }
 
-        public Map<String, Object> asResponse() {
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("playerId", playerId);
-            response.put("loginName", loginName);
-            response.put("status", status);
-            response.put("accessRevision", accessRevision);
-            return response;
-        }
     }
 
     public record AdminWeaponAccessAuditEvent(
@@ -399,20 +380,6 @@ public class AdminStatusService {
             );
         }
 
-        public Map<String, Object> asResponse() {
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("ledgerEventId", ledgerEventId);
-            response.put("eventType", eventType);
-            response.put("action", action);
-            response.put("sourceType", sourceType);
-            response.put("sourceRef", sourceRef);
-            response.put("actorType", actorType);
-            response.put("actorId", actorId);
-            response.put("result", result);
-            response.put("payload", payload);
-            response.put("createdAt", createdAt);
-            return response;
-        }
     }
 
     public record AdminWeaponAccessStatus(
@@ -449,32 +416,5 @@ public class AdminStatusService {
             );
         }
 
-        public Map<String, Object> asResponse() {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("itemId", itemId);
-            row.put("catalogVersion", catalogVersion);
-            row.put("isHidden", hidden);
-            row.put("isLockedInShop", lockedInShop);
-            row.put("isLockedByQuest", lockedByQuest);
-            row.put("isDisabled", disabled);
-            row.put("disabledReason", disabledReason);
-            row.put("unlockHintCode", unlockHintCode);
-            row.put("updatedAt", updatedAt);
-            row.put("accessRevision", accessRevision);
-            row.put("catalogEnabled", catalogEnabled);
-            row.put("playerCanUse", playerCanUse);
-            row.put("effectiveCanUse", effectiveCanUse);
-            return row;
-        }
-    }
-
-    private static Map<String, Object> activeCatalogResponse(AdminRepository.ActiveCatalogRow row) {
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("activeVersion", row.activeVersion());
-        response.put("deploymentState", row.deploymentState());
-        response.put("allowNewMatches", row.allowNewMatches());
-        response.put("allowExistingMatches", row.allowExistingMatches());
-        response.put("activatedAt", row.activatedAt());
-        return response;
     }
 }

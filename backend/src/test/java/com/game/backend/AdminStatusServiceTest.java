@@ -44,9 +44,13 @@ class AdminStatusServiceTest {
         ));
         when(repository.oldestPendingOutboxCreatedAt()).thenReturn(null);
 
-        Map<String, Object> overview = service.overview().asResponse();
+        AdminStatusService.AdminOverview overview = service.overview();
 
-        assertThat(overview).containsKeys("backend", "infrastructure", "catalog", "runtime", "outbox");
+        assertThat(overview.backend().ok()).isTrue();
+        assertThat(overview.infrastructure().databaseOk()).isTrue();
+        assertThat(overview.catalog().activeVersion()).isEqualTo(1L);
+        assertThat(overview.runtime().runningMatches()).isEqualTo(2L);
+        assertThat(overview.outbox().pending()).isEqualTo(3L);
         verify(repository).databasePingOk();
         verify(repository).activeCatalog();
         verify(repository).countRunningMatches();
@@ -108,18 +112,15 @@ class AdminStatusServiceTest {
             serverRow("revoked", now.plusDays(30), now.minusMinutes(1))
         ));
 
-        List<Map<String, Object>> servers = service.servers()
-            .stream()
-            .map(AdminStatusService.AdminServerStatus::asResponse)
-            .toList();
+        List<AdminStatusService.AdminServerStatus> servers = service.servers();
 
-        assertThat(servers).extracting(row -> row.get("effectiveAuthState"))
+        assertThat(servers).extracting(AdminStatusService.AdminServerStatus::effectiveAuthState)
             .containsExactly("active", "expiring_soon", "expired", "revoked");
-        assertThat(servers).extracting(row -> row.get("certificateExpired"))
+        assertThat(servers).extracting(AdminStatusService.AdminServerStatus::certificateExpired)
             .containsExactly(false, false, true, false);
-        assertThat(servers).extracting(row -> row.get("certificateExpiresSoon"))
+        assertThat(servers).extracting(AdminStatusService.AdminServerStatus::certificateExpiresSoon)
             .containsExactly(false, true, false, false);
-        assertThat(servers).extracting(row -> row.get("revoked"))
+        assertThat(servers).extracting(AdminStatusService.AdminServerStatus::revoked)
             .containsExactly(false, false, false, true);
     }
 

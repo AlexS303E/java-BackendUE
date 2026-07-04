@@ -507,3 +507,11 @@ Goal: remove raw dashboard row maps from `AdminRepository` query APIs while pres
 - [x] Return typed repository row records for dashboard servers, matches, audit events, players, weapon access, and active catalog.
 - [x] Move derived dashboard response maps into `AdminStatusService` response adapters.
 - [x] Add an architecture guard against repository components exposing raw `Map<String, Object>` row APIs.
+
+## Block 63 - Admin status transport mapping boundary
+
+Goal: move admin status JSON response mapping out of application records and back into the API boundary.
+
+- [x] Replace `AdminOverview` raw response map with typed overview records.
+- [x] Remove `asResponse()` transport helpers from admin status application records.
+- [x] Map typed admin status records to legacy JSON only inside `AdminStatusController`.

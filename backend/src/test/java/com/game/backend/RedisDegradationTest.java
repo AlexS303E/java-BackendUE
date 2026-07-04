@@ -93,12 +93,10 @@ class RedisDegradationTest {
 
         AdminStatusService service = new AdminStatusService(repository, redisDownTemplate());
 
-        Map<String, Object> overview = service.overview().asResponse();
+        AdminStatusService.AdminOverview overview = service.overview();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> infrastructure = (Map<String, Object>) overview.get("infrastructure");
-        assertThat(infrastructure.get("databaseOk")).isEqualTo(true);
-        assertThat(infrastructure.get("redisOk")).isEqualTo(false);
+        assertThat(overview.infrastructure().databaseOk()).isTrue();
+        assertThat(overview.infrastructure().redisOk()).isFalse();
     }
 
     private StringRedisTemplate redisDownTemplate() {
