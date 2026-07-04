@@ -197,6 +197,40 @@ public class OutboxService {
         );
     }
 
+    public void recordCatalogLifecycleChanged(
+        String eventType,
+        UUID operationId,
+        String realmId,
+        long previousCatalogVersion,
+        long activeCatalogVersion,
+        int migratedWeaponPresets,
+        int migratedOutfitPresets,
+        int migratedAccessPlayers,
+        int staleMatchProfiles,
+        OffsetDateTime now
+    ) {
+        if (!"catalog.publish".equals(eventType) && !"catalog.rollback".equals(eventType)) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "OUTBOX_EVENT_TYPE_INVALID", "Unsupported catalog lifecycle outbox event");
+        }
+        record(
+            eventType,
+            "catalog_deployment",
+            realmId + ":" + activeCatalogVersion,
+            1,
+            Map.of(
+                "operation_id", operationId,
+                "realm_id", realmId,
+                "previous_catalog_version", previousCatalogVersion,
+                "active_catalog_version", activeCatalogVersion,
+                "migrated_weapon_presets", migratedWeaponPresets,
+                "migrated_outfit_presets", migratedOutfitPresets,
+                "migrated_access_players", migratedAccessPlayers,
+                "stale_match_profiles", staleMatchProfiles
+            ),
+            now
+        );
+    }
+
     private Map<String, Object> presetSanitizedPayload(
         UUID playerId,
         String classTag,

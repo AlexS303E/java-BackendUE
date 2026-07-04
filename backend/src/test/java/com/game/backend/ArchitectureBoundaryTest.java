@@ -576,7 +576,9 @@ class ArchitectureBoundaryTest {
                     || source.contains("\"match_profile.staled\"")
                     || source.contains("\"weapon_preset.saved\"")
                     || source.contains("\"weapon_preset.sanitized\"")
-                    || source.contains("\"outfit_preset.sanitized\""));
+                    || source.contains("\"outfit_preset.sanitized\"")
+                    || source.contains("\"catalog.publish\"")
+                    || source.contains("\"catalog.rollback\""));
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

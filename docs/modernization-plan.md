@@ -539,3 +539,11 @@ Goal: move preset save and sanitization outbox payload creation behind typed `Ou
 - [x] Add typed outbox recorders for weapon preset saves and weapon/outfit preset sanitization.
 - [x] Update preset save and loadout sanitization services to use typed outbox recording.
 - [x] Extend the typed outbox guard to block preset events from generic `outboxService.record(...)` calls.
+
+## Block 67 - Typed outbox recording for catalog lifecycle
+
+Goal: move catalog publish/rollback outbox payload creation behind a typed `OutboxService` method.
+
+- [x] Add a typed catalog lifecycle outbox recorder for publish and rollback events.
+- [x] Update `CatalogLifecycleService` to use typed catalog outbox recording.
+- [x] Extend the typed outbox guard to block catalog lifecycle events from generic `outboxService.record(...)` calls.

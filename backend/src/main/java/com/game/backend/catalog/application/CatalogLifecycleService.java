@@ -476,21 +476,16 @@ public class CatalogLifecycleService {
         int staleProfiles,
         OffsetDateTime now
     ) {
-        outboxService.record(
+        outboxService.recordCatalogLifecycleChanged(
             action,
-            "catalog_deployment",
-            realmId + ":" + activeVersion,
-            1,
-            Map.of(
-                "operation_id", operationId,
-                "realm_id", realmId,
-                "previous_catalog_version", previousVersion,
-                "active_catalog_version", activeVersion,
-                "migrated_weapon_presets", migration.weaponPresets(),
-                "migrated_outfit_presets", migration.outfitPresets(),
-                "migrated_access_players", migration.accessPlayers(),
-                "stale_match_profiles", staleProfiles
-            ),
+            operationId,
+            realmId,
+            previousVersion,
+            activeVersion,
+            migration.weaponPresets(),
+            migration.outfitPresets(),
+            migration.accessPlayers(),
+            staleProfiles,
             now
         );
     }
