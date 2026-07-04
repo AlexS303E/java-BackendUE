@@ -210,6 +210,49 @@ class OutboxServiceTest {
     }
 
     @Test
+    void postMatchCreatedRecorderShouldPersistExpectedPayloadShape() throws Exception {
+        UUID playerId = UUID.randomUUID();
+        UUID matchId = UUID.randomUUID();
+        UUID operationId = UUID.randomUUID();
+        UUID pendingChangeId = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.parse("2026-07-04T12:45:00Z");
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+
+        service.recordPostMatchPendingChangeCreated(
+            playerId,
+            matchId,
+            operationId,
+            pendingChangeId,
+            "class.assault",
+            1,
+            4L,
+            5L,
+            now
+        );
+
+        verify(repository).insertPendingEvent(
+            any(UUID.class),
+            eq("post_match_pending_change.created"),
+            eq("post_match_pending_change"),
+            eq(pendingChangeId.toString()),
+            payload.capture(),
+            eq(1),
+            eq(now)
+        );
+        JsonNode json = objectMapper.readTree(payload.getValue());
+        assertThat(json.path("player_id").asText()).isEqualTo(playerId.toString());
+        assertThat(json.path("match_id").asText()).isEqualTo(matchId.toString());
+        assertThat(json.path("operation_id").asText()).isEqualTo(operationId.toString());
+        assertThat(json.path("pending_change_id").asText()).isEqualTo(pendingChangeId.toString());
+        assertThat(json.path("class_tag").asText()).isEqualTo("class.assault");
+        assertThat(json.path("preset_slot").asInt()).isEqualTo(1);
+        assertThat(json.path("base_revision").asLong()).isEqualTo(4L);
+        assertThat(json.path("current_revision").asLong()).isEqualTo(5L);
+        assertThat(json.path("status").asText()).isEqualTo("pending");
+        assertThat(json.path("source").asText()).isEqualTo("runtime");
+    }
+
+    @Test
     void postMatchResolvedRecorderShouldOmitNullResultRevision() throws Exception {
         UUID playerId = UUID.randomUUID();
         UUID matchId = UUID.randomUUID();

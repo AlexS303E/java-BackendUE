@@ -571,3 +571,11 @@ Goal: move post-match pending-change resolution outbox payload creation behind t
 - [x] Add typed outbox recorders for `weapon_preset.post_match_applied` and `post_match_pending_change.resolved`.
 - [x] Update `PostMatchPendingChangesService` to use typed post-match outbox recording.
 - [x] Extend the typed outbox guard to block post-match events from generic `outboxService.record(...)` calls.
+
+## Block 71 - Typed outbox recording for pending-change conflicts
+
+Goal: move runtime conflict pending-change creation outbox payload creation behind a typed `OutboxService` method.
+
+- [x] Add a typed outbox recorder for `post_match_pending_change.created`.
+- [x] Update `RuntimeChangeConflictService` to use typed pending-change creation outbox recording.
+- [x] Extend the typed outbox guard to block pending-change creation from generic `outboxService.record(...)` calls.

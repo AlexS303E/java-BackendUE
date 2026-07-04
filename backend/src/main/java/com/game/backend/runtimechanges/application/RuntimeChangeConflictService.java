@@ -87,12 +87,15 @@ public class RuntimeChangeConflictService {
             "status", "pending",
             "source", "runtime"
         );
-        outboxService.record(
-            "post_match_pending_change.created",
-            "post_match_pending_change",
-            pendingChangeId.toString(),
-            1,
-            payload,
+        outboxService.recordPostMatchPendingChangeCreated(
+            command.playerId(),
+            command.matchId(),
+            command.operationId(),
+            pendingChangeId,
+            command.classTag(),
+            command.weaponPresetSlot(),
+            command.baseWeaponPresetRevision(),
+            currentRevision,
             now
         );
         playerNotificationService.record(

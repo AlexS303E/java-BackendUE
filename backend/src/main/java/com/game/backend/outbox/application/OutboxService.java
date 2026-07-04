@@ -292,6 +292,38 @@ public class OutboxService {
         );
     }
 
+    public void recordPostMatchPendingChangeCreated(
+        UUID playerId,
+        UUID matchId,
+        UUID operationId,
+        UUID pendingChangeId,
+        String classTag,
+        int presetSlot,
+        long baseRevision,
+        long currentRevision,
+        OffsetDateTime now
+    ) {
+        record(
+            "post_match_pending_change.created",
+            "post_match_pending_change",
+            pendingChangeId.toString(),
+            1,
+            Map.of(
+                "player_id", playerId,
+                "match_id", matchId,
+                "operation_id", operationId,
+                "class_tag", classTag,
+                "preset_slot", presetSlot,
+                "base_revision", baseRevision,
+                "current_revision", currentRevision,
+                "pending_change_id", pendingChangeId,
+                "status", "pending",
+                "source", "runtime"
+            ),
+            now
+        );
+    }
+
     public void recordOutfitPresetSanitized(
         UUID playerId,
         String teamTag,
