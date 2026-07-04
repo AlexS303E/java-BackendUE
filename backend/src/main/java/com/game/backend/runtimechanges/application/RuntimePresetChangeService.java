@@ -239,22 +239,15 @@ public class RuntimePresetChangeService {
         long resultRevision,
         OffsetDateTime now
     ) {
-        outboxService.record(
-            "weapon_preset.runtime_changed",
-            "weapon_preset",
-            weaponPresetAggregateId(command.playerId(), command.classTag(), command.weaponPresetSlot(), catalogVersion),
-            1,
-            Map.of(
-                "player_id", command.playerId(),
-                "match_id", command.matchId(),
-                "operation_id", command.operationId(),
-                "class_tag", command.classTag(),
-                "preset_slot", command.weaponPresetSlot(),
-                "catalog_version", catalogVersion,
-                "base_revision", command.baseWeaponPresetRevision(),
-                "revision", resultRevision,
-                "source", "runtime"
-            ),
+        outboxService.recordWeaponPresetRuntimeChanged(
+            command.playerId(),
+            command.matchId(),
+            command.operationId(),
+            command.classTag(),
+            command.weaponPresetSlot(),
+            catalogVersion,
+            command.baseWeaponPresetRevision(),
+            resultRevision,
             now
         );
     }
@@ -266,29 +259,18 @@ public class RuntimePresetChangeService {
         String reason,
         OffsetDateTime now
     ) {
-        outboxService.record(
-            "weapon_preset.runtime_failed",
-            "weapon_preset",
-            weaponPresetAggregateId(command.playerId(), command.classTag(), command.weaponPresetSlot(), catalogVersion),
-            1,
-            Map.of(
-                "player_id", command.playerId(),
-                "match_id", command.matchId(),
-                "operation_id", command.operationId(),
-                "class_tag", command.classTag(),
-                "preset_slot", command.weaponPresetSlot(),
-                "catalog_version", catalogVersion,
-                "base_revision", command.baseWeaponPresetRevision(),
-                "status", status,
-                "reason", reason,
-                "source", "runtime"
-            ),
+        outboxService.recordWeaponPresetRuntimeFailed(
+            command.playerId(),
+            command.matchId(),
+            command.operationId(),
+            command.classTag(),
+            command.weaponPresetSlot(),
+            catalogVersion,
+            command.baseWeaponPresetRevision(),
+            status,
+            reason,
             now
         );
-    }
-
-    private String weaponPresetAggregateId(UUID playerId, String classTag, int presetSlot, long catalogVersion) {
-        return playerId + ":" + classTag + ":" + presetSlot + ":" + catalogVersion;
     }
 
     private void validateIdempotencyKey(String idempotencyKey, RuntimePresetChangeCommand command) {

@@ -555,3 +555,11 @@ Goal: move admin maintenance outbox payload creation behind typed `OutboxService
 - [x] Add typed outbox recorders for projection rebuild, player cache invalidation, and server identity revoke events.
 - [x] Update `AdminAccessMaintenanceService` to use typed maintenance outbox recording.
 - [x] Extend the typed outbox guard to block maintenance events from generic `outboxService.record(...)` calls.
+
+## Block 69 - Typed outbox recording for runtime preset changes
+
+Goal: move runtime preset applied/failed outbox payload creation behind typed `OutboxService` methods.
+
+- [x] Add typed outbox recorders for `weapon_preset.runtime_changed` and `weapon_preset.runtime_failed`.
+- [x] Update `RuntimePresetChangeService` to use typed runtime preset outbox recording.
+- [x] Extend the typed outbox guard to block runtime preset events from generic `outboxService.record(...)` calls.

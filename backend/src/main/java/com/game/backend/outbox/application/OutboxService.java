@@ -165,6 +165,70 @@ public class OutboxService {
         );
     }
 
+    public void recordWeaponPresetRuntimeChanged(
+        UUID playerId,
+        UUID matchId,
+        UUID operationId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        long baseRevision,
+        long revision,
+        OffsetDateTime now
+    ) {
+        record(
+            "weapon_preset.runtime_changed",
+            "weapon_preset",
+            weaponPresetAggregateId(playerId, classTag, presetSlot, catalogVersion),
+            1,
+            Map.of(
+                "player_id", playerId,
+                "match_id", matchId,
+                "operation_id", operationId,
+                "class_tag", classTag,
+                "preset_slot", presetSlot,
+                "catalog_version", catalogVersion,
+                "base_revision", baseRevision,
+                "revision", revision,
+                "source", "runtime"
+            ),
+            now
+        );
+    }
+
+    public void recordWeaponPresetRuntimeFailed(
+        UUID playerId,
+        UUID matchId,
+        UUID operationId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        long baseRevision,
+        String status,
+        String reason,
+        OffsetDateTime now
+    ) {
+        record(
+            "weapon_preset.runtime_failed",
+            "weapon_preset",
+            weaponPresetAggregateId(playerId, classTag, presetSlot, catalogVersion),
+            1,
+            Map.of(
+                "player_id", playerId,
+                "match_id", matchId,
+                "operation_id", operationId,
+                "class_tag", classTag,
+                "preset_slot", presetSlot,
+                "catalog_version", catalogVersion,
+                "base_revision", baseRevision,
+                "status", status,
+                "reason", reason,
+                "source", "runtime"
+            ),
+            now
+        );
+    }
+
     public void recordOutfitPresetSanitized(
         UUID playerId,
         String teamTag,

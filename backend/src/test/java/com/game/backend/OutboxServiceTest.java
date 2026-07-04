@@ -83,4 +83,45 @@ class OutboxServiceTest {
         assertThat(json.path("actor_id").asText()).isEqualTo("admin:test");
         assertThat(json.path("reason").asText()).isEqualTo("manual");
     }
+
+    @Test
+    void runtimeChangedRecorderShouldPersistExpectedPayloadShape() throws Exception {
+        UUID playerId = UUID.randomUUID();
+        UUID matchId = UUID.randomUUID();
+        UUID operationId = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.parse("2026-07-04T12:20:00Z");
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+
+        service.recordWeaponPresetRuntimeChanged(
+            playerId,
+            matchId,
+            operationId,
+            "class.assault",
+            1,
+            2L,
+            4L,
+            5L,
+            now
+        );
+
+        verify(repository).insertPendingEvent(
+            any(UUID.class),
+            eq("weapon_preset.runtime_changed"),
+            eq("weapon_preset"),
+            eq(playerId + ":class.assault:1:2"),
+            payload.capture(),
+            eq(1),
+            eq(now)
+        );
+        JsonNode json = objectMapper.readTree(payload.getValue());
+        assertThat(json.path("player_id").asText()).isEqualTo(playerId.toString());
+        assertThat(json.path("match_id").asText()).isEqualTo(matchId.toString());
+        assertThat(json.path("operation_id").asText()).isEqualTo(operationId.toString());
+        assertThat(json.path("class_tag").asText()).isEqualTo("class.assault");
+        assertThat(json.path("preset_slot").asInt()).isEqualTo(1);
+        assertThat(json.path("catalog_version").asLong()).isEqualTo(2L);
+        assertThat(json.path("base_revision").asLong()).isEqualTo(4L);
+        assertThat(json.path("revision").asLong()).isEqualTo(5L);
+        assertThat(json.path("source").asText()).isEqualTo("runtime");
+    }
 }
