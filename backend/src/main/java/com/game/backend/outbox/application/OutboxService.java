@@ -229,6 +229,69 @@ public class OutboxService {
         );
     }
 
+    public void recordWeaponPresetPostMatchApplied(
+        UUID playerId,
+        UUID matchId,
+        UUID pendingChangeId,
+        String classTag,
+        int presetSlot,
+        long catalogVersion,
+        long baseRevision,
+        long revision,
+        OffsetDateTime now
+    ) {
+        record(
+            "weapon_preset.post_match_applied",
+            "weapon_preset",
+            "weapon_preset:" + weaponPresetAggregateId(playerId, classTag, presetSlot, catalogVersion),
+            1,
+            Map.of(
+                "player_id", playerId,
+                "match_id", matchId,
+                "pending_change_id", pendingChangeId,
+                "class_tag", classTag,
+                "preset_slot", presetSlot,
+                "catalog_version", catalogVersion,
+                "base_revision", baseRevision,
+                "revision", revision,
+                "source", "post_match"
+            ),
+            now
+        );
+    }
+
+    public void recordPostMatchPendingChangeResolved(
+        UUID playerId,
+        UUID matchId,
+        UUID pendingChangeId,
+        String classTag,
+        int presetSlot,
+        long baseRevision,
+        String resolution,
+        String status,
+        Long resultRevision,
+        OffsetDateTime now
+    ) {
+        record(
+            "post_match_pending_change.resolved",
+            "post_match_pending_change",
+            pendingChangeId.toString(),
+            1,
+            postMatchPendingChangeResolvedPayload(
+                playerId,
+                matchId,
+                pendingChangeId,
+                classTag,
+                presetSlot,
+                baseRevision,
+                resolution,
+                status,
+                resultRevision
+            ),
+            now
+        );
+    }
+
     public void recordOutfitPresetSanitized(
         UUID playerId,
         String teamTag,
@@ -413,6 +476,33 @@ public class OutboxService {
         payload.put("removed_item_type", "clothing");
         payload.put("source", source);
         payload.put("source_event_id", sourceEventId);
+        return payload;
+    }
+
+    private Map<String, Object> postMatchPendingChangeResolvedPayload(
+        UUID playerId,
+        UUID matchId,
+        UUID pendingChangeId,
+        String classTag,
+        int presetSlot,
+        long baseRevision,
+        String resolution,
+        String status,
+        Long resultRevision
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("player_id", playerId);
+        payload.put("match_id", matchId);
+        payload.put("pending_change_id", pendingChangeId);
+        payload.put("class_tag", classTag);
+        payload.put("preset_slot", presetSlot);
+        payload.put("base_revision", baseRevision);
+        payload.put("resolution", resolution);
+        payload.put("status", status);
+        payload.put("source", "post_match");
+        if (resultRevision != null) {
+            payload.put("result_revision", resultRevision);
+        }
         return payload;
     }
 

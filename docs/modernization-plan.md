@@ -563,3 +563,11 @@ Goal: move runtime preset applied/failed outbox payload creation behind typed `O
 - [x] Add typed outbox recorders for `weapon_preset.runtime_changed` and `weapon_preset.runtime_failed`.
 - [x] Update `RuntimePresetChangeService` to use typed runtime preset outbox recording.
 - [x] Extend the typed outbox guard to block runtime preset events from generic `outboxService.record(...)` calls.
+
+## Block 70 - Typed outbox recording for post-match changes
+
+Goal: move post-match pending-change resolution outbox payload creation behind typed `OutboxService` methods.
+
+- [x] Add typed outbox recorders for `weapon_preset.post_match_applied` and `post_match_pending_change.resolved`.
+- [x] Update `PostMatchPendingChangesService` to use typed post-match outbox recording.
+- [x] Extend the typed outbox guard to block post-match events from generic `outboxService.record(...)` calls.

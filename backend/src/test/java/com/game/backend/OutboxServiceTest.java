@@ -124,4 +124,124 @@ class OutboxServiceTest {
         assertThat(json.path("revision").asLong()).isEqualTo(5L);
         assertThat(json.path("source").asText()).isEqualTo("runtime");
     }
+
+    @Test
+    void postMatchAppliedRecorderShouldPersistExpectedPayloadShape() throws Exception {
+        UUID playerId = UUID.randomUUID();
+        UUID matchId = UUID.randomUUID();
+        UUID pendingChangeId = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.parse("2026-07-04T12:30:00Z");
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+
+        service.recordWeaponPresetPostMatchApplied(
+            playerId,
+            matchId,
+            pendingChangeId,
+            "class.assault",
+            1,
+            2L,
+            4L,
+            5L,
+            now
+        );
+
+        verify(repository).insertPendingEvent(
+            any(UUID.class),
+            eq("weapon_preset.post_match_applied"),
+            eq("weapon_preset"),
+            eq("weapon_preset:" + playerId + ":class.assault:1:2"),
+            payload.capture(),
+            eq(1),
+            eq(now)
+        );
+        JsonNode json = objectMapper.readTree(payload.getValue());
+        assertThat(json.path("player_id").asText()).isEqualTo(playerId.toString());
+        assertThat(json.path("match_id").asText()).isEqualTo(matchId.toString());
+        assertThat(json.path("pending_change_id").asText()).isEqualTo(pendingChangeId.toString());
+        assertThat(json.path("class_tag").asText()).isEqualTo("class.assault");
+        assertThat(json.path("preset_slot").asInt()).isEqualTo(1);
+        assertThat(json.path("catalog_version").asLong()).isEqualTo(2L);
+        assertThat(json.path("base_revision").asLong()).isEqualTo(4L);
+        assertThat(json.path("revision").asLong()).isEqualTo(5L);
+        assertThat(json.path("source").asText()).isEqualTo("post_match");
+    }
+
+    @Test
+    void postMatchResolvedRecorderShouldPersistExpectedPayloadShape() throws Exception {
+        UUID playerId = UUID.randomUUID();
+        UUID matchId = UUID.randomUUID();
+        UUID pendingChangeId = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.parse("2026-07-04T12:40:00Z");
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+
+        service.recordPostMatchPendingChangeResolved(
+            playerId,
+            matchId,
+            pendingChangeId,
+            "class.assault",
+            1,
+            4L,
+            "apply_if_still_valid",
+            "applied",
+            5L,
+            now
+        );
+
+        verify(repository).insertPendingEvent(
+            any(UUID.class),
+            eq("post_match_pending_change.resolved"),
+            eq("post_match_pending_change"),
+            eq(pendingChangeId.toString()),
+            payload.capture(),
+            eq(1),
+            eq(now)
+        );
+        JsonNode json = objectMapper.readTree(payload.getValue());
+        assertThat(json.path("player_id").asText()).isEqualTo(playerId.toString());
+        assertThat(json.path("match_id").asText()).isEqualTo(matchId.toString());
+        assertThat(json.path("pending_change_id").asText()).isEqualTo(pendingChangeId.toString());
+        assertThat(json.path("class_tag").asText()).isEqualTo("class.assault");
+        assertThat(json.path("preset_slot").asInt()).isEqualTo(1);
+        assertThat(json.path("base_revision").asLong()).isEqualTo(4L);
+        assertThat(json.path("resolution").asText()).isEqualTo("apply_if_still_valid");
+        assertThat(json.path("status").asText()).isEqualTo("applied");
+        assertThat(json.path("result_revision").asLong()).isEqualTo(5L);
+        assertThat(json.path("source").asText()).isEqualTo("post_match");
+    }
+
+    @Test
+    void postMatchResolvedRecorderShouldOmitNullResultRevision() throws Exception {
+        UUID playerId = UUID.randomUUID();
+        UUID matchId = UUID.randomUUID();
+        UUID pendingChangeId = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.parse("2026-07-04T12:50:00Z");
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+
+        service.recordPostMatchPendingChangeResolved(
+            playerId,
+            matchId,
+            pendingChangeId,
+            "class.assault",
+            1,
+            4L,
+            "discard",
+            "rejected",
+            null,
+            now
+        );
+
+        verify(repository).insertPendingEvent(
+            any(UUID.class),
+            eq("post_match_pending_change.resolved"),
+            eq("post_match_pending_change"),
+            eq(pendingChangeId.toString()),
+            payload.capture(),
+            eq(1),
+            eq(now)
+        );
+        JsonNode json = objectMapper.readTree(payload.getValue());
+        assertThat(json.has("result_revision")).isFalse();
+        assertThat(json.path("resolution").asText()).isEqualTo("discard");
+        assertThat(json.path("status").asText()).isEqualTo("rejected");
+    }
 }
