@@ -5,7 +5,6 @@ import com.game.backend.admin.repository.AdminRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.game.backend.admin.api.AdminItemOperationRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,56 +39,56 @@ public class AdminItemOperationService {
     /**
      * Скрывает предмет для игрока.
      */
-    public AdminItemAccessUpdateResult hide(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult hide(AdminIdentity admin, String idempotencyKey, AdminItemOperationCommand request) {
         return apply(admin, idempotencyKey, ItemOperation.HIDE, request);
     }
 
     /**
      * Снимает hidden-флаг с предмета для игрока.
      */
-    public AdminItemAccessUpdateResult reveal(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult reveal(AdminIdentity admin, String idempotencyKey, AdminItemOperationCommand request) {
         return apply(admin, idempotencyKey, ItemOperation.REVEAL, request);
     }
 
     /**
      * Ставит shop lock для игрока.
      */
-    public AdminItemAccessUpdateResult shopLock(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult shopLock(AdminIdentity admin, String idempotencyKey, AdminItemOperationCommand request) {
         return apply(admin, idempotencyKey, ItemOperation.SHOP_LOCK, request);
     }
 
     /**
      * Снимает shop lock для игрока.
      */
-    public AdminItemAccessUpdateResult shopUnlock(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult shopUnlock(AdminIdentity admin, String idempotencyKey, AdminItemOperationCommand request) {
         return apply(admin, idempotencyKey, ItemOperation.SHOP_UNLOCK, request);
     }
 
     /**
      * Ставит quest lock для игрока.
      */
-    public AdminItemAccessUpdateResult questLock(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult questLock(AdminIdentity admin, String idempotencyKey, AdminItemOperationCommand request) {
         return apply(admin, idempotencyKey, ItemOperation.QUEST_LOCK, request);
     }
 
     /**
      * Снимает quest lock для игрока.
      */
-    public AdminItemAccessUpdateResult questUnlock(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult questUnlock(AdminIdentity admin, String idempotencyKey, AdminItemOperationCommand request) {
         return apply(admin, idempotencyKey, ItemOperation.QUEST_UNLOCK, request);
     }
 
     /**
      * Отключает предмет для конкретного игрока через access projection.
      */
-    public AdminItemAccessUpdateResult disable(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult disable(AdminIdentity admin, String idempotencyKey, AdminItemOperationCommand request) {
         return apply(admin, idempotencyKey, ItemOperation.DISABLE, request);
     }
 
     /**
      * Снимает player-level disable с предмета.
      */
-    public AdminItemAccessUpdateResult enable(AdminIdentity admin, String idempotencyKey, AdminItemOperationRequest request) {
+    public AdminItemAccessUpdateResult enable(AdminIdentity admin, String idempotencyKey, AdminItemOperationCommand request) {
         return apply(admin, idempotencyKey, ItemOperation.ENABLE, request);
     }
 
@@ -97,7 +96,7 @@ public class AdminItemOperationService {
         AdminIdentity admin,
         String idempotencyKey,
         ItemOperation operation,
-        AdminItemOperationRequest request
+        AdminItemOperationCommand request
     ) {
         return idempotencyService.execute(
             admin,
@@ -115,7 +114,7 @@ public class AdminItemOperationService {
         AdminIdentity admin,
         String externalIdempotencyKey,
         ItemOperation operation,
-        AdminItemOperationRequest request
+        AdminItemOperationCommand request
     ) {
         AccessFlags current = currentFlags(request);
         AccessFlags updated = operation.apply(current, request);
@@ -140,7 +139,7 @@ public class AdminItemOperationService {
         );
     }
 
-    private AccessFlags currentFlags(AdminItemOperationRequest request) {
+    private AccessFlags currentFlags(AdminItemOperationCommand request) {
         List<AdminRepository.ItemAccessFlags> rows = repository.findItemAccessFlags(
             request.playerId(),
             request.itemId(),
@@ -193,7 +192,7 @@ public class AdminItemOperationService {
     private enum ItemOperation {
         HIDE("hide", "hidden", "hide_item") {
             @Override
-            AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
+            AccessFlags apply(AccessFlags flags, AdminItemOperationCommand request) {
                 return new AccessFlags(
                     true,
                     flags.lockedInShop(),
@@ -207,7 +206,7 @@ public class AdminItemOperationService {
         },
         REVEAL("reveal", null, "reveal_item") {
             @Override
-            AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
+            AccessFlags apply(AccessFlags flags, AdminItemOperationCommand request) {
                 return normalize(new AccessFlags(
                     false,
                     flags.lockedInShop(),
@@ -221,7 +220,7 @@ public class AdminItemOperationService {
         },
         SHOP_LOCK("shop-lock", "buy_in_shop", "shop_lock") {
             @Override
-            AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
+            AccessFlags apply(AccessFlags flags, AdminItemOperationCommand request) {
                 return new AccessFlags(
                     flags.hidden(),
                     true,
@@ -235,7 +234,7 @@ public class AdminItemOperationService {
         },
         SHOP_UNLOCK("shop-unlock", null, "shop_unlock") {
             @Override
-            AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
+            AccessFlags apply(AccessFlags flags, AdminItemOperationCommand request) {
                 return normalize(new AccessFlags(
                     flags.hidden(),
                     false,
@@ -249,7 +248,7 @@ public class AdminItemOperationService {
         },
         QUEST_LOCK("quest-lock", "complete_quest", "quest_lock") {
             @Override
-            AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
+            AccessFlags apply(AccessFlags flags, AdminItemOperationCommand request) {
                 return new AccessFlags(
                     flags.hidden(),
                     flags.lockedInShop(),
@@ -263,7 +262,7 @@ public class AdminItemOperationService {
         },
         QUEST_UNLOCK("quest-unlock", null, "quest_unlock") {
             @Override
-            AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
+            AccessFlags apply(AccessFlags flags, AdminItemOperationCommand request) {
                 return normalize(new AccessFlags(
                     flags.hidden(),
                     flags.lockedInShop(),
@@ -277,7 +276,7 @@ public class AdminItemOperationService {
         },
         DISABLE("disable", "admin_disabled", "item_disable") {
             @Override
-            AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
+            AccessFlags apply(AccessFlags flags, AdminItemOperationCommand request) {
                 return new AccessFlags(
                     flags.hidden(),
                     flags.lockedInShop(),
@@ -291,7 +290,7 @@ public class AdminItemOperationService {
         },
         ENABLE("enable", null, "item_enable") {
             @Override
-            AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request) {
+            AccessFlags apply(AccessFlags flags, AdminItemOperationCommand request) {
                 return normalize(new AccessFlags(
                     flags.hidden(),
                     flags.lockedInShop(),
@@ -326,7 +325,7 @@ public class AdminItemOperationService {
             return defaultHint;
         }
 
-        abstract AccessFlags apply(AccessFlags flags, AdminItemOperationRequest request);
+        abstract AccessFlags apply(AccessFlags flags, AdminItemOperationCommand request);
 
         private static AccessFlags normalize(AccessFlags flags) {
             if (flags.hidden()) {
@@ -344,11 +343,11 @@ public class AdminItemOperationService {
             return new AccessFlags(false, false, false, false, null, null, null);
         }
 
-        private static String hint(AdminItemOperationRequest request, String fallback) {
+        private static String hint(AdminItemOperationCommand request, String fallback) {
             return firstNonBlank(request.unlockHintCode(), fallback);
         }
 
-        private static Map<String, Object> payload(AdminItemOperationRequest request, AccessFlags flags) {
+        private static Map<String, Object> payload(AdminItemOperationCommand request, AccessFlags flags) {
             if (request.unlockHintPayload() != null) {
                 return request.unlockHintPayload();
             }

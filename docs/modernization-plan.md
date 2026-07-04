@@ -451,3 +451,11 @@ Goal: remove admin item access update request/response DTO ownership from applic
 - [x] Add application-level admin item access update command/result records.
 - [x] Move direct admin item access request/result mapping into admin API controllers.
 - [x] Update item operation and weapon access adapters to call the application command/result API.
+
+## Block 56 - Admin item operation command decoupling
+
+Goal: remove explicit admin item operation request DTO ownership from `AdminItemOperationService`.
+
+- [x] Add an application-level admin item operation command.
+- [x] Move item operation request mapping into `AdminItemOperationsController`.
+- [x] Keep item operation idempotency replay on application command/result types.
