@@ -459,3 +459,11 @@ Goal: remove explicit admin item operation request DTO ownership from `AdminItem
 - [x] Add an application-level admin item operation command.
 - [x] Move item operation request mapping into `AdminItemOperationsController`.
 - [x] Keep item operation idempotency replay on application command/result types.
+
+## Block 57 - Admin maintenance DTO decoupling
+
+Goal: remove admin maintenance request/response DTO ownership from `AdminAccessMaintenanceService`.
+
+- [x] Add application-level projection rebuild, cache invalidate, and server identity revoke command/result records.
+- [x] Move maintenance request/result mapping into `AdminMaintenanceController`.
+- [x] Keep maintenance idempotency replay on application command/result types.

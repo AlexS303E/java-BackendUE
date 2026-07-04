@@ -6,12 +6,6 @@ import com.game.backend.admin.repository.AdminRepository.MaintenanceLedgerRow;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.game.backend.admin.api.AdminCacheInvalidateRequest;
-import com.game.backend.admin.api.AdminCacheInvalidateResponse;
-import com.game.backend.admin.api.AdminProjectionRebuildRequest;
-import com.game.backend.admin.api.AdminProjectionRebuildResponse;
-import com.game.backend.admin.api.AdminServerIdentityRevokeRequest;
-import com.game.backend.admin.api.AdminServerIdentityRevokeResponse;
 import com.game.backend.cache.RedisCacheService;
 import com.game.backend.common.api.ApiException;
 import com.game.backend.matchprofile.application.MatchProfileInvalidationService;
@@ -63,10 +57,10 @@ public class AdminAccessMaintenanceService {
     /**
      * Пересобирает player_item_access из immutable entitlement_ledger.
      */
-    public AdminProjectionRebuildResponse rebuildProjection(
+    public AdminProjectionRebuildResult rebuildProjection(
         AdminIdentity admin,
         String idempotencyKey,
-        AdminProjectionRebuildRequest request
+        AdminProjectionRebuildCommand request
     ) {
         return idempotencyService.execute(
             admin,
@@ -74,7 +68,7 @@ public class AdminAccessMaintenanceService {
             "/admin/access/rebuild-projection",
             idempotencyKey,
             request,
-            AdminProjectionRebuildResponse.class,
+            AdminProjectionRebuildResult.class,
             () -> rebuildProjectionOnce(admin, request)
         );
     }
@@ -82,10 +76,10 @@ public class AdminAccessMaintenanceService {
     /**
      * Помечает profile snapshots игрока устаревшими.
      */
-    public AdminCacheInvalidateResponse invalidatePlayerCache(
+    public AdminCacheInvalidateResult invalidatePlayerCache(
         AdminIdentity admin,
         String idempotencyKey,
-        AdminCacheInvalidateRequest request
+        AdminCacheInvalidateCommand request
     ) {
         return idempotencyService.execute(
             admin,
@@ -93,7 +87,7 @@ public class AdminAccessMaintenanceService {
             "/admin/cache/invalidate-player",
             idempotencyKey,
             request,
-            AdminCacheInvalidateResponse.class,
+            AdminCacheInvalidateResult.class,
             () -> invalidatePlayerCacheOnce(admin, request)
         );
     }
@@ -101,10 +95,10 @@ public class AdminAccessMaintenanceService {
     /**
      * Отзывает server identity через ТЗ-совместимый endpoint.
      */
-    public AdminServerIdentityRevokeResponse revokeServerIdentity(
+    public AdminServerIdentityRevokeResult revokeServerIdentity(
         AdminIdentity admin,
         String idempotencyKey,
-        AdminServerIdentityRevokeRequest request
+        AdminServerIdentityRevokeCommand request
     ) {
         return idempotencyService.execute(
             admin,
@@ -112,13 +106,13 @@ public class AdminAccessMaintenanceService {
             "/admin/server-identities/revoke",
             idempotencyKey,
             request,
-            AdminServerIdentityRevokeResponse.class,
+            AdminServerIdentityRevokeResult.class,
             () -> revokeServerIdentityOnce(admin, request)
         );
     }
 
     @Transactional
-    protected AdminProjectionRebuildResponse rebuildProjectionOnce(AdminIdentity admin, AdminProjectionRebuildRequest request) {
+    protected AdminProjectionRebuildResult rebuildProjectionOnce(AdminIdentity admin, AdminProjectionRebuildCommand request) {
         ensurePlayerExists(request.playerId());
         OffsetDateTime now = OffsetDateTime.now();
         long currentRevision = lockOrCreateProjectionState(request.playerId(), now);
@@ -171,7 +165,7 @@ public class AdminAccessMaintenanceService {
                 "stale_match_profiles", staleProfiles
             )
         );
-        return new AdminProjectionRebuildResponse(
+        return new AdminProjectionRebuildResult(
             request.playerId(),
             nextRevision,
             projection.size(),
@@ -182,7 +176,7 @@ public class AdminAccessMaintenanceService {
     }
 
     @Transactional
-    protected AdminCacheInvalidateResponse invalidatePlayerCacheOnce(AdminIdentity admin, AdminCacheInvalidateRequest request) {
+    protected AdminCacheInvalidateResult invalidatePlayerCacheOnce(AdminIdentity admin, AdminCacheInvalidateCommand request) {
         ensurePlayerExists(request.playerId());
         OffsetDateTime now = OffsetDateTime.now();
         UUID eventId = UUID.randomUUID();
@@ -215,11 +209,11 @@ public class AdminAccessMaintenanceService {
             "success",
             Map.of("reason", request.reason(), "stale_match_profiles", staleProfiles)
         );
-        return new AdminCacheInvalidateResponse(request.playerId(), staleProfiles);
+        return new AdminCacheInvalidateResult(request.playerId(), staleProfiles);
     }
 
     @Transactional
-    protected AdminServerIdentityRevokeResponse revokeServerIdentityOnce(AdminIdentity admin, AdminServerIdentityRevokeRequest request) {
+    protected AdminServerIdentityRevokeResult revokeServerIdentityOnce(AdminIdentity admin, AdminServerIdentityRevokeCommand request) {
         List<String> statuses = repository.lockServerIdentityStatuses(request.serverId());
         if (statuses.isEmpty()) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SERVER_IDENTITY_NOT_FOUND", "Server identity was not found");
@@ -248,7 +242,7 @@ public class AdminAccessMaintenanceService {
             "success",
             Map.of("reason", request.reason(), "updated", updated)
         );
-        return new AdminServerIdentityRevokeResponse(request.serverId(), "revoked", updated);
+        return new AdminServerIdentityRevokeResult(request.serverId(), "revoked", updated);
     }
 
     private void ensurePlayerExists(UUID playerId) {
