@@ -483,3 +483,11 @@ Goal: prevent feature API DTOs from returning to application services after the 
 - [x] Discover application packages automatically in the architecture boundary test.
 - [x] Fail CI when application code depends on non-common `*.api` packages.
 - [x] Keep `common.api.ApiException` available as the shared exception contract.
+
+## Block 60 - Admin control typed result decoupling
+
+Goal: remove raw response maps from `AdminControlService` while preserving legacy admin control JSON responses.
+
+- [x] Add typed application results for player cache invalidation, server identity revoke, and outbox retry.
+- [x] Keep idempotency replay on typed application result classes.
+- [x] Map typed results back to legacy response maps in `AdminControlController`.

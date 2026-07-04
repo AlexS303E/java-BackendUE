@@ -51,7 +51,7 @@ public class AdminControlService {
     /**
      * Ручная инвалидация profile snapshots игрока из dashboard.
      */
-    public Map<String, Object> invalidatePlayerCache(
+    public AdminControlPlayerCacheInvalidationResult invalidatePlayerCache(
         AdminIdentity admin,
         String idempotencyKey,
         UUID playerId,
@@ -64,13 +64,13 @@ public class AdminControlService {
             CONTROL_CACHE_ROUTE,
             idempotencyKey,
             idempotencyPayload,
-            adminControlResponseType(),
+            AdminControlPlayerCacheInvalidationResult.class,
             () -> invalidatePlayerCacheOnce(admin, playerId, request, requestHash(CONTROL_CACHE_SCOPE, CONTROL_CACHE_ROUTE, idempotencyPayload))
         );
     }
 
     @Transactional
-    protected Map<String, Object> invalidatePlayerCacheOnce(
+    protected AdminControlPlayerCacheInvalidationResult invalidatePlayerCacheOnce(
         AdminIdentity admin,
         UUID playerId,
         AdminControlReasonCommand request,
@@ -93,16 +93,13 @@ public class AdminControlService {
             "success",
             auditPayload(request, Map.of("stale_match_profiles", staleProfiles))
         );
-        return Map.of(
-            "player_id", playerId,
-            "stale_match_profiles", staleProfiles
-        );
+        return new AdminControlPlayerCacheInvalidationResult(playerId, staleProfiles);
     }
 
     /**
      * Отзывает active/expired server identity и фиксирует admin audit.
      */
-    public Map<String, Object> revokeServerIdentity(
+    public AdminControlServerIdentityRevokeResult revokeServerIdentity(
         AdminIdentity admin,
         String idempotencyKey,
         UUID serverId,
@@ -115,13 +112,13 @@ public class AdminControlService {
             CONTROL_REVOKE_ROUTE,
             idempotencyKey,
             idempotencyPayload,
-            adminControlResponseType(),
+            AdminControlServerIdentityRevokeResult.class,
             () -> revokeServerIdentityOnce(admin, serverId, request, requestHash(CONTROL_REVOKE_SCOPE, CONTROL_REVOKE_ROUTE, idempotencyPayload))
         );
     }
 
     @Transactional
-    protected Map<String, Object> revokeServerIdentityOnce(
+    protected AdminControlServerIdentityRevokeResult revokeServerIdentityOnce(
         AdminIdentity admin,
         UUID serverId,
         AdminControlReasonCommand request,
@@ -140,16 +137,13 @@ public class AdminControlService {
         if (updated == 0) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SERVER_IDENTITY_NOT_FOUND_OR_ALREADY_REVOKED", "Server identity was not found or already revoked");
         }
-        return Map.of(
-            "server_id", serverId,
-            "status", "revoked"
-        );
+        return new AdminControlServerIdentityRevokeResult(serverId, "revoked");
     }
 
     /**
      * Возвращает failed outbox events в pending для повторной обработки worker-ом.
      */
-    public Map<String, Object> retryFailedOutbox(
+    public AdminControlOutboxRetryResult retryFailedOutbox(
         AdminIdentity admin,
         String idempotencyKey,
         AdminControlReasonCommand request
@@ -161,13 +155,13 @@ public class AdminControlService {
             CONTROL_OUTBOX_ROUTE,
             idempotencyKey,
             idempotencyPayload,
-            adminControlResponseType(),
+            AdminControlOutboxRetryResult.class,
             () -> retryFailedOutboxOnce(admin, request, requestHash(CONTROL_OUTBOX_SCOPE, CONTROL_OUTBOX_ROUTE, idempotencyPayload))
         );
     }
 
     @Transactional
-    protected Map<String, Object> retryFailedOutboxOnce(
+    protected AdminControlOutboxRetryResult retryFailedOutboxOnce(
         AdminIdentity admin,
         AdminControlReasonCommand request,
         String requestHash
@@ -183,7 +177,7 @@ public class AdminControlService {
             "success",
             auditPayload(request, Map.of("retried", retried))
         );
-        return Map.of("retried", retried);
+        return new AdminControlOutboxRetryResult(retried);
     }
 
     /**
@@ -272,11 +266,6 @@ public class AdminControlService {
 
     private String requestHash(String operationScope, String routeFingerprint, Map<String, Object> payload) {
         return idempotencyService.requestHash(operationScope, routeFingerprint, payload);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Class<Map<String, Object>> adminControlResponseType() {
-        return (Class<Map<String, Object>>) (Class<?>) Map.class;
     }
 
     private static Map<String, Object> controlPayload(String targetKey, Object targetValue, AdminControlReasonCommand request) {
