@@ -324,6 +324,35 @@ public class OutboxService {
         );
     }
 
+    public void recordServerRuntimeEventRecorded(
+        UUID eventId,
+        long eventSeq,
+        String eventType,
+        UUID matchId,
+        UUID serverId,
+        UUID playerId,
+        OffsetDateTime occurredAt,
+        OffsetDateTime now
+    ) {
+        record(
+            "server_runtime_event.recorded",
+            "server_runtime_event",
+            eventId.toString(),
+            1,
+            Map.of(
+                "event_id", eventId,
+                "event_seq", eventSeq,
+                "event_type", eventType,
+                "match_id", matchId,
+                "server_id", serverId,
+                "player_id", playerId == null ? "" : playerId,
+                "occurred_at", occurredAt,
+                "source", "dedicated_server"
+            ),
+            now
+        );
+    }
+
     public void recordOutfitPresetSanitized(
         UUID playerId,
         String teamTag,

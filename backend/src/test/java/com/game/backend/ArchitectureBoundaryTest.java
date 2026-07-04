@@ -586,7 +586,8 @@ class ArchitectureBoundaryTest {
                     || source.contains("\"weapon_preset.runtime_failed\"")
                     || source.contains("\"weapon_preset.post_match_applied\"")
                     || source.contains("\"post_match_pending_change.resolved\"")
-                    || source.contains("\"post_match_pending_change.created\""));
+                    || source.contains("\"post_match_pending_change.created\"")
+                    || source.contains("\"server_runtime_event.recorded\""));
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read " + path, exception);
         }

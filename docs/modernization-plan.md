@@ -579,3 +579,11 @@ Goal: move runtime conflict pending-change creation outbox payload creation behi
 - [x] Add a typed outbox recorder for `post_match_pending_change.created`.
 - [x] Update `RuntimeChangeConflictService` to use typed pending-change creation outbox recording.
 - [x] Extend the typed outbox guard to block pending-change creation from generic `outboxService.record(...)` calls.
+
+## Block 72 - Typed outbox recording for runtime events
+
+Goal: move dedicated-server runtime event outbox payload creation behind a typed `OutboxService` method.
+
+- [x] Add a typed outbox recorder for `server_runtime_event.recorded`.
+- [x] Update `RuntimeEventsService` to use typed runtime event outbox recording.
+- [x] Extend the typed outbox guard to block runtime event recording from generic `outboxService.record(...)` calls.

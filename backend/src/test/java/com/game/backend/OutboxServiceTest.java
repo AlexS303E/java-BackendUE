@@ -2,6 +2,7 @@ package com.game.backend;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.game.backend.outbox.application.OutboxService;
 import com.game.backend.outbox.repository.OutboxRepository;
 import org.junit.jupiter.api.Test;
@@ -18,7 +19,9 @@ import static org.mockito.Mockito.verify;
 
 class OutboxServiceTest {
     private final OutboxRepository repository = mock(OutboxRepository.class);
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+        .findAndRegisterModules()
+        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     private final OutboxService service = new OutboxService(repository, objectMapper);
 
     @Test
@@ -250,6 +253,81 @@ class OutboxServiceTest {
         assertThat(json.path("current_revision").asLong()).isEqualTo(5L);
         assertThat(json.path("status").asText()).isEqualTo("pending");
         assertThat(json.path("source").asText()).isEqualTo("runtime");
+    }
+
+    @Test
+    void serverRuntimeEventRecorderShouldPersistExpectedPayloadShape() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        UUID matchId = UUID.randomUUID();
+        UUID serverId = UUID.randomUUID();
+        UUID playerId = UUID.randomUUID();
+        OffsetDateTime occurredAt = OffsetDateTime.parse("2026-07-04T12:55:00Z");
+        OffsetDateTime now = OffsetDateTime.parse("2026-07-04T13:00:00Z");
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+
+        service.recordServerRuntimeEventRecorded(
+            eventId,
+            42L,
+            "player_spawned",
+            matchId,
+            serverId,
+            playerId,
+            occurredAt,
+            now
+        );
+
+        verify(repository).insertPendingEvent(
+            any(UUID.class),
+            eq("server_runtime_event.recorded"),
+            eq("server_runtime_event"),
+            eq(eventId.toString()),
+            payload.capture(),
+            eq(1),
+            eq(now)
+        );
+        JsonNode json = objectMapper.readTree(payload.getValue());
+        assertThat(json.path("event_id").asText()).isEqualTo(eventId.toString());
+        assertThat(json.path("event_seq").asLong()).isEqualTo(42L);
+        assertThat(json.path("event_type").asText()).isEqualTo("player_spawned");
+        assertThat(json.path("match_id").asText()).isEqualTo(matchId.toString());
+        assertThat(json.path("server_id").asText()).isEqualTo(serverId.toString());
+        assertThat(json.path("player_id").asText()).isEqualTo(playerId.toString());
+        assertThat(json.path("occurred_at").asText()).isEqualTo("2026-07-04T12:55:00Z");
+        assertThat(json.path("source").asText()).isEqualTo("dedicated_server");
+    }
+
+    @Test
+    void serverRuntimeEventRecorderShouldPersistBlankPlayerIdWhenAbsent() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        UUID matchId = UUID.randomUUID();
+        UUID serverId = UUID.randomUUID();
+        OffsetDateTime occurredAt = OffsetDateTime.parse("2026-07-04T12:55:00Z");
+        OffsetDateTime now = OffsetDateTime.parse("2026-07-04T13:00:00Z");
+        ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+
+        service.recordServerRuntimeEventRecorded(
+            eventId,
+            42L,
+            "match_finished",
+            matchId,
+            serverId,
+            null,
+            occurredAt,
+            now
+        );
+
+        verify(repository).insertPendingEvent(
+            any(UUID.class),
+            eq("server_runtime_event.recorded"),
+            eq("server_runtime_event"),
+            eq(eventId.toString()),
+            payload.capture(),
+            eq(1),
+            eq(now)
+        );
+        JsonNode json = objectMapper.readTree(payload.getValue());
+        assertThat(json.path("player_id").asText()).isEmpty();
+        assertThat(json.path("event_type").asText()).isEqualTo("match_finished");
     }
 
     @Test

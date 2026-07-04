@@ -229,21 +229,14 @@ public class RuntimeEventsService {
     }
 
     private void recordOutboxEvent(ServerIdentity server, RuntimeEventCommand command, OffsetDateTime now) {
-        outboxService.record(
-            "server_runtime_event.recorded",
-            "server_runtime_event",
-            command.eventId().toString(),
-            1,
-            Map.of(
-                "event_id", command.eventId(),
-                "event_seq", command.eventSeq(),
-                "event_type", command.eventType(),
-                "match_id", command.matchId(),
-                "server_id", server.serverId(),
-                "player_id", command.playerId() == null ? "" : command.playerId(),
-                "occurred_at", command.occurredAt(),
-                "source", "dedicated_server"
-            ),
+        outboxService.recordServerRuntimeEventRecorded(
+            command.eventId(),
+            command.eventSeq(),
+            command.eventType(),
+            command.matchId(),
+            server.serverId(),
+            command.playerId(),
+            command.occurredAt(),
             now
         );
     }
