@@ -257,6 +257,43 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void adminOpenApiOperationsMustKeepAdminTokenSecurity() throws IOException {
+        String contract = Files.readString(ADMIN_API);
+        assertThat(contract)
+            .as("Admin OpenAPI contract must declare global X-Admin-Token security")
+            .containsPattern("(?m)^security:\\R\\s+- admin_token_header: \\[\\]");
+
+        Set<String> overriddenWithoutAdminToken = new LinkedHashSet<>();
+        List<String> lines = Files.readAllLines(ADMIN_API);
+
+        for (int index = 0; index < lines.size(); index++) {
+            Matcher pathMatcher = OPENAPI_PATH.matcher(lines.get(index));
+            if (!pathMatcher.matches() || !pathMatcher.group(1).startsWith("/admin/")) {
+                continue;
+            }
+
+            String path = pathMatcher.group(1);
+            for (int methodIndex = index + 1; methodIndex < lines.size(); methodIndex++) {
+                String line = lines.get(methodIndex);
+                if (OPENAPI_PATH.matcher(line).matches()) {
+                    break;
+                }
+                Matcher methodMatcher = OPENAPI_METHOD.matcher(line);
+                if (methodMatcher.matches()) {
+                    String block = operationBlock(lines, methodIndex);
+                    if (block.contains("\n      security:") && !block.contains("admin_token_header: []")) {
+                        overriddenWithoutAdminToken.add(methodMatcher.group(1).toUpperCase(Locale.ROOT) + " " + path);
+                    }
+                }
+            }
+        }
+
+        assertThat(overriddenWithoutAdminToken)
+            .as("Admin OpenAPI operations must not override global X-Admin-Token security")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;

@@ -611,3 +611,11 @@ Goal: keep Dedicated Server HTTP operations explicit about private mTLS and serv
 - [x] Add a contract test that requires `ServerMutualTls`, `ServerIdentityHeader`, and `X-Server-Id` on every `/server/*` operation.
 - [x] Preserve the per-operation security contract instead of relying on implicit documentation.
 - [x] Run the Stage 3 OpenAPI verifier and focused contract tests after adding the guard.
+
+## Block 76 - Stage 3 admin OpenAPI security guard
+
+Goal: keep admin HTTP operations explicit about `X-Admin-Token` security in OpenAPI.
+
+- [x] Add a contract test that requires global `admin_token_header` security in `admin-api.yaml`.
+- [x] Prevent per-operation `/admin/*` security overrides from dropping `admin_token_header`.
+- [x] Run the Stage 3 OpenAPI verifier and focused contract tests after adding the guard.
