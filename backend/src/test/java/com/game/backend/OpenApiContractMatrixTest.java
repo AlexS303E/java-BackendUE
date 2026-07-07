@@ -28,6 +28,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern ERROR_STATUS = Pattern.compile("^\\s+'([45][0-9]{2})':\\s*$");
     private static final Pattern COMPONENT_RESPONSE_REF = Pattern.compile("\\$ref: '#/components/responses/([^']+)'");
     private static final Pattern COMPONENT_SCHEMA_REF = Pattern.compile("\\$ref: '#/components/schemas/([^']+)'");
+    private static final Pattern MATRIX_ERROR_CODE = Pattern.compile("^- `([45][0-9]{2}) ([A-Z0-9_]+)`$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -331,6 +332,27 @@ class OpenApiContractMatrixTest {
 
         assertThat(nonProblemDetailsErrors)
             .as("OpenAPI 4xx/5xx responses must resolve to ProblemDetails-compatible schemas")
+            .isEmpty();
+    }
+
+    @Test
+    void contractMatrixMinimumErrorCodesShouldStayPresentInOpenApiContracts() throws IOException {
+        String openApiContracts = Files.readString(PUBLIC_API)
+            + "\n"
+            + Files.readString(SERVER_API)
+            + "\n"
+            + Files.readString(ADMIN_API);
+
+        Set<String> missingErrorCodes = new LinkedHashSet<>();
+        for (String line : Files.readAllLines(MATRIX)) {
+            Matcher matcher = MATRIX_ERROR_CODE.matcher(line);
+            if (matcher.matches() && !openApiContracts.contains(matcher.group(2))) {
+                missingErrorCodes.add(matcher.group(1) + " " + matcher.group(2));
+            }
+        }
+
+        assertThat(missingErrorCodes)
+            .as("docs/openapi-contract-test-matrix.md minimum checked error codes must stay represented in OpenAPI")
             .isEmpty();
     }
 

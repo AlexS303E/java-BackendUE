@@ -627,3 +627,11 @@ Goal: keep documented error responses aligned with the shared `ProblemDetails` e
 - [x] Add a contract test that scans 4xx/5xx OpenAPI responses across public, server, and admin contracts.
 - [x] Require error responses to reference reusable response components backed by `ProblemDetails`-compatible schemas.
 - [x] Run the Stage 3 OpenAPI verifier and focused contract tests after adding the guard.
+
+## Block 78 - Stage 3 OpenAPI matrix error-code guard
+
+Goal: keep the documented minimum error-code checklist synchronized with OpenAPI contracts.
+
+- [x] Add a contract test that reads minimum checked error codes from `docs/openapi-contract-test-matrix.md`.
+- [x] Require every documented minimum error code to remain represented in public, server, or admin OpenAPI contracts.
+- [x] Run the Stage 3 OpenAPI verifier and focused contract tests after adding the guard.
