@@ -619,3 +619,11 @@ Goal: keep admin HTTP operations explicit about `X-Admin-Token` security in Open
 - [x] Add a contract test that requires global `admin_token_header` security in `admin-api.yaml`.
 - [x] Prevent per-operation `/admin/*` security overrides from dropping `admin_token_header`.
 - [x] Run the Stage 3 OpenAPI verifier and focused contract tests after adding the guard.
+
+## Block 77 - Stage 3 OpenAPI error model guard
+
+Goal: keep documented error responses aligned with the shared `ProblemDetails` error contract.
+
+- [x] Add a contract test that scans 4xx/5xx OpenAPI responses across public, server, and admin contracts.
+- [x] Require error responses to reference reusable response components backed by `ProblemDetails`-compatible schemas.
+- [x] Run the Stage 3 OpenAPI verifier and focused contract tests after adding the guard.

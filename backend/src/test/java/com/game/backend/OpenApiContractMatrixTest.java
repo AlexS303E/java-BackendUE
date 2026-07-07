@@ -25,6 +25,9 @@ class OpenApiContractMatrixTest {
     private static final Pattern OPENAPI_METHOD = Pattern.compile("^    (get|post|put|patch|delete):\\s*$");
     private static final Pattern MATRIX_ENDPOINT = Pattern.compile("\\| `([A-Z]+) (/[^`]+)` \\|");
     private static final Pattern SPRING_MAPPING = Pattern.compile("@(Get|Post|Put|Patch|Delete)Mapping\\(\"(/[^\"]+)\"\\)");
+    private static final Pattern ERROR_STATUS = Pattern.compile("^\\s+'([45][0-9]{2})':\\s*$");
+    private static final Pattern COMPONENT_RESPONSE_REF = Pattern.compile("\\$ref: '#/components/responses/([^']+)'");
+    private static final Pattern COMPONENT_SCHEMA_REF = Pattern.compile("\\$ref: '#/components/schemas/([^']+)'");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -294,6 +297,43 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiErrorResponsesUseProblemDetailsCompatibleSchemas() throws IOException {
+        Set<String> nonProblemDetailsErrors = new LinkedHashSet<>();
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher statusMatcher = ERROR_STATUS.matcher(lines.get(index));
+                    if (!statusMatcher.matches()) {
+                        continue;
+                    }
+
+                    String responseBlock = nestedBlock(lines, index);
+                    Matcher responseRefMatcher = COMPONENT_RESPONSE_REF.matcher(responseBlock);
+                    if (!responseRefMatcher.find()) {
+                        nonProblemDetailsErrors.add(path.getFileName() + " " + statusMatcher.group(1) + " uses inline or missing error response");
+                        continue;
+                    }
+
+                    String responseName = responseRefMatcher.group(1);
+                    String componentBlock = namedComponentBlock(lines, "responses", responseName);
+                    if (!referencesProblemDetailsCompatibleSchema(lines, componentBlock)) {
+                        nonProblemDetailsErrors.add(path.getFileName() + " " + statusMatcher.group(1) + " -> " + responseName);
+                    }
+                }
+            }
+        }
+
+        assertThat(nonProblemDetailsErrors)
+            .as("OpenAPI 4xx/5xx responses must resolve to ProblemDetails-compatible schemas")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -365,5 +405,62 @@ class OpenApiContractMatrixTest {
             block.append(line).append('\n');
         }
         return block.toString();
+    }
+
+    private static String nestedBlock(List<String> lines, int startIndex) {
+        int baseIndent = leadingSpaces(lines.get(startIndex));
+        StringBuilder block = new StringBuilder();
+        for (int index = startIndex; index < lines.size(); index++) {
+            String line = lines.get(index);
+            if (index > startIndex && !line.isBlank() && leadingSpaces(line) <= baseIndent) {
+                break;
+            }
+            block.append(line).append('\n');
+        }
+        return block.toString();
+    }
+
+    private static String namedComponentBlock(List<String> lines, String sectionName, String componentName) {
+        String sectionHeader = "  " + sectionName + ":";
+        String componentHeader = "    " + componentName + ":";
+        boolean inSection = false;
+        for (int index = 0; index < lines.size(); index++) {
+            String line = lines.get(index);
+            if (line.equals(sectionHeader)) {
+                inSection = true;
+                continue;
+            }
+            if (inSection && line.startsWith("  ") && !line.startsWith("    ")) {
+                return "";
+            }
+            if (inSection && line.equals(componentHeader)) {
+                return nestedBlock(lines, index);
+            }
+        }
+        return "";
+    }
+
+    private static boolean referencesProblemDetailsCompatibleSchema(List<String> lines, String responseBlock) {
+        if (responseBlock.contains("#/components/schemas/ProblemDetails")) {
+            return true;
+        }
+
+        Matcher schemaRefMatcher = COMPONENT_SCHEMA_REF.matcher(responseBlock);
+        while (schemaRefMatcher.find()) {
+            String schemaName = schemaRefMatcher.group(1);
+            String schemaBlock = namedComponentBlock(lines, "schemas", schemaName);
+            if (schemaBlock.contains("#/components/schemas/ProblemDetails")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int leadingSpaces(String line) {
+        int spaces = 0;
+        while (spaces < line.length() && line.charAt(spaces) == ' ') {
+            spaces++;
+        }
+        return spaces;
     }
 }
