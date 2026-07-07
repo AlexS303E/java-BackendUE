@@ -223,6 +223,40 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void serverOpenApiOperationsRequireMutualTlsAndServerIdentity() throws IOException {
+        Set<String> missingServerSecurity = new LinkedHashSet<>();
+        List<String> lines = Files.readAllLines(SERVER_API);
+
+        for (int index = 0; index < lines.size(); index++) {
+            Matcher pathMatcher = OPENAPI_PATH.matcher(lines.get(index));
+            if (!pathMatcher.matches() || !pathMatcher.group(1).startsWith("/server/")) {
+                continue;
+            }
+
+            String path = pathMatcher.group(1);
+            for (int methodIndex = index + 1; methodIndex < lines.size(); methodIndex++) {
+                String line = lines.get(methodIndex);
+                if (OPENAPI_PATH.matcher(line).matches()) {
+                    break;
+                }
+                Matcher methodMatcher = OPENAPI_METHOD.matcher(line);
+                if (methodMatcher.matches()) {
+                    String block = operationBlock(lines, methodIndex);
+                    if (!block.contains("ServerMutualTls: []")
+                        || !block.contains("ServerIdentityHeader: []")
+                        || !block.contains("#/components/parameters/server_id_header")) {
+                        missingServerSecurity.add(methodMatcher.group(1).toUpperCase(Locale.ROOT) + " " + path);
+                    }
+                }
+            }
+        }
+
+        assertThat(missingServerSecurity)
+            .as("Dedicated Server OpenAPI operations must require mTLS and X-Server-Id")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;

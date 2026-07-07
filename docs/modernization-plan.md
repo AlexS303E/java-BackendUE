@@ -603,3 +603,11 @@ Goal: keep authenticated public HTTP operations explicit about bearer-token secu
 - [x] Add a contract test that requires `BearerAuth` on all `/me/*` operations and `/auth/logout`.
 - [x] Leave anonymous public operations (`/auth/register`, `/auth/login`, `/auth/refresh`, `/catalog/snapshot`) unchanged.
 - [x] Run the Stage 3 OpenAPI verifier and focused contract tests after adding the guard.
+
+## Block 75 - Stage 3 server OpenAPI security guard
+
+Goal: keep Dedicated Server HTTP operations explicit about private mTLS and server identity requirements in OpenAPI.
+
+- [x] Add a contract test that requires `ServerMutualTls`, `ServerIdentityHeader`, and `X-Server-Id` on every `/server/*` operation.
+- [x] Preserve the per-operation security contract instead of relying on implicit documentation.
+- [x] Run the Stage 3 OpenAPI verifier and focused contract tests after adding the guard.
