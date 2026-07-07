@@ -187,6 +187,42 @@ class OpenApiContractMatrixTest {
             .containsAll(implementedOperations(Set.of("/auth/", "/catalog/", "/me/")));
     }
 
+    @Test
+    void publicOpenApiAuthenticatedOperationsRequireBearerAuth() throws IOException {
+        Set<String> missingBearerAuth = new LinkedHashSet<>();
+        List<String> lines = Files.readAllLines(PUBLIC_API);
+
+        for (int index = 0; index < lines.size(); index++) {
+            Matcher pathMatcher = OPENAPI_PATH.matcher(lines.get(index));
+            if (!pathMatcher.matches()) {
+                continue;
+            }
+
+            String path = pathMatcher.group(1);
+            if (!path.startsWith("/me/") && !"/auth/logout".equals(path)) {
+                continue;
+            }
+
+            for (int methodIndex = index + 1; methodIndex < lines.size(); methodIndex++) {
+                String line = lines.get(methodIndex);
+                if (OPENAPI_PATH.matcher(line).matches()) {
+                    break;
+                }
+                Matcher methodMatcher = OPENAPI_METHOD.matcher(line);
+                if (methodMatcher.matches()) {
+                    String block = operationBlock(lines, methodIndex);
+                    if (!block.contains("BearerAuth: []")) {
+                        missingBearerAuth.add(methodMatcher.group(1).toUpperCase(Locale.ROOT) + " " + path);
+                    }
+                }
+            }
+        }
+
+        assertThat(missingBearerAuth)
+            .as("Authenticated public OpenAPI operations must require BearerAuth")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;

@@ -595,3 +595,11 @@ Goal: keep implemented public HTTP routes synchronized with `contracts/openapi/p
 - [x] Add a contract test that compares implemented `/auth`, `/catalog`, and `/me` controller mappings with public OpenAPI operations.
 - [x] Keep operational health routes outside the public API contract guard.
 - [x] Run the Stage 3 OpenAPI verifier after adding the guard.
+
+## Block 74 - Stage 3 public OpenAPI auth guard
+
+Goal: keep authenticated public HTTP operations explicit about bearer-token security in OpenAPI.
+
+- [x] Add a contract test that requires `BearerAuth` on all `/me/*` operations and `/auth/logout`.
+- [x] Leave anonymous public operations (`/auth/register`, `/auth/login`, `/auth/refresh`, `/catalog/snapshot`) unchanged.
+- [x] Run the Stage 3 OpenAPI verifier and focused contract tests after adding the guard.
