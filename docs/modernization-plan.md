@@ -659,3 +659,11 @@ Goal: keep generated-client success DTO contracts explicit for non-empty respons
 - [x] Add a contract test that scans `2xx` OpenAPI responses across public, server, and admin contracts.
 - [x] Require every non-`204` success response to declare an `application/json` body with a reusable schema reference.
 - [x] Allow `204` as the explicit no-content success response.
+
+## Block 82 - Stage 3 OpenAPI path parameter guard
+
+Goal: keep URL template variables synchronized with documented path parameters for generated clients.
+
+- [x] Add a contract test that scans templated OpenAPI paths across public, server, and admin contracts.
+- [x] Resolve reusable `components/parameters` references and require exact `in: path` parameter names.
+- [x] Fail on missing, extra, or renamed path parameters.

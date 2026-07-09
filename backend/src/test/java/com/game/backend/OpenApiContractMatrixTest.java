@@ -29,8 +29,11 @@ class OpenApiContractMatrixTest {
     private static final Pattern SUCCESS_STATUS = Pattern.compile("^\\s+'(2[0-9]{2})':\\s*$");
     private static final Pattern COMPONENT_RESPONSE_REF = Pattern.compile("\\$ref: '#/components/responses/([^']+)'");
     private static final Pattern COMPONENT_SCHEMA_REF = Pattern.compile("\\$ref: '#/components/schemas/([^']+)'");
+    private static final Pattern COMPONENT_PARAMETER_REF = Pattern.compile("\\$ref: '#/components/parameters/([^']+)'");
     private static final Pattern MATRIX_ERROR_CODE = Pattern.compile("^- `([45][0-9]{2}) ([A-Z0-9_]+)`$");
     private static final Pattern OPERATION_ID = Pattern.compile("^\\s+operationId:\\s*([a-zA-Z0-9_]+)\\s*$");
+    private static final Pattern PATH_TEMPLATE_VARIABLE = Pattern.compile("\\{([^}]+)}");
+    private static final Pattern PARAMETER_NAME = Pattern.compile("^\\s+name:\\s*([a-zA-Z0-9_-]+)\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -464,6 +467,59 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiPathTemplateVariablesShouldMatchPathParameters() throws IOException {
+        Set<String> mismatchedPathParameters = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                String currentPath = null;
+
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher pathMatcher = OPENAPI_PATH.matcher(lines.get(index));
+                    if (pathMatcher.matches()) {
+                        currentPath = pathMatcher.group(1);
+                        continue;
+                    }
+
+                    Matcher methodMatcher = OPENAPI_METHOD.matcher(lines.get(index));
+                    if (currentPath == null || !methodMatcher.matches()) {
+                        continue;
+                    }
+
+                    Set<String> templateVariables = pathTemplateVariables(currentPath);
+                    if (templateVariables.isEmpty()) {
+                        continue;
+                    }
+
+                    Set<String> pathParameters = pathParameterNames(lines, operationBlock(lines, index));
+                    if (!pathParameters.equals(templateVariables)) {
+                        mismatchedPathParameters.add(
+                            path.getFileName()
+                                + " "
+                                + methodMatcher.group(1).toUpperCase(Locale.ROOT)
+                                + " "
+                                + currentPath
+                                + " template="
+                                + templateVariables
+                                + " parameters="
+                                + pathParameters
+                        );
+                    }
+                }
+            }
+        }
+
+        assertThat(mismatchedPathParameters)
+            .as("OpenAPI path template variables must match required in:path parameters")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -600,6 +656,32 @@ class OpenApiContractMatrixTest {
             }
         }
         return false;
+    }
+
+    private static Set<String> pathTemplateVariables(String path) {
+        Set<String> variables = new LinkedHashSet<>();
+        Matcher matcher = PATH_TEMPLATE_VARIABLE.matcher(path);
+        while (matcher.find()) {
+            variables.add(matcher.group(1));
+        }
+        return variables;
+    }
+
+    private static Set<String> pathParameterNames(List<String> contractLines, String operationBlock) {
+        Set<String> parameterNames = new LinkedHashSet<>();
+        Matcher parameterRefMatcher = COMPONENT_PARAMETER_REF.matcher(operationBlock);
+        while (parameterRefMatcher.find()) {
+            String parameterBlock = namedComponentBlock(contractLines, "parameters", parameterRefMatcher.group(1));
+            if (parameterBlock.contains("\n      in: path")) {
+                for (String line : parameterBlock.split("\\R")) {
+                    Matcher nameMatcher = PARAMETER_NAME.matcher(line);
+                    if (nameMatcher.matches()) {
+                        parameterNames.add(nameMatcher.group(1));
+                    }
+                }
+            }
+        }
+        return parameterNames;
     }
 
     private static int leadingSpaces(String line) {
