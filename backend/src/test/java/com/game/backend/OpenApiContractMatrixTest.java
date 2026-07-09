@@ -37,6 +37,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern PARAMETER_LOCATION = Pattern.compile("^\\s+in:\\s*(path|query|header)\\s*$");
     private static final Pattern TOP_LEVEL_TAG = Pattern.compile("^  - name:\\s*([a-zA-Z0-9_]+)\\s*$");
     private static final Pattern OPERATION_TAGS = Pattern.compile("^\\s+tags:\\s*\\[([^]]+)]\\s*$");
+    private static final Pattern OPERATION_SUMMARY = Pattern.compile("^\\s+summary:\\s*(\\S.*)$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -687,6 +688,49 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiOperationsShouldKeepConcreteSummaries() throws IOException {
+        Set<String> invalidSummaries = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                String currentPath = null;
+
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher pathMatcher = OPENAPI_PATH.matcher(lines.get(index));
+                    if (pathMatcher.matches()) {
+                        currentPath = pathMatcher.group(1);
+                        continue;
+                    }
+
+                    Matcher methodMatcher = OPENAPI_METHOD.matcher(lines.get(index));
+                    if (currentPath == null || !methodMatcher.matches()) {
+                        continue;
+                    }
+
+                    String operation = path.getFileName()
+                        + " "
+                        + methodMatcher.group(1).toUpperCase(Locale.ROOT)
+                        + " "
+                        + currentPath;
+                    String summary = operationSummary(operationBlock(lines, index));
+                    if (summary == null || summary.length() < 10 || summary.toLowerCase(Locale.ROOT).contains("todo")) {
+                        invalidSummaries.add(operation);
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidSummaries)
+            .as("OpenAPI operations must keep concrete non-placeholder summaries")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -902,6 +946,16 @@ class OpenApiContractMatrixTest {
             }
         }
         return tags;
+    }
+
+    private static String operationSummary(String operationBlock) {
+        for (String line : operationBlock.split("\\R")) {
+            Matcher matcher = OPERATION_SUMMARY.matcher(line);
+            if (matcher.matches()) {
+                return matcher.group(1).trim();
+            }
+        }
+        return null;
     }
 
     private static int leadingSpaces(String line) {

@@ -699,3 +699,11 @@ Goal: keep generated-client operation grouping stable and explicit.
 - [x] Add a contract test that validates operation tags across public, server, and admin OpenAPI contracts.
 - [x] Require each operation to declare exactly one tag.
 - [x] Require operation tags to be declared top-level and use snake_case naming.
+
+## Block 87 - Stage 3 OpenAPI summary guard
+
+Goal: keep generated API docs and SDK method metadata usable.
+
+- [x] Add a contract test that validates operation summaries across public, server, and admin OpenAPI contracts.
+- [x] Require every OpenAPI operation to keep a concrete non-empty summary.
+- [x] Reject placeholder summaries before they reach generated clients.
