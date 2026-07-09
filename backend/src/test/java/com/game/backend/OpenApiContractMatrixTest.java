@@ -386,6 +386,53 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiWriteOperationsShouldDeclareRequiredSchemaBackedRequestBodies() throws IOException {
+        Set<String> bodylessWriteOperations = Set.of("POST /me/notifications/{notification_id}/read");
+        Set<String> missingRequiredRequestBodySchema = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                String currentPath = null;
+
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher pathMatcher = OPENAPI_PATH.matcher(lines.get(index));
+                    if (pathMatcher.matches()) {
+                        currentPath = pathMatcher.group(1);
+                        continue;
+                    }
+
+                    Matcher methodMatcher = OPENAPI_METHOD.matcher(lines.get(index));
+                    if (currentPath == null || !methodMatcher.matches()) {
+                        continue;
+                    }
+
+                    String method = methodMatcher.group(1).toUpperCase(Locale.ROOT);
+                    String operation = method + " " + currentPath;
+                    if (!Set.of("POST", "PUT", "PATCH").contains(method) || bodylessWriteOperations.contains(operation)) {
+                        continue;
+                    }
+
+                    String block = operationBlock(lines, index);
+                    if (!block.contains("\n      requestBody:")
+                        || !block.contains("\n        required: true")
+                        || !block.contains("$ref: '#/components/schemas/")) {
+                        missingRequiredRequestBodySchema.add(path.getFileName() + " " + operation);
+                    }
+                }
+            }
+        }
+
+        assertThat(missingRequiredRequestBodySchema)
+            .as("OpenAPI write operations with bodies must declare required schema-backed requestBody")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;

@@ -643,3 +643,11 @@ Goal: keep generated-client operation identifiers stable and collision-free acro
 - [x] Add a contract test that scans `operationId` values across public, server, and admin OpenAPI contracts.
 - [x] Require operation ids to be unique and snake_case.
 - [x] Run the Stage 3 OpenAPI verifier and focused contract tests after adding the guard.
+
+## Block 80 - Stage 3 OpenAPI request body guard
+
+Goal: keep write-operation request payload contracts explicit and schema-backed in OpenAPI.
+
+- [x] Add a contract test that requires POST/PUT/PATCH operations with bodies to declare `required: true` request bodies.
+- [x] Require request bodies to point at reusable schema components for generated clients.
+- [x] Align `POST /auth/logout` with the backend `@RequestBody` requirement.
