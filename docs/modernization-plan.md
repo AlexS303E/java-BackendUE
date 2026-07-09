@@ -675,3 +675,11 @@ Goal: keep reusable OpenAPI parameter components resolvable and explicit about r
 - [x] Add a contract test that resolves every `#/components/parameters/*` reference used by OpenAPI operations.
 - [x] Require reusable parameters to declare `name`, `in`, and `schema`.
 - [x] Require path parameters and critical headers (`Idempotency-Key`, `X-Admin-Confirm`, `X-Server-Id`, `If-Match`) to stay required.
+
+## Block 84 - Stage 3 OpenAPI schema reference guard
+
+Goal: keep generated-client schema references resolvable and backed by structured reusable components.
+
+- [x] Add a contract test that resolves every `#/components/schemas/*` reference across OpenAPI contracts.
+- [x] Fail on missing schema components before generated clients consume broken refs.
+- [x] Require referenced schemas to declare an explicit schema shape (`type`, composition, `enum`, or `const`).

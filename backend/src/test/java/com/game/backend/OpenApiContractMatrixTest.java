@@ -568,6 +568,38 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiSchemaReferencesShouldResolveToStructuredComponents() throws IOException {
+        Set<String> unresolvedOrUnstructuredSchemas = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                String contract = String.join("\n", lines);
+                Matcher schemaRefMatcher = COMPONENT_SCHEMA_REF.matcher(contract);
+                while (schemaRefMatcher.find()) {
+                    String schemaName = schemaRefMatcher.group(1);
+                    String schemaBlock = namedComponentBlock(lines, "schemas", schemaName);
+                    if (schemaBlock.isBlank()) {
+                        unresolvedOrUnstructuredSchemas.add(path.getFileName() + " " + schemaName + " unresolved");
+                        continue;
+                    }
+                    if (!isStructuredSchemaComponent(schemaBlock)) {
+                        unresolvedOrUnstructuredSchemas.add(path.getFileName() + " " + schemaName + " missing schema shape");
+                    }
+                }
+            }
+        }
+
+        assertThat(unresolvedOrUnstructuredSchemas)
+            .as("OpenAPI schema refs must resolve to structured reusable schema components")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -750,6 +782,15 @@ class OpenApiContractMatrixTest {
             }
         }
         return null;
+    }
+
+    private static boolean isStructuredSchemaComponent(String schemaBlock) {
+        return schemaBlock.contains("\n      type:")
+            || schemaBlock.contains("\n      allOf:")
+            || schemaBlock.contains("\n      oneOf:")
+            || schemaBlock.contains("\n      anyOf:")
+            || schemaBlock.contains("\n      enum:")
+            || schemaBlock.contains("\n      const:");
     }
 
     private static int leadingSpaces(String line) {
