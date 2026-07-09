@@ -6,7 +6,7 @@ info:
   description: Public API for authentication, catalog, access, presets, notifications and post-match pending changes.
 
 servers:
-  - url: http://localhost:8080
+  - url: /
     description: Local backend
 
 tags:

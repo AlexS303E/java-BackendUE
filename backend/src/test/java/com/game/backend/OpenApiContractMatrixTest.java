@@ -38,6 +38,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern TOP_LEVEL_TAG = Pattern.compile("^  - name:\\s*([a-zA-Z0-9_]+)\\s*$");
     private static final Pattern OPERATION_TAGS = Pattern.compile("^\\s+tags:\\s*\\[([^]]+)]\\s*$");
     private static final Pattern OPERATION_SUMMARY = Pattern.compile("^\\s+summary:\\s*(\\S.*)$");
+    private static final Pattern SERVER_URL = Pattern.compile("^  - url:\\s*(\\S+)\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -728,6 +729,30 @@ class OpenApiContractMatrixTest {
 
         assertThat(invalidSummaries)
             .as("OpenAPI operations must keep concrete non-placeholder summaries")
+            .isEmpty();
+    }
+
+    @Test
+    void openApiServersShouldRemainRelative() throws IOException {
+        Set<String> absoluteServers = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                for (String line : Files.readAllLines(path)) {
+                    Matcher matcher = SERVER_URL.matcher(line);
+                    if (matcher.matches() && !"/".equals(matcher.group(1))) {
+                        absoluteServers.add(path.getFileName() + " " + matcher.group(1));
+                    }
+                }
+            }
+        }
+
+        assertThat(absoluteServers)
+            .as("OpenAPI server URLs must stay relative so generated clients do not bake dev/prod hosts")
             .isEmpty();
     }
 

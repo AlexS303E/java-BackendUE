@@ -707,3 +707,11 @@ Goal: keep generated API docs and SDK method metadata usable.
 - [x] Add a contract test that validates operation summaries across public, server, and admin OpenAPI contracts.
 - [x] Require every OpenAPI operation to keep a concrete non-empty summary.
 - [x] Reject placeholder summaries before they reach generated clients.
+
+## Block 88 - Stage 3 OpenAPI relative server guard
+
+Goal: prevent environment-specific hosts from leaking into generated clients.
+
+- [x] Replace localhost server URLs in public, server, and admin OpenAPI contracts with relative `/`.
+- [x] Add a contract test that rejects absolute `servers.url` values.
+- [x] Keep host selection in deployment/client configuration instead of OpenAPI source contracts.

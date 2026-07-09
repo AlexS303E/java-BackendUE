@@ -6,7 +6,7 @@ info:
   description: Admin API for status, player access control and operational control actions.
 
 servers:
-  - url: http://localhost:8080
+  - url: /
     description: Local backend
 
 tags:

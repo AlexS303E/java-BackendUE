@@ -6,7 +6,7 @@ info:
   description: Private Dedicated Server API protected by a dedicated mTLS connector and server identity binding.
 
 servers:
-  - url: https://localhost:9443
+  - url: /
     description: Local private mTLS connector for Dedicated Server API
 
 tags:
