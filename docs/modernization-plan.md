@@ -651,3 +651,11 @@ Goal: keep write-operation request payload contracts explicit and schema-backed 
 - [x] Add a contract test that requires POST/PUT/PATCH operations with bodies to declare `required: true` request bodies.
 - [x] Require request bodies to point at reusable schema components for generated clients.
 - [x] Align `POST /auth/logout` with the backend `@RequestBody` requirement.
+
+## Block 81 - Stage 3 OpenAPI success response guard
+
+Goal: keep generated-client success DTO contracts explicit for non-empty responses.
+
+- [x] Add a contract test that scans `2xx` OpenAPI responses across public, server, and admin contracts.
+- [x] Require every non-`204` success response to declare an `application/json` body with a reusable schema reference.
+- [x] Allow `204` as the explicit no-content success response.

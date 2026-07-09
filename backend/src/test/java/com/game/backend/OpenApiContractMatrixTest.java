@@ -26,6 +26,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern MATRIX_ENDPOINT = Pattern.compile("\\| `([A-Z]+) (/[^`]+)` \\|");
     private static final Pattern SPRING_MAPPING = Pattern.compile("@(Get|Post|Put|Patch|Delete)Mapping\\(\"(/[^\"]+)\"\\)");
     private static final Pattern ERROR_STATUS = Pattern.compile("^\\s+'([45][0-9]{2})':\\s*$");
+    private static final Pattern SUCCESS_STATUS = Pattern.compile("^\\s+'(2[0-9]{2})':\\s*$");
     private static final Pattern COMPONENT_RESPONSE_REF = Pattern.compile("\\$ref: '#/components/responses/([^']+)'");
     private static final Pattern COMPONENT_SCHEMA_REF = Pattern.compile("\\$ref: '#/components/schemas/([^']+)'");
     private static final Pattern MATRIX_ERROR_CODE = Pattern.compile("^- `([45][0-9]{2}) ([A-Z0-9_]+)`$");
@@ -337,6 +338,36 @@ class OpenApiContractMatrixTest {
     }
 
     @Test
+    void openApiSuccessResponsesShouldDeclareSchemaBackedJsonBodies() throws IOException {
+        Set<String> successResponsesWithoutSchemas = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher statusMatcher = SUCCESS_STATUS.matcher(lines.get(index));
+                    if (!statusMatcher.matches() || "204".equals(statusMatcher.group(1))) {
+                        continue;
+                    }
+
+                    String responseBlock = nestedBlock(lines, index);
+                    if (!referencesSchemaBackedJsonBody(lines, responseBlock)) {
+                        successResponsesWithoutSchemas.add(path.getFileName() + " " + statusMatcher.group(1));
+                    }
+                }
+            }
+        }
+
+        assertThat(successResponsesWithoutSchemas)
+            .as("OpenAPI 2xx responses except 204 must declare schema-backed JSON bodies")
+            .isEmpty();
+    }
+
+    @Test
     void contractMatrixMinimumErrorCodesShouldStayPresentInOpenApiContracts() throws IOException {
         String openApiContracts = Files.readString(PUBLIC_API)
             + "\n"
@@ -549,6 +580,22 @@ class OpenApiContractMatrixTest {
             String schemaName = schemaRefMatcher.group(1);
             String schemaBlock = namedComponentBlock(lines, "schemas", schemaName);
             if (schemaBlock.contains("#/components/schemas/ProblemDetails")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean referencesSchemaBackedJsonBody(List<String> lines, String responseBlock) {
+        if (responseBlock.contains("application/json:") && COMPONENT_SCHEMA_REF.matcher(responseBlock).find()) {
+            return true;
+        }
+
+        Matcher responseRefMatcher = COMPONENT_RESPONSE_REF.matcher(responseBlock);
+        while (responseRefMatcher.find()) {
+            String responseName = responseRefMatcher.group(1);
+            String componentBlock = namedComponentBlock(lines, "responses", responseName);
+            if (componentBlock.contains("application/json:") && COMPONENT_SCHEMA_REF.matcher(componentBlock).find()) {
                 return true;
             }
         }
