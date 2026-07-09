@@ -667,3 +667,11 @@ Goal: keep URL template variables synchronized with documented path parameters f
 - [x] Add a contract test that scans templated OpenAPI paths across public, server, and admin contracts.
 - [x] Resolve reusable `components/parameters` references and require exact `in: path` parameter names.
 - [x] Fail on missing, extra, or renamed path parameters.
+
+## Block 83 - Stage 3 OpenAPI reusable parameter guard
+
+Goal: keep reusable OpenAPI parameter components resolvable and explicit about required semantics.
+
+- [x] Add a contract test that resolves every `#/components/parameters/*` reference used by OpenAPI operations.
+- [x] Require reusable parameters to declare `name`, `in`, and `schema`.
+- [x] Require path parameters and critical headers (`Idempotency-Key`, `X-Admin-Confirm`, `X-Server-Id`, `If-Match`) to stay required.

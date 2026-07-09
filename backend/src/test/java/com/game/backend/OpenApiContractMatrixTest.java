@@ -34,6 +34,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern OPERATION_ID = Pattern.compile("^\\s+operationId:\\s*([a-zA-Z0-9_]+)\\s*$");
     private static final Pattern PATH_TEMPLATE_VARIABLE = Pattern.compile("\\{([^}]+)}");
     private static final Pattern PARAMETER_NAME = Pattern.compile("^\\s+name:\\s*([a-zA-Z0-9_-]+)\\s*$");
+    private static final Pattern PARAMETER_LOCATION = Pattern.compile("^\\s+in:\\s*(path|query|header)\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -520,6 +521,53 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiReusableParametersShouldResolveAndKeepRequiredShape() throws IOException {
+        Set<String> criticalRequiredHeaders = Set.of("Idempotency-Key", "X-Admin-Confirm", "X-Server-Id", "If-Match");
+        Set<String> invalidParameters = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                String contract = String.join("\n", lines);
+                Matcher parameterRefMatcher = COMPONENT_PARAMETER_REF.matcher(contract);
+                while (parameterRefMatcher.find()) {
+                    String parameterName = parameterRefMatcher.group(1);
+                    String parameterBlock = namedComponentBlock(lines, "parameters", parameterName);
+                    if (parameterBlock.isBlank()) {
+                        invalidParameters.add(path.getFileName() + " " + parameterName + " unresolved");
+                        continue;
+                    }
+
+                    String documentedName = parameterName(parameterBlock);
+                    String location = parameterLocation(parameterBlock);
+                    if (documentedName == null || location == null || !parameterBlock.contains("\n      schema:")) {
+                        invalidParameters.add(path.getFileName() + " " + parameterName + " missing name/in/schema");
+                        continue;
+                    }
+
+                    if ("path".equals(location) && !parameterBlock.contains("\n      required: true")) {
+                        invalidParameters.add(path.getFileName() + " " + parameterName + " path parameter not required");
+                    }
+                    if ("query".equals(location) && !parameterBlock.contains("\n      required: ")) {
+                        invalidParameters.add(path.getFileName() + " " + parameterName + " query parameter missing explicit required flag");
+                    }
+                    if (criticalRequiredHeaders.contains(documentedName) && !parameterBlock.contains("\n      required: true")) {
+                        invalidParameters.add(path.getFileName() + " " + parameterName + " critical header not required");
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidParameters)
+            .as("OpenAPI reusable parameter refs must resolve and preserve required path/header/query shape")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -682,6 +730,26 @@ class OpenApiContractMatrixTest {
             }
         }
         return parameterNames;
+    }
+
+    private static String parameterName(String parameterBlock) {
+        for (String line : parameterBlock.split("\\R")) {
+            Matcher matcher = PARAMETER_NAME.matcher(line);
+            if (matcher.matches()) {
+                return matcher.group(1);
+            }
+        }
+        return null;
+    }
+
+    private static String parameterLocation(String parameterBlock) {
+        for (String line : parameterBlock.split("\\R")) {
+            Matcher matcher = PARAMETER_LOCATION.matcher(line);
+            if (matcher.matches()) {
+                return matcher.group(1);
+            }
+        }
+        return null;
     }
 
     private static int leadingSpaces(String line) {
