@@ -35,6 +35,8 @@ class OpenApiContractMatrixTest {
     private static final Pattern PATH_TEMPLATE_VARIABLE = Pattern.compile("\\{([^}]+)}");
     private static final Pattern PARAMETER_NAME = Pattern.compile("^\\s+name:\\s*([a-zA-Z0-9_-]+)\\s*$");
     private static final Pattern PARAMETER_LOCATION = Pattern.compile("^\\s+in:\\s*(path|query|header)\\s*$");
+    private static final Pattern TOP_LEVEL_TAG = Pattern.compile("^  - name:\\s*([a-zA-Z0-9_]+)\\s*$");
+    private static final Pattern OPERATION_TAGS = Pattern.compile("^\\s+tags:\\s*\\[([^]]+)]\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -635,6 +637,56 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiOperationsShouldUseDeclaredSingleSnakeCaseTags() throws IOException {
+        Set<String> invalidTags = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                Set<String> declaredTags = declaredTags(lines);
+                String currentPath = null;
+
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher pathMatcher = OPENAPI_PATH.matcher(lines.get(index));
+                    if (pathMatcher.matches()) {
+                        currentPath = pathMatcher.group(1);
+                        continue;
+                    }
+
+                    Matcher methodMatcher = OPENAPI_METHOD.matcher(lines.get(index));
+                    if (currentPath == null || !methodMatcher.matches()) {
+                        continue;
+                    }
+
+                    String operation = path.getFileName()
+                        + " "
+                        + methodMatcher.group(1).toUpperCase(Locale.ROOT)
+                        + " "
+                        + currentPath;
+                    Set<String> operationTags = operationTags(operationBlock(lines, index));
+                    if (operationTags.size() != 1) {
+                        invalidTags.add(operation + " must declare exactly one tag");
+                        continue;
+                    }
+
+                    String tag = operationTags.iterator().next();
+                    if (!tag.matches("[a-z][a-z0-9_]*") || !declaredTags.contains(tag)) {
+                        invalidTags.add(operation + " invalid tag " + tag);
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidTags)
+            .as("OpenAPI operations must use exactly one declared snake_case tag")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -826,6 +878,30 @@ class OpenApiContractMatrixTest {
             || schemaBlock.contains("\n      anyOf:")
             || schemaBlock.contains("\n      enum:")
             || schemaBlock.contains("\n      const:");
+    }
+
+    private static Set<String> declaredTags(List<String> lines) {
+        Set<String> tags = new LinkedHashSet<>();
+        for (String line : lines) {
+            Matcher matcher = TOP_LEVEL_TAG.matcher(line);
+            if (matcher.matches()) {
+                tags.add(matcher.group(1));
+            }
+        }
+        return tags;
+    }
+
+    private static Set<String> operationTags(String operationBlock) {
+        Set<String> tags = new LinkedHashSet<>();
+        for (String line : operationBlock.split("\\R")) {
+            Matcher matcher = OPERATION_TAGS.matcher(line);
+            if (matcher.matches()) {
+                for (String tag : matcher.group(1).split(",")) {
+                    tags.add(tag.trim());
+                }
+            }
+        }
+        return tags;
     }
 
     private static int leadingSpaces(String line) {

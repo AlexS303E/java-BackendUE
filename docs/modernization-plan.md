@@ -691,3 +691,11 @@ Goal: keep reusable OpenAPI response components resolvable and descriptive for c
 - [x] Add a contract test that resolves every `#/components/responses/*` reference across OpenAPI contracts.
 - [x] Require reusable response components to keep a `description`.
 - [x] Require JSON response components to point at reusable schema components.
+
+## Block 86 - Stage 3 OpenAPI tag guard
+
+Goal: keep generated-client operation grouping stable and explicit.
+
+- [x] Add a contract test that validates operation tags across public, server, and admin OpenAPI contracts.
+- [x] Require each operation to declare exactly one tag.
+- [x] Require operation tags to be declared top-level and use snake_case naming.
