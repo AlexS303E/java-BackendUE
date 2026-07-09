@@ -635,3 +635,11 @@ Goal: keep the documented minimum error-code checklist synchronized with OpenAPI
 - [x] Add a contract test that reads minimum checked error codes from `docs/openapi-contract-test-matrix.md`.
 - [x] Require every documented minimum error code to remain represented in public, server, or admin OpenAPI contracts.
 - [x] Run the Stage 3 OpenAPI verifier and focused contract tests after adding the guard.
+
+## Block 79 - Stage 3 OpenAPI operationId guard
+
+Goal: keep generated-client operation identifiers stable and collision-free across OpenAPI contracts.
+
+- [x] Add a contract test that scans `operationId` values across public, server, and admin OpenAPI contracts.
+- [x] Require operation ids to be unique and snake_case.
+- [x] Run the Stage 3 OpenAPI verifier and focused contract tests after adding the guard.

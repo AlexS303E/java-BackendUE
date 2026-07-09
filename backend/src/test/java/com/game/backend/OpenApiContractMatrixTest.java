@@ -29,6 +29,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern COMPONENT_RESPONSE_REF = Pattern.compile("\\$ref: '#/components/responses/([^']+)'");
     private static final Pattern COMPONENT_SCHEMA_REF = Pattern.compile("\\$ref: '#/components/schemas/([^']+)'");
     private static final Pattern MATRIX_ERROR_CODE = Pattern.compile("^- `([45][0-9]{2}) ([A-Z0-9_]+)`$");
+    private static final Pattern OPERATION_ID = Pattern.compile("^\\s+operationId:\\s*([a-zA-Z0-9_]+)\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -353,6 +354,35 @@ class OpenApiContractMatrixTest {
 
         assertThat(missingErrorCodes)
             .as("docs/openapi-contract-test-matrix.md minimum checked error codes must stay represented in OpenAPI")
+            .isEmpty();
+    }
+
+    @Test
+    void openApiOperationIdsShouldStayUniqueAndSnakeCase() throws IOException {
+        Set<String> operationIds = new LinkedHashSet<>();
+        Set<String> duplicateOrInvalidOperationIds = new LinkedHashSet<>();
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                for (String line : Files.readAllLines(path)) {
+                    Matcher matcher = OPERATION_ID.matcher(line);
+                    if (!matcher.matches()) {
+                        continue;
+                    }
+
+                    String operationId = matcher.group(1);
+                    if (!operationId.matches("[a-z][a-z0-9_]*") || !operationIds.add(operationId)) {
+                        duplicateOrInvalidOperationIds.add(path.getFileName() + " " + operationId);
+                    }
+                }
+            }
+        }
+
+        assertThat(duplicateOrInvalidOperationIds)
+            .as("OpenAPI operationId values must be unique and snake_case for generated clients")
             .isEmpty();
     }
 
