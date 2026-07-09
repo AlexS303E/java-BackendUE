@@ -600,6 +600,41 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiReusableResponsesShouldResolveAndKeepDescriptionOrJsonSchema() throws IOException {
+        Set<String> invalidResponses = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                String contract = String.join("\n", lines);
+                Matcher responseRefMatcher = COMPONENT_RESPONSE_REF.matcher(contract);
+                while (responseRefMatcher.find()) {
+                    String responseName = responseRefMatcher.group(1);
+                    String responseBlock = namedComponentBlock(lines, "responses", responseName);
+                    if (responseBlock.isBlank()) {
+                        invalidResponses.add(path.getFileName() + " " + responseName + " unresolved");
+                        continue;
+                    }
+                    if (!responseBlock.contains("\n      description:")) {
+                        invalidResponses.add(path.getFileName() + " " + responseName + " missing description");
+                    }
+                    if (responseBlock.contains("application/json:") && !COMPONENT_SCHEMA_REF.matcher(responseBlock).find()) {
+                        invalidResponses.add(path.getFileName() + " " + responseName + " json response missing schema ref");
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidResponses)
+            .as("OpenAPI response refs must resolve and keep description/schema-backed JSON shape")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;

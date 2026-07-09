@@ -683,3 +683,11 @@ Goal: keep generated-client schema references resolvable and backed by structure
 - [x] Add a contract test that resolves every `#/components/schemas/*` reference across OpenAPI contracts.
 - [x] Fail on missing schema components before generated clients consume broken refs.
 - [x] Require referenced schemas to declare an explicit schema shape (`type`, composition, `enum`, or `const`).
+
+## Block 85 - Stage 3 OpenAPI reusable response guard
+
+Goal: keep reusable OpenAPI response components resolvable and descriptive for clients.
+
+- [x] Add a contract test that resolves every `#/components/responses/*` reference across OpenAPI contracts.
+- [x] Require reusable response components to keep a `description`.
+- [x] Require JSON response components to point at reusable schema components.
