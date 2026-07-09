@@ -39,6 +39,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern OPERATION_TAGS = Pattern.compile("^\\s+tags:\\s*\\[([^]]+)]\\s*$");
     private static final Pattern OPERATION_SUMMARY = Pattern.compile("^\\s+summary:\\s*(\\S.*)$");
     private static final Pattern SERVER_URL = Pattern.compile("^  - url:\\s*(\\S+)\\s*$");
+    private static final Pattern INFO_VERSION = Pattern.compile("(?m)^  version:\\s*([0-9]+\\.[0-9]+\\.[0-9]+)\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -753,6 +754,34 @@ class OpenApiContractMatrixTest {
 
         assertThat(absoluteServers)
             .as("OpenAPI server URLs must stay relative so generated clients do not bake dev/prod hosts")
+            .isEmpty();
+    }
+
+    @Test
+    void openApiDocumentsShouldKeepStableInfoMetadata() throws IOException {
+        Set<String> invalidMetadata = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                String contract = Files.readString(path);
+                if (!contract.startsWith("openapi: 3.1.0\n")) {
+                    invalidMetadata.add(path.getFileName() + " openapi version");
+                }
+                if (!contract.contains("\ninfo:\n") || !contract.contains("\n  title: UE5 Backend ")) {
+                    invalidMetadata.add(path.getFileName() + " info.title");
+                }
+                if (!INFO_VERSION.matcher(contract).find()) {
+                    invalidMetadata.add(path.getFileName() + " info.version");
+                }
+            }
+        }
+
+        assertThat(invalidMetadata)
+            .as("OpenAPI documents must keep stable versioned info metadata")
             .isEmpty();
     }
 
