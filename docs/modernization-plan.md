@@ -787,3 +787,11 @@ Goal: keep scalar schema formats stable and type-compatible for generated client
 - [x] Add a contract test that scans every OpenAPI `format` declaration.
 - [x] Allow only known generated-client-safe formats.
 - [x] Require string formats and integer formats to match their declared schema `type`.
+
+## Block 98 - Stage 3 OpenAPI string length guard
+
+Goal: keep string validation bounds valid for generated clients and request validators.
+
+- [x] Add a contract test that scans OpenAPI `minLength` and `maxLength` declarations.
+- [x] Require string length bounds to be non-negative integers.
+- [x] Require `minLength <= maxLength` when both are declared in one schema block.

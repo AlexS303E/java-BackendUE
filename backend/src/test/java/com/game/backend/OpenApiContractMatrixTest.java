@@ -52,6 +52,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern SCHEMA_TYPE = Pattern.compile("^\\s+type:\\s*(?:([A-Za-z]+)|\\[([A-Za-z]+),\\s*'null'])\\s*$");
     private static final Pattern SCHEMA_FORMAT = Pattern.compile("^\\s+format:\\s*([A-Za-z0-9_-]+)\\s*$");
     private static final Pattern NUMERIC_BOUND = Pattern.compile("^\\s+(minimum|maximum):\\s*(-?[0-9]+(?:\\.[0-9]+)?)\\s*$");
+    private static final Pattern STRING_LENGTH_BOUND = Pattern.compile("^\\s+(minLength|maxLength):\\s*(\\S+)\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -1047,6 +1048,35 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiStringLengthBoundsShouldBeValid() throws IOException {
+        Set<String> invalidBounds = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher matcher = STRING_LENGTH_BOUND.matcher(lines.get(index));
+                    if (!matcher.matches()) {
+                        continue;
+                    }
+
+                    if (!stringLengthBoundsAreValid(lines, index)) {
+                        invalidBounds.add(path.getFileName() + " line " + (index + 1));
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidBounds)
+            .as("OpenAPI string minLength/maxLength bounds must be non-negative integers and min <= max")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -1424,6 +1454,64 @@ class OpenApiContractMatrixTest {
         return minimum == null || maximum == null || minimum <= maximum;
     }
 
+    private static boolean stringLengthBoundsAreValid(List<String> lines, int boundLineIndex) {
+        int baseIndent = leadingSpaces(lines.get(boundLineIndex));
+        Integer minimum = null;
+        Integer maximum = null;
+
+        for (int index = boundLineIndex; index >= 0; index--) {
+            String line = lines.get(index);
+            if (index < boundLineIndex && !line.isBlank() && leadingSpaces(line) < baseIndent) {
+                break;
+            }
+            LengthBound bound = parseLengthBound(line);
+            if (bound == null) {
+                continue;
+            }
+            if (bound.value() < 0) {
+                return false;
+            }
+            if ("minLength".equals(bound.name())) {
+                minimum = bound.value();
+            } else {
+                maximum = bound.value();
+            }
+        }
+
+        for (int index = boundLineIndex + 1; index < lines.size(); index++) {
+            String line = lines.get(index);
+            if (!line.isBlank() && leadingSpaces(line) < baseIndent) {
+                break;
+            }
+            LengthBound bound = parseLengthBound(line);
+            if (bound == null) {
+                continue;
+            }
+            if (bound.value() < 0) {
+                return false;
+            }
+            if ("minLength".equals(bound.name())) {
+                minimum = bound.value();
+            } else {
+                maximum = bound.value();
+            }
+        }
+
+        return minimum == null || maximum == null || minimum <= maximum;
+    }
+
+    private static LengthBound parseLengthBound(String line) {
+        Matcher matcher = STRING_LENGTH_BOUND.matcher(line);
+        if (!matcher.matches()) {
+            return null;
+        }
+        try {
+            return new LengthBound(matcher.group(1), Integer.parseInt(matcher.group(2)));
+        } catch (NumberFormatException ignored) {
+            return new LengthBound(matcher.group(1), -1);
+        }
+    }
+
     private static boolean objectSchemaHasPropertiesOrAdditionalProperties(List<String> lines, int objectTypeLineIndex) {
         int objectIndent = leadingSpaces(lines.get(objectTypeLineIndex));
         for (int index = objectTypeLineIndex + 1; index < lines.size(); index++) {
@@ -1485,5 +1573,8 @@ class OpenApiContractMatrixTest {
             spaces++;
         }
         return spaces;
+    }
+
+    private record LengthBound(String name, int value) {
     }
 }
