@@ -47,6 +47,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern INLINE_ENUM = Pattern.compile("^\\s+enum:\\s*\\[([^]]+)]\\s*$");
     private static final Pattern LIST_ITEM = Pattern.compile("^\\s+-\\s*([A-Za-z0-9_]+)\\s*$");
     private static final Pattern PROPERTY_NAME = Pattern.compile("^\\s{8,}([A-Za-z0-9_]+):\\s*$");
+    private static final Pattern ARRAY_TYPE = Pattern.compile("^\\s+type:\\s*array\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -926,6 +927,34 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiArraySchemasShouldDeclareItems() throws IOException {
+        Set<String> arraysWithoutItems = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    if (!ARRAY_TYPE.matcher(lines.get(index)).matches()) {
+                        continue;
+                    }
+
+                    if (!arraySchemaHasItems(lines, index)) {
+                        arraysWithoutItems.add(path.getFileName() + " line " + (index + 1));
+                    }
+                }
+            }
+        }
+
+        assertThat(arraysWithoutItems)
+            .as("OpenAPI array schemas must declare items")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -1239,6 +1268,33 @@ class OpenApiContractMatrixTest {
             }
         }
         return List.copyOf(values);
+    }
+
+    private static boolean arraySchemaHasItems(List<String> lines, int arrayTypeLineIndex) {
+        int arrayIndent = leadingSpaces(lines.get(arrayTypeLineIndex));
+        for (int index = arrayTypeLineIndex + 1; index < lines.size(); index++) {
+            String line = lines.get(index);
+            if (line.trim().equals("items:")) {
+                return true;
+            }
+            if (!line.isBlank() && leadingSpaces(line) < arrayIndent) {
+                return false;
+            }
+            if (!line.isBlank()
+                && leadingSpaces(line) == arrayIndent
+                && !isArraySchemaSiblingKeyword(line.trim())) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isArraySchemaSiblingKeyword(String trimmedLine) {
+        return trimmedLine.startsWith("description:")
+            || trimmedLine.startsWith("minItems:")
+            || trimmedLine.startsWith("maxItems:")
+            || trimmedLine.startsWith("uniqueItems:")
+            || trimmedLine.startsWith("nullable:");
     }
 
     private static int leadingSpaces(String line) {

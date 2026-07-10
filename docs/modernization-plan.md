@@ -755,3 +755,11 @@ Goal: keep enum contracts stable for generated clients and backend DTO mapping.
 - [x] Add a contract test that scans inline and block-style OpenAPI enum declarations.
 - [x] Require enum values to be non-empty and unique.
 - [x] Require enum values to use lower snake_case naming.
+
+## Block 94 - Stage 3 OpenAPI array items guard
+
+Goal: keep array schemas precise for generated clients.
+
+- [x] Add a contract test that scans every `type: array` declaration across OpenAPI contracts.
+- [x] Require array schemas to declare `items`.
+- [x] Fail before generated clients fall back to untyped arrays.
