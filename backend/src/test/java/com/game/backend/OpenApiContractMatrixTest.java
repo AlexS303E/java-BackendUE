@@ -49,6 +49,8 @@ class OpenApiContractMatrixTest {
     private static final Pattern PROPERTY_NAME = Pattern.compile("^\\s{8,}([A-Za-z0-9_]+):\\s*$");
     private static final Pattern ARRAY_TYPE = Pattern.compile("^\\s+type:\\s*array\\s*$");
     private static final Pattern OBJECT_TYPE = Pattern.compile("^\\s+type:\\s*object\\s*$");
+    private static final Pattern SCHEMA_TYPE = Pattern.compile("^\\s+type:\\s*(?:([A-Za-z]+)|\\[([A-Za-z]+),\\s*'null'])\\s*$");
+    private static final Pattern SCHEMA_FORMAT = Pattern.compile("^\\s+format:\\s*([A-Za-z0-9_-]+)\\s*$");
     private static final Pattern NUMERIC_BOUND = Pattern.compile("^\\s+(minimum|maximum):\\s*(-?[0-9]+(?:\\.[0-9]+)?)\\s*$");
 
     @Test
@@ -1014,6 +1016,37 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiSchemaFormatsShouldStayKnownAndTypeCompatible() throws IOException {
+        Set<String> invalidFormats = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher matcher = SCHEMA_FORMAT.matcher(lines.get(index));
+                    if (!matcher.matches()) {
+                        continue;
+                    }
+
+                    String format = matcher.group(1);
+                    String type = nearestSchemaType(lines, index);
+                    if (!isKnownSchemaFormat(format) || !isFormatCompatibleWithType(format, type)) {
+                        invalidFormats.add(path.getFileName() + " line " + (index + 1) + " " + type + "/" + format);
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidFormats)
+            .as("OpenAPI schema formats must stay known and compatible with their declared type")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -1416,6 +1449,34 @@ class OpenApiContractMatrixTest {
             || trimmedLine.startsWith("nullable:")
             || trimmedLine.startsWith("minProperties:")
             || trimmedLine.startsWith("maxProperties:");
+    }
+
+    private static String nearestSchemaType(List<String> lines, int formatLineIndex) {
+        int formatIndent = leadingSpaces(lines.get(formatLineIndex));
+        for (int index = formatLineIndex - 1; index >= 0; index--) {
+            String line = lines.get(index);
+            if (!line.isBlank() && leadingSpaces(line) < formatIndent - 2) {
+                return "";
+            }
+
+            Matcher matcher = SCHEMA_TYPE.matcher(line);
+            if (matcher.matches() && leadingSpaces(line) == formatIndent) {
+                return matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+            }
+        }
+        return "";
+    }
+
+    private static boolean isKnownSchemaFormat(String format) {
+        return Set.of("uuid", "date-time", "int32", "int64").contains(format);
+    }
+
+    private static boolean isFormatCompatibleWithType(String format, String type) {
+        return switch (format) {
+            case "uuid", "date-time" -> "string".equals(type);
+            case "int32", "int64" -> "integer".equals(type);
+            default -> false;
+        };
     }
 
     private static int leadingSpaces(String line) {

@@ -779,3 +779,11 @@ Goal: keep object schemas explicit when they represent arbitrary maps/payloads.
 - [x] Add a contract test that scans every `type: object` declaration across OpenAPI contracts.
 - [x] Allow regular DTO objects with `properties`.
 - [x] Require property-less object schemas to declare `additionalProperties`.
+
+## Block 97 - Stage 3 OpenAPI schema format guard
+
+Goal: keep scalar schema formats stable and type-compatible for generated clients.
+
+- [x] Add a contract test that scans every OpenAPI `format` declaration.
+- [x] Allow only known generated-client-safe formats.
+- [x] Require string formats and integer formats to match their declared schema `type`.
