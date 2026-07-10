@@ -42,6 +42,10 @@ class OpenApiContractMatrixTest {
     private static final Pattern SERVER_URL = Pattern.compile("^  - url:\\s*(\\S+)\\s*$");
     private static final Pattern INFO_VERSION = Pattern.compile("(?m)^  version:\\s*([0-9]+\\.[0-9]+\\.[0-9]+)\\s*$");
     private static final Pattern SECURITY_REQUIREMENT = Pattern.compile("^\\s+-?\\s*([A-Za-z_][A-Za-z0-9_]*): \\[]\\s*$");
+    private static final Pattern SCHEMA_COMPONENT = Pattern.compile("^    ([A-Za-z0-9_]+):\\s*$");
+    private static final Pattern INLINE_REQUIRED = Pattern.compile("^\\s+required:\\s*\\[([^]]+)]\\s*$");
+    private static final Pattern LIST_ITEM = Pattern.compile("^\\s+-\\s*([A-Za-z0-9_]+)\\s*$");
+    private static final Pattern PROPERTY_NAME = Pattern.compile("^\\s{8,}([A-Za-z0-9_]+):\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -846,6 +850,45 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiSchemaRequiredFieldsShouldExistInProperties() throws IOException {
+        Set<String> missingRequiredProperties = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher schemaMatcher = SCHEMA_COMPONENT.matcher(lines.get(index));
+                    if (!schemaMatcher.matches() || !isInSection(lines, index, "schemas")) {
+                        continue;
+                    }
+
+                    String schemaName = schemaMatcher.group(1);
+                    String schemaBlock = nestedBlock(lines, index);
+                    Set<String> required = requiredFields(schemaBlock);
+                    if (required.isEmpty()) {
+                        continue;
+                    }
+
+                    Set<String> properties = schemaProperties(schemaBlock);
+                    for (String field : required) {
+                        if (!properties.contains(field)) {
+                            missingRequiredProperties.add(path.getFileName() + " " + schemaName + "." + field);
+                        }
+                    }
+                }
+            }
+        }
+
+        assertThat(missingRequiredProperties)
+            .as("OpenAPI schema required fields must exist in the same schema component properties")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -1071,6 +1114,70 @@ class OpenApiContractMatrixTest {
             }
         }
         return null;
+    }
+
+    private static boolean isInSection(List<String> lines, int index, String sectionName) {
+        String sectionHeader = "  " + sectionName + ":";
+        for (int cursor = index; cursor >= 0; cursor--) {
+            String line = lines.get(cursor);
+            if (line.equals(sectionHeader)) {
+                return true;
+            }
+            if (cursor < index && line.startsWith("  ") && !line.startsWith("    ")) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private static Set<String> requiredFields(String schemaBlock) {
+        Set<String> fields = new LinkedHashSet<>();
+        String[] lines = schemaBlock.split("\\R");
+        for (int index = 0; index < lines.length; index++) {
+            Matcher inlineMatcher = INLINE_REQUIRED.matcher(lines[index]);
+            if (inlineMatcher.matches()) {
+                for (String field : inlineMatcher.group(1).split(",")) {
+                    fields.add(field.trim());
+                }
+                continue;
+            }
+
+            if (lines[index].matches("^\\s+required:\\s*$")) {
+                int requiredIndent = leadingSpaces(lines[index]);
+                for (int itemIndex = index + 1; itemIndex < lines.length; itemIndex++) {
+                    String line = lines[itemIndex];
+                    if (!line.isBlank() && leadingSpaces(line) <= requiredIndent) {
+                        break;
+                    }
+                    Matcher itemMatcher = LIST_ITEM.matcher(line);
+                    if (itemMatcher.matches()) {
+                        fields.add(itemMatcher.group(1));
+                    }
+                }
+            }
+        }
+        return fields;
+    }
+
+    private static Set<String> schemaProperties(String schemaBlock) {
+        Set<String> properties = new LinkedHashSet<>();
+        int propertiesIndent = -1;
+        for (String line : schemaBlock.split("\\R")) {
+            if (line.trim().equals("properties:")) {
+                propertiesIndent = leadingSpaces(line);
+                continue;
+            }
+            if (propertiesIndent >= 0 && !line.isBlank() && leadingSpaces(line) <= propertiesIndent) {
+                propertiesIndent = -1;
+            }
+            if (propertiesIndent >= 0) {
+                Matcher matcher = PROPERTY_NAME.matcher(line);
+                if (matcher.matches()) {
+                    properties.add(matcher.group(1));
+                }
+            }
+        }
+        return properties;
     }
 
     private static int leadingSpaces(String line) {

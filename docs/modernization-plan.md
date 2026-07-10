@@ -739,3 +739,11 @@ Goal: keep reusable response header contracts resolvable for generated clients.
 - [x] Add a contract test that resolves every `#/components/headers/*` reference across OpenAPI contracts.
 - [x] Require referenced header components to exist.
 - [x] Require reusable header components to declare a `schema`.
+
+## Block 92 - Stage 3 OpenAPI schema required-property guard
+
+Goal: keep schema `required` declarations aligned with actual DTO properties.
+
+- [x] Add a contract test that scans reusable OpenAPI schema components.
+- [x] Extract inline and block `required` fields.
+- [x] Require every required field to exist in the same schema component `properties` block.
