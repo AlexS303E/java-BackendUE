@@ -747,3 +747,11 @@ Goal: keep schema `required` declarations aligned with actual DTO properties.
 - [x] Add a contract test that scans reusable OpenAPI schema components.
 - [x] Extract inline and block `required` fields.
 - [x] Require every required field to exist in the same schema component `properties` block.
+
+## Block 93 - Stage 3 OpenAPI enum value guard
+
+Goal: keep enum contracts stable for generated clients and backend DTO mapping.
+
+- [x] Add a contract test that scans inline and block-style OpenAPI enum declarations.
+- [x] Require enum values to be non-empty and unique.
+- [x] Require enum values to use lower snake_case naming.

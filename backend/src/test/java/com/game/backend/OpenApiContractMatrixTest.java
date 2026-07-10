@@ -44,6 +44,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern SECURITY_REQUIREMENT = Pattern.compile("^\\s+-?\\s*([A-Za-z_][A-Za-z0-9_]*): \\[]\\s*$");
     private static final Pattern SCHEMA_COMPONENT = Pattern.compile("^    ([A-Za-z0-9_]+):\\s*$");
     private static final Pattern INLINE_REQUIRED = Pattern.compile("^\\s+required:\\s*\\[([^]]+)]\\s*$");
+    private static final Pattern INLINE_ENUM = Pattern.compile("^\\s+enum:\\s*\\[([^]]+)]\\s*$");
     private static final Pattern LIST_ITEM = Pattern.compile("^\\s+-\\s*([A-Za-z0-9_]+)\\s*$");
     private static final Pattern PROPERTY_NAME = Pattern.compile("^\\s{8,}([A-Za-z0-9_]+):\\s*$");
 
@@ -889,6 +890,42 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiEnumValuesShouldStayUniqueAndLowerSnakeCase() throws IOException {
+        Set<String> invalidEnums = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    if (!lines.get(index).trim().startsWith("enum:")) {
+                        continue;
+                    }
+
+                    List<String> values = enumValues(lines, index);
+                    Set<String> uniqueValues = new LinkedHashSet<>(values);
+                    if (values.isEmpty() || uniqueValues.size() != values.size()) {
+                        invalidEnums.add(path.getFileName() + " line " + (index + 1) + " empty or duplicate values");
+                        continue;
+                    }
+                    for (String value : values) {
+                        if (!value.matches("[a-z][a-z0-9_]*")) {
+                            invalidEnums.add(path.getFileName() + " line " + (index + 1) + " invalid value " + value);
+                        }
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidEnums)
+            .as("OpenAPI enum values must be non-empty, unique, and lower snake_case")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -1178,6 +1215,30 @@ class OpenApiContractMatrixTest {
             }
         }
         return properties;
+    }
+
+    private static List<String> enumValues(List<String> lines, int enumLineIndex) {
+        Matcher inlineMatcher = INLINE_ENUM.matcher(lines.get(enumLineIndex));
+        if (inlineMatcher.matches()) {
+            return List.of(inlineMatcher.group(1).split(","))
+                .stream()
+                .map(String::trim)
+                .toList();
+        }
+
+        int enumIndent = leadingSpaces(lines.get(enumLineIndex));
+        java.util.ArrayList<String> values = new java.util.ArrayList<>();
+        for (int index = enumLineIndex + 1; index < lines.size(); index++) {
+            String line = lines.get(index);
+            if (!line.isBlank() && leadingSpaces(line) <= enumIndent) {
+                break;
+            }
+            Matcher itemMatcher = LIST_ITEM.matcher(line);
+            if (itemMatcher.matches()) {
+                values.add(itemMatcher.group(1));
+            }
+        }
+        return List.copyOf(values);
     }
 
     private static int leadingSpaces(String line) {
