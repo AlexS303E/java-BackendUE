@@ -763,3 +763,11 @@ Goal: keep array schemas precise for generated clients.
 - [x] Add a contract test that scans every `type: array` declaration across OpenAPI contracts.
 - [x] Require array schemas to declare `items`.
 - [x] Fail before generated clients fall back to untyped arrays.
+
+## Block 95 - Stage 3 OpenAPI numeric bounds guard
+
+Goal: keep numeric constraints valid for generated clients and validators.
+
+- [x] Add a contract test that scans OpenAPI `minimum` and `maximum` bounds.
+- [x] Require numeric bound values to parse as numbers.
+- [x] Require `minimum <= maximum` when both are declared in one schema block.

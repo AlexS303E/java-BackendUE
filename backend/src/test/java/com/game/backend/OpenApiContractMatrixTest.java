@@ -48,6 +48,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern LIST_ITEM = Pattern.compile("^\\s+-\\s*([A-Za-z0-9_]+)\\s*$");
     private static final Pattern PROPERTY_NAME = Pattern.compile("^\\s{8,}([A-Za-z0-9_]+):\\s*$");
     private static final Pattern ARRAY_TYPE = Pattern.compile("^\\s+type:\\s*array\\s*$");
+    private static final Pattern NUMERIC_BOUND = Pattern.compile("^\\s+(minimum|maximum):\\s*(-?[0-9]+(?:\\.[0-9]+)?)\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -955,6 +956,35 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiNumericBoundsShouldBeValid() throws IOException {
+        Set<String> invalidBounds = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher matcher = NUMERIC_BOUND.matcher(lines.get(index));
+                    if (!matcher.matches()) {
+                        continue;
+                    }
+
+                    if (!numericBoundsAreValid(lines, index)) {
+                        invalidBounds.add(path.getFileName() + " line " + (index + 1));
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidBounds)
+            .as("OpenAPI numeric minimum/maximum bounds must be valid")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -1295,6 +1325,41 @@ class OpenApiContractMatrixTest {
             || trimmedLine.startsWith("maxItems:")
             || trimmedLine.startsWith("uniqueItems:")
             || trimmedLine.startsWith("nullable:");
+    }
+
+    private static boolean numericBoundsAreValid(List<String> lines, int boundLineIndex) {
+        int baseIndent = leadingSpaces(lines.get(boundLineIndex));
+        Double minimum = null;
+        Double maximum = null;
+        for (int index = boundLineIndex; index >= 0; index--) {
+            String line = lines.get(index);
+            if (index < boundLineIndex && !line.isBlank() && leadingSpaces(line) < baseIndent) {
+                break;
+            }
+            Matcher matcher = NUMERIC_BOUND.matcher(line);
+            if (matcher.matches()) {
+                if ("minimum".equals(matcher.group(1))) {
+                    minimum = Double.parseDouble(matcher.group(2));
+                } else {
+                    maximum = Double.parseDouble(matcher.group(2));
+                }
+            }
+        }
+        for (int index = boundLineIndex + 1; index < lines.size(); index++) {
+            String line = lines.get(index);
+            if (!line.isBlank() && leadingSpaces(line) < baseIndent) {
+                break;
+            }
+            Matcher matcher = NUMERIC_BOUND.matcher(line);
+            if (matcher.matches()) {
+                if ("minimum".equals(matcher.group(1))) {
+                    minimum = Double.parseDouble(matcher.group(2));
+                } else {
+                    maximum = Double.parseDouble(matcher.group(2));
+                }
+            }
+        }
+        return minimum == null || maximum == null || minimum <= maximum;
     }
 
     private static int leadingSpaces(String line) {
