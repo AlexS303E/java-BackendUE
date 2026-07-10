@@ -48,6 +48,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern LIST_ITEM = Pattern.compile("^\\s+-\\s*([A-Za-z0-9_]+)\\s*$");
     private static final Pattern PROPERTY_NAME = Pattern.compile("^\\s{8,}([A-Za-z0-9_]+):\\s*$");
     private static final Pattern ARRAY_TYPE = Pattern.compile("^\\s+type:\\s*array\\s*$");
+    private static final Pattern OBJECT_TYPE = Pattern.compile("^\\s+type:\\s*object\\s*$");
     private static final Pattern NUMERIC_BOUND = Pattern.compile("^\\s+(minimum|maximum):\\s*(-?[0-9]+(?:\\.[0-9]+)?)\\s*$");
 
     @Test
@@ -985,6 +986,34 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiMapLikeObjectSchemasShouldDeclareAdditionalProperties() throws IOException {
+        Set<String> ambiguousObjects = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    if (!OBJECT_TYPE.matcher(lines.get(index)).matches()) {
+                        continue;
+                    }
+
+                    if (!objectSchemaHasPropertiesOrAdditionalProperties(lines, index)) {
+                        ambiguousObjects.add(path.getFileName() + " line " + (index + 1));
+                    }
+                }
+            }
+        }
+
+        assertThat(ambiguousObjects)
+            .as("OpenAPI object schemas without properties must explicitly declare additionalProperties")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -1360,6 +1389,33 @@ class OpenApiContractMatrixTest {
             }
         }
         return minimum == null || maximum == null || minimum <= maximum;
+    }
+
+    private static boolean objectSchemaHasPropertiesOrAdditionalProperties(List<String> lines, int objectTypeLineIndex) {
+        int objectIndent = leadingSpaces(lines.get(objectTypeLineIndex));
+        for (int index = objectTypeLineIndex + 1; index < lines.size(); index++) {
+            String line = lines.get(index);
+            if (!line.isBlank() && leadingSpaces(line) < objectIndent) {
+                return false;
+            }
+            if (line.trim().equals("properties:") || line.trim().startsWith("additionalProperties:")) {
+                return true;
+            }
+            if (!line.isBlank()
+                && leadingSpaces(line) == objectIndent
+                && !isObjectSchemaSiblingKeyword(line.trim())) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isObjectSchemaSiblingKeyword(String trimmedLine) {
+        return trimmedLine.startsWith("description:")
+            || trimmedLine.startsWith("required:")
+            || trimmedLine.startsWith("nullable:")
+            || trimmedLine.startsWith("minProperties:")
+            || trimmedLine.startsWith("maxProperties:");
     }
 
     private static int leadingSpaces(String line) {

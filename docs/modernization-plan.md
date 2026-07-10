@@ -771,3 +771,11 @@ Goal: keep numeric constraints valid for generated clients and validators.
 - [x] Add a contract test that scans OpenAPI `minimum` and `maximum` bounds.
 - [x] Require numeric bound values to parse as numbers.
 - [x] Require `minimum <= maximum` when both are declared in one schema block.
+
+## Block 96 - Stage 3 OpenAPI map-like object guard
+
+Goal: keep object schemas explicit when they represent arbitrary maps/payloads.
+
+- [x] Add a contract test that scans every `type: object` declaration across OpenAPI contracts.
+- [x] Allow regular DTO objects with `properties`.
+- [x] Require property-less object schemas to declare `additionalProperties`.
