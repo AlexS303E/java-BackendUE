@@ -40,6 +40,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern OPERATION_SUMMARY = Pattern.compile("^\\s+summary:\\s*(\\S.*)$");
     private static final Pattern SERVER_URL = Pattern.compile("^  - url:\\s*(\\S+)\\s*$");
     private static final Pattern INFO_VERSION = Pattern.compile("(?m)^  version:\\s*([0-9]+\\.[0-9]+\\.[0-9]+)\\s*$");
+    private static final Pattern SECURITY_REQUIREMENT = Pattern.compile("^\\s+-?\\s*([A-Za-z_][A-Za-z0-9_]*): \\[]\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -782,6 +783,37 @@ class OpenApiContractMatrixTest {
 
         assertThat(invalidMetadata)
             .as("OpenAPI documents must keep stable versioned info metadata")
+            .isEmpty();
+    }
+
+    @Test
+    void openApiSecurityRequirementsShouldResolveToDeclaredSchemes() throws IOException {
+        Set<String> invalidSecurityRequirements = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (String line : lines) {
+                    Matcher matcher = SECURITY_REQUIREMENT.matcher(line);
+                    if (!matcher.matches()) {
+                        continue;
+                    }
+
+                    String schemeName = matcher.group(1);
+                    String schemeBlock = namedComponentBlock(lines, "securitySchemes", schemeName);
+                    if (schemeBlock.isBlank() || !schemeBlock.contains("\n      type:")) {
+                        invalidSecurityRequirements.add(path.getFileName() + " " + schemeName);
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidSecurityRequirements)
+            .as("OpenAPI security requirements must resolve to declared securitySchemes")
             .isEmpty();
     }
 

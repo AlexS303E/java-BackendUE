@@ -723,3 +723,11 @@ Goal: keep OpenAPI document metadata stable for contract tooling and generated c
 - [x] Add a contract test that validates top-level OpenAPI metadata across public, server, and admin contracts.
 - [x] Require `openapi: 3.1.0` and a UE5 backend title.
 - [x] Require semver-like `info.version` values.
+
+## Block 90 - Stage 3 OpenAPI security scheme guard
+
+Goal: keep OpenAPI security requirements resolvable for generated clients and documentation tooling.
+
+- [x] Add a contract test that scans every security requirement in public, server, and admin OpenAPI contracts.
+- [x] Require each security requirement name to resolve to `components.securitySchemes`.
+- [x] Require referenced security schemes to declare an explicit `type`.
