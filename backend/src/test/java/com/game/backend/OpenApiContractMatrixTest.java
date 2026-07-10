@@ -30,6 +30,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern COMPONENT_RESPONSE_REF = Pattern.compile("\\$ref: '#/components/responses/([^']+)'");
     private static final Pattern COMPONENT_SCHEMA_REF = Pattern.compile("\\$ref: '#/components/schemas/([^']+)'");
     private static final Pattern COMPONENT_PARAMETER_REF = Pattern.compile("\\$ref: '#/components/parameters/([^']+)'");
+    private static final Pattern COMPONENT_HEADER_REF = Pattern.compile("\\$ref: '#/components/headers/([^']+)'");
     private static final Pattern MATRIX_ERROR_CODE = Pattern.compile("^- `([45][0-9]{2}) ([A-Z0-9_]+)`$");
     private static final Pattern OPERATION_ID = Pattern.compile("^\\s+operationId:\\s*([a-zA-Z0-9_]+)\\s*$");
     private static final Pattern PATH_TEMPLATE_VARIABLE = Pattern.compile("\\{([^}]+)}");
@@ -814,6 +815,34 @@ class OpenApiContractMatrixTest {
 
         assertThat(invalidSecurityRequirements)
             .as("OpenAPI security requirements must resolve to declared securitySchemes")
+            .isEmpty();
+    }
+
+    @Test
+    void openApiHeaderReferencesShouldResolveToSchemaBackedComponents() throws IOException {
+        Set<String> invalidHeaders = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                String contract = String.join("\n", lines);
+                Matcher headerRefMatcher = COMPONENT_HEADER_REF.matcher(contract);
+                while (headerRefMatcher.find()) {
+                    String headerName = headerRefMatcher.group(1);
+                    String headerBlock = namedComponentBlock(lines, "headers", headerName);
+                    if (headerBlock.isBlank() || !headerBlock.contains("\n      schema:")) {
+                        invalidHeaders.add(path.getFileName() + " " + headerName);
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidHeaders)
+            .as("OpenAPI header refs must resolve to schema-backed components")
             .isEmpty();
     }
 

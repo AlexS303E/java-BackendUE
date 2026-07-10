@@ -731,3 +731,11 @@ Goal: keep OpenAPI security requirements resolvable for generated clients and do
 - [x] Add a contract test that scans every security requirement in public, server, and admin OpenAPI contracts.
 - [x] Require each security requirement name to resolve to `components.securitySchemes`.
 - [x] Require referenced security schemes to declare an explicit `type`.
+
+## Block 91 - Stage 3 OpenAPI header reference guard
+
+Goal: keep reusable response header contracts resolvable for generated clients.
+
+- [x] Add a contract test that resolves every `#/components/headers/*` reference across OpenAPI contracts.
+- [x] Require referenced header components to exist.
+- [x] Require reusable header components to declare a `schema`.
