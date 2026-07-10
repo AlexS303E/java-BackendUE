@@ -795,3 +795,11 @@ Goal: keep string validation bounds valid for generated clients and request vali
 - [x] Add a contract test that scans OpenAPI `minLength` and `maxLength` declarations.
 - [x] Require string length bounds to be non-negative integers.
 - [x] Require `minLength <= maxLength` when both are declared in one schema block.
+
+## Block 99 - Stage 3 OpenAPI array bounds guard
+
+Goal: keep array validation bounds valid for generated clients and request validators.
+
+- [x] Add a contract test that scans OpenAPI `minItems`, `maxItems`, and `uniqueItems` declarations.
+- [x] Require array item bounds to be non-negative integers.
+- [x] Require `minItems <= maxItems` and boolean `uniqueItems` values.
