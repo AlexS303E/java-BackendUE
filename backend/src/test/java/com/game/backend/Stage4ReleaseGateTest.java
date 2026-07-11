@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class Stage4ReleaseGateTest {
     private static final Path STAGE4_GATE = Path.of("..", "tools", "test", "run-stage4-gate.ps1");
+    private static final Path STAGE4_SUMMARY_VALIDATOR = Path.of("..", "tools", "test", "validate-stage4-summary.ps1");
     private static final Path PRODUCTION_DEPLOYMENT = Path.of("..", "docs", "production-deployment.md");
     private static final Path STATUS = Path.of("..", "docs", "status.md");
 
@@ -41,6 +42,19 @@ class Stage4ReleaseGateTest {
             .contains("-Result \"failed\"")
             .contains("Planned Stage 4 gate steps:")
             .contains("Stage 4 gate passed.");
+    }
+
+    @Test
+    void stage4SummaryValidatorShouldKeepEvidenceSchemaStable() throws IOException {
+        assertThat(Files.readString(STAGE4_SUMMARY_VALIDATOR))
+            .contains("[Parameter(Mandatory = $true)]")
+            .contains("stage4_gate_summary")
+            .contains("schema_version -eq 1")
+            .contains("stage -eq 4")
+            .contains("@(\"Fast\", \"Release\")")
+            .contains("@(\"planned\", \"passed\", \"failed\")")
+            .contains("@(\"run\", \"skip\")")
+            .contains("Stage 4 summary schema is valid");
     }
 
     @Test

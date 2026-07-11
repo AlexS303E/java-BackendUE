@@ -907,3 +907,11 @@ Goal: keep Stage 4 gate summary artifacts stable for CI and release evidence con
 - [x] Add a stable `schema_name` to the JSON summary.
 - [x] Add `schema_version = 1` to the JSON summary.
 - [x] Cover the summary schema identifiers in the Stage 4 gate regression test.
+
+## Block 113 - Stage 4 release gate summary validator
+
+Goal: let CI and release tooling validate Stage 4 summary artifacts independently.
+
+- [x] Add `validate-stage4-summary.ps1` for JSON summary schema checks.
+- [x] Validate schema name/version, stage, mode, result, generated timestamp, and steps.
+- [x] Cover the validator contract in the Stage 4 gate regression test.
