@@ -29,6 +29,8 @@ class Stage4ReleaseGateTest {
             .contains("[string]$SummaryPath")
             .contains("[string]$SkipReason")
             .contains("Test-ReleaseGateHasSkippedChecks")
+            .contains("schema_name = \"stage4_gate_summary\"")
+            .contains("schema_version = 1")
             .contains("skip_reason")
             .contains("started_at")
             .contains("finished_at")

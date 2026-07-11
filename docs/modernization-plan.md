@@ -899,3 +899,11 @@ Goal: make Stage 4 gate summaries useful for CI and release timing audits.
 - [x] Record overall gate duration in the JSON summary.
 - [x] Record per-step start, finish, and duration fields for executed checks.
 - [x] Leave non-executed planned/skipped steps with empty timing fields.
+
+## Block 112 - Stage 4 release gate summary schema version
+
+Goal: keep Stage 4 gate summary artifacts stable for CI and release evidence consumers.
+
+- [x] Add a stable `schema_name` to the JSON summary.
+- [x] Add `schema_version = 1` to the JSON summary.
+- [x] Cover the summary schema identifiers in the Stage 4 gate regression test.

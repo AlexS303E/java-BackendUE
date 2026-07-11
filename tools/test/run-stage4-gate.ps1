@@ -106,6 +106,8 @@ function Write-GateSummary {
     }
 
     [pscustomobject]@{
+        schema_name = "stage4_gate_summary"
+        schema_version = 1
         stage = 4
         mode = $GateMode
         result = $Result
@@ -169,7 +171,7 @@ if ($ListSteps) {
 }
 
 try {
-$gateStartedAt = (Get-Date).ToUniversalTime()
+    $gateStartedAt = (Get-Date).ToUniversalTime()
     Invoke-CheckedStep "Stage 4 fast gate: Gradle tests and OpenAPI contract verification" {
         & powershell -NoProfile -ExecutionPolicy Bypass -File $runAllTests `
             -RepoRoot $root `
