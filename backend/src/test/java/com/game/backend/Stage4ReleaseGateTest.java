@@ -36,6 +36,8 @@ class Stage4ReleaseGateTest {
             .contains("started_at")
             .contains("finished_at")
             .contains("duration_ms")
+            .contains("tools\\test\\validate-stage4-summary.ps1")
+            .contains("-SummaryPath $resolvedPath")
             .contains("Write-GateSummary")
             .contains("ConvertTo-Json")
             .contains("error_message")

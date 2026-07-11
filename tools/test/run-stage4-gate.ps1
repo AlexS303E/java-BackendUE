@@ -125,17 +125,19 @@ function Write-GateSummary {
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $resolvedPath -Encoding UTF8
 
     Write-Host "Stage 4 gate summary written to $resolvedPath"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $summaryValidator -SummaryPath $resolvedPath
 }
 
 $root = Resolve-RepoRoot -ProvidedRepoRoot $RepoRoot
 $runAllTests = Join-Path $root "tools\test\run-all-tests.ps1"
+$summaryValidator = Join-Path $root "tools\test\validate-stage4-summary.ps1"
 $prodSmoke = Join-Path $root "tools\smoke\prod-profile-smoke.ps1"
 $mtlsSmoke = Join-Path $root "tools\mtls\run-mtls-smoke.ps1"
 $loadSmoke = Join-Path $root "tools\load\run-load-smoke.ps1"
 $backendDir = Join-Path $root "backend"
 $gradleWrapper = Join-Path $backendDir "gradlew.bat"
 
-foreach ($script in @($runAllTests, $prodSmoke, $mtlsSmoke, $loadSmoke)) {
+foreach ($script in @($runAllTests, $summaryValidator, $prodSmoke, $mtlsSmoke, $loadSmoke)) {
     if (-not (Test-Path -LiteralPath $script)) {
         throw "Required Stage 4 gate script was not found: $script"
     }

@@ -915,3 +915,11 @@ Goal: let CI and release tooling validate Stage 4 summary artifacts independentl
 - [x] Add `validate-stage4-summary.ps1` for JSON summary schema checks.
 - [x] Validate schema name/version, stage, mode, result, generated timestamp, and steps.
 - [x] Cover the validator contract in the Stage 4 gate regression test.
+
+## Block 114 - Stage 4 release gate summary self-validation
+
+Goal: make every Stage 4 summary artifact validate itself at write time.
+
+- [x] Wire `run-stage4-gate.ps1` to call `validate-stage4-summary.ps1` after writing a summary.
+- [x] Include the validator script in Stage 4 gate prerequisite checks.
+- [x] Cover the self-validation wiring in the Stage 4 gate regression test.
