@@ -819,3 +819,11 @@ Goal: keep scalar defaults and examples type-compatible for generated clients an
 - [x] Add a contract test that scans inline OpenAPI `default` and `example` scalar values.
 - [x] Validate integer and boolean sample literals against their schema `type`.
 - [x] Leave structured named examples to the existing schema-backed request/response contract checks.
+
+## Block 102 - Stage 3 OpenAPI media type guard
+
+Goal: keep HTTP payload media types explicit and stable for generated clients.
+
+- [x] Add a contract test that scans media type keys in OpenAPI `content` blocks.
+- [x] Allow JSON success/request payloads via `application/json`.
+- [x] Allow error payloads via `application/problem+json` only.

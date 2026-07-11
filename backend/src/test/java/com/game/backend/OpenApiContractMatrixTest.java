@@ -57,6 +57,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern UNIQUE_ITEMS = Pattern.compile("^\\s+uniqueItems:\\s*(\\S+)\\s*$");
     private static final Pattern OBJECT_PROPERTY_BOUND = Pattern.compile("^\\s+(minProperties|maxProperties):\\s*(\\S+)\\s*$");
     private static final Pattern SCALAR_SAMPLE = Pattern.compile("^\\s+(default|example):\\s*(\\S.*)$");
+    private static final Pattern MEDIA_TYPE = Pattern.compile("^\\s+([A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+):\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -1169,6 +1170,31 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiMediaTypesShouldStayJsonOnly() throws IOException {
+        Set<String> unsupportedMediaTypes = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher matcher = MEDIA_TYPE.matcher(lines.get(index));
+                    if (matcher.matches() && !isSupportedMediaType(matcher.group(1))) {
+                        unsupportedMediaTypes.add(path.getFileName() + " line " + (index + 1) + " " + matcher.group(1));
+                    }
+                }
+            }
+        }
+
+        assertThat(unsupportedMediaTypes)
+            .as("OpenAPI media types must stay limited to JSON success bodies and ProblemDetails errors")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -1795,6 +1821,10 @@ class OpenApiContractMatrixTest {
         } catch (NumberFormatException ignored) {
             return false;
         }
+    }
+
+    private static boolean isSupportedMediaType(String mediaType) {
+        return Set.of("application/json", "application/problem+json").contains(mediaType);
     }
 
     private static int leadingSpaces(String line) {
