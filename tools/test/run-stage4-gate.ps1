@@ -93,6 +93,17 @@ function Resolve-RepoRevision {
     return $revision.Trim()
 }
 
+function Resolve-RepoBranch {
+    param([string]$RepositoryRoot)
+
+    $branch = (& git -C $RepositoryRoot rev-parse --abbrev-ref HEAD 2>$null)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($branch)) {
+        return "unknown"
+    }
+
+    return $branch.Trim()
+}
+
 function Test-RepoHasUncommittedChanges {
     param([string]$RepositoryRoot)
 
@@ -135,6 +146,7 @@ function Write-GateSummary {
         mode = $GateMode
         result = $Result
         repo_revision = Resolve-RepoRevision -RepositoryRoot $root
+        repo_branch = Resolve-RepoBranch -RepositoryRoot $root
         repo_dirty = Test-RepoHasUncommittedChanges -RepositoryRoot $root
         generated_at = (Get-Date).ToUniversalTime().ToString("o")
         duration_ms = $DurationMs

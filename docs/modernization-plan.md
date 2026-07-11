@@ -955,3 +955,11 @@ Goal: make Stage 4 release evidence explicit about whether it was produced from 
 - [x] Add `repo_dirty` to Stage 4 gate summary artifacts.
 - [x] Resolve dirty state from `git status --porcelain` at summary write time.
 - [x] Validate and regression-test that Stage 4 summaries expose dirty state as a boolean.
+
+## Block 119 - Stage 4 release evidence branch
+
+Goal: make Stage 4 release evidence easier to trace back to the source branch.
+
+- [x] Add `repo_branch` to Stage 4 gate summary artifacts.
+- [x] Resolve the branch from the repository root when the summary is written.
+- [x] Validate and regression-test that Stage 4 summaries always include a branch value.
