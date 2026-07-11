@@ -93,6 +93,17 @@ function Resolve-RepoRevision {
     return $revision.Trim()
 }
 
+function Test-RepoHasUncommittedChanges {
+    param([string]$RepositoryRoot)
+
+    $status = (& git -C $RepositoryRoot status --porcelain 2>$null)
+    if ($LASTEXITCODE -ne 0) {
+        return $true
+    }
+
+    return [bool]$status
+}
+
 function Write-GateSummary {
     param(
         [string]$Path,
@@ -124,6 +135,7 @@ function Write-GateSummary {
         mode = $GateMode
         result = $Result
         repo_revision = Resolve-RepoRevision -RepositoryRoot $root
+        repo_dirty = Test-RepoHasUncommittedChanges -RepositoryRoot $root
         generated_at = (Get-Date).ToUniversalTime().ToString("o")
         duration_ms = $DurationMs
         skip_docker = [bool]$SkipDocker

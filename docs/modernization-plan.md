@@ -947,3 +947,11 @@ Goal: bind Stage 4 release evidence to the repository revision that produced it.
 - [x] Add `repo_revision` to Stage 4 gate summary artifacts.
 - [x] Resolve the revision from the repository root when the summary is written.
 - [x] Validate and regression-test that Stage 4 summaries always include a revision value.
+
+## Block 118 - Stage 4 release evidence dirty state
+
+Goal: make Stage 4 release evidence explicit about whether it was produced from a clean checkout.
+
+- [x] Add `repo_dirty` to Stage 4 gate summary artifacts.
+- [x] Resolve dirty state from `git status --porcelain` at summary write time.
+- [x] Validate and regression-test that Stage 4 summaries expose dirty state as a boolean.
