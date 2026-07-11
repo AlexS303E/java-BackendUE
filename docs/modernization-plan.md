@@ -891,3 +891,11 @@ Goal: keep skipped release checks explicit in Stage 4 evidence.
 - [x] Add `-SkipReason` to the Stage 4 gate summary.
 - [x] Require a skip reason for Release-mode skipped checks other than Docker startup.
 - [x] Document and test that intentional release gate skips must explain the omission.
+
+## Block 111 - Stage 4 release gate timing evidence
+
+Goal: make Stage 4 gate summaries useful for CI and release timing audits.
+
+- [x] Record overall gate duration in the JSON summary.
+- [x] Record per-step start, finish, and duration fields for executed checks.
+- [x] Leave non-executed planned/skipped steps with empty timing fields.

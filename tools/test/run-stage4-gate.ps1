@@ -29,13 +29,26 @@ function Resolve-RepoRoot {
 function Invoke-CheckedStep {
     param(
         [string]$Name,
-        [scriptblock]$Action
+        [scriptblock]$Action,
+        [pscustomobject]$Step = $null
     )
 
     Write-Host ""
     Write-Host "==> $Name" -ForegroundColor Cyan
     $global:LASTEXITCODE = 0
-    & $Action
+    $startedAt = (Get-Date).ToUniversalTime()
+    if ($null -ne $Step) {
+        $Step.started_at = $startedAt.ToString("o")
+    }
+    try {
+        & $Action
+    } finally {
+        $finishedAt = (Get-Date).ToUniversalTime()
+        if ($null -ne $Step) {
+            $Step.finished_at = $finishedAt.ToString("o")
+            $Step.duration_ms = [int][Math]::Round(($finishedAt - $startedAt).TotalMilliseconds)
+        }
+    }
 
     if ($LASTEXITCODE -ne 0) {
         throw "$Name failed with exit code $LASTEXITCODE"
@@ -58,6 +71,9 @@ function Add-GateStep {
     $Steps.Add([pscustomobject]@{
         name = $Name
         status = $status
+        started_at = $null
+        finished_at = $null
+        duration_ms = $null
     }) | Out-Null
 }
 
@@ -71,7 +87,8 @@ function Write-GateSummary {
         [string]$GateMode,
         [string]$Result,
         [System.Collections.Generic.List[object]]$Steps,
-        [string]$ErrorMessage = ""
+        [string]$ErrorMessage = "",
+        [Nullable[int]]$DurationMs = $null
     )
 
     if ([string]::IsNullOrWhiteSpace($Path)) {
@@ -93,6 +110,7 @@ function Write-GateSummary {
         mode = $GateMode
         result = $Result
         generated_at = (Get-Date).ToUniversalTime().ToString("o")
+        duration_ms = $DurationMs
         skip_docker = [bool]$SkipDocker
         skip_openapi = [bool]$SkipOpenApi
         skip_boot_jar = [bool]$SkipBootJar
@@ -151,15 +169,17 @@ if ($ListSteps) {
 }
 
 try {
+$gateStartedAt = (Get-Date).ToUniversalTime()
     Invoke-CheckedStep "Stage 4 fast gate: Gradle tests and OpenAPI contract verification" {
         & powershell -NoProfile -ExecutionPolicy Bypass -File $runAllTests `
             -RepoRoot $root `
             -JavaHome $JavaHome `
             -SkipDocker:$SkipDocker `
             -SkipOpenApi:$SkipOpenApi
-    }
+    } -Step $plannedSteps[0]
 
     if ($Mode -eq "Release") {
+        $stepIndex = 1
         if (-not $SkipBootJar) {
             Invoke-CheckedStep "Stage 4 release gate: bootJar" {
                 Push-Location $backendDir
@@ -168,32 +188,43 @@ try {
                 } finally {
                     Pop-Location
                 }
-            }
+            } -Step $plannedSteps[$stepIndex]
         }
+        $stepIndex++
 
         if (-not $SkipProdSmoke) {
             Invoke-CheckedStep "Stage 4 release gate: production profile smoke" {
                 & powershell -NoProfile -ExecutionPolicy Bypass -File $prodSmoke -RepoRoot $root -SkipDocker:$SkipDocker
-            }
+            } -Step $plannedSteps[$stepIndex]
         }
+        $stepIndex++
 
         if (-not $SkipMtlsSmoke) {
             Invoke-CheckedStep "Stage 4 release gate: mTLS smoke" {
                 & powershell -NoProfile -ExecutionPolicy Bypass -File $mtlsSmoke -RepoRoot $root -SkipDocker:$SkipDocker
-            }
+            } -Step $plannedSteps[$stepIndex]
         }
+        $stepIndex++
 
         if (-not $SkipLoadSmoke) {
             Invoke-CheckedStep "Stage 4 release gate: load smoke" {
                 & powershell -NoProfile -ExecutionPolicy Bypass -File $loadSmoke
-            }
+            } -Step $plannedSteps[$stepIndex]
         }
     }
 
+    $gateFinishedAt = (Get-Date).ToUniversalTime()
+    $gateDurationMs = [int][Math]::Round(($gateFinishedAt - $gateStartedAt).TotalMilliseconds)
     Write-Host ""
     Write-Host "Stage 4 gate passed." -ForegroundColor Green
-    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "passed" -Steps $plannedSteps
+    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "passed" -Steps $plannedSteps -DurationMs $gateDurationMs
 } catch {
-    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "failed" -Steps $plannedSteps -ErrorMessage $_.Exception.Message
+    $gateFinishedAt = (Get-Date).ToUniversalTime()
+    $gateDurationMs = if ($null -ne $gateStartedAt) {
+        [int][Math]::Round(($gateFinishedAt - $gateStartedAt).TotalMilliseconds)
+    } else {
+        $null
+    }
+    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "failed" -Steps $plannedSteps -ErrorMessage $_.Exception.Message -DurationMs $gateDurationMs
     throw
 }
