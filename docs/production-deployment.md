@@ -61,8 +61,10 @@ Operational requirements:
 
 Before promoting a production release:
 
-- Run `tools/smoke/prod-profile-smoke.ps1 -SkipDocker` against the built JAR.
-- Run `tools/mtls/run-mtls-smoke.ps1` in an environment with generated or staging certificate material.
+- Run `tools/test/run-stage4-gate.ps1 -Mode Fast` for the local/CI fast gate.
+- Run `tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker` in a release environment.
 - Confirm `/server/*` is unavailable on `server.port`.
 - Confirm `/server/*` authenticates only through the private mTLS connector.
 - Confirm Actuator health is available only on `management.server.port` according to the production exposure policy.
+
+`Release` mode includes the fast gate, `bootJar`, production-profile smoke, mTLS smoke, and load smoke. Individual `-Skip*` switches are allowed only when the skipped check is run separately and recorded in release evidence.

@@ -10,6 +10,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class Stage4ReleaseGateTest {
     private static final Path STAGE4_GATE = Path.of("..", "tools", "test", "run-stage4-gate.ps1");
+    private static final Path PRODUCTION_DEPLOYMENT = Path.of("..", "docs", "production-deployment.md");
+    private static final Path STATUS = Path.of("..", "docs", "status.md");
 
     @Test
     void stage4GateShouldOrchestrateFastAndReleaseChecks() throws IOException {
@@ -24,5 +26,21 @@ class Stage4ReleaseGateTest {
             .contains("--no-daemon bootJar")
             .contains("-SkipOpenApi:$SkipOpenApi")
             .contains("Stage 4 gate passed.");
+    }
+
+    @Test
+    void stage4GateShouldBeDocumentedAsTheReleaseEntryPoint() throws IOException {
+        assertThat(Files.readString(PRODUCTION_DEPLOYMENT))
+            .contains("tools/test/run-stage4-gate.ps1 -Mode Fast")
+            .contains("tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker")
+            .contains("bootJar")
+            .contains("production-profile smoke")
+            .contains("mTLS smoke")
+            .contains("load smoke");
+
+        assertThat(Files.readString(STATUS))
+            .contains("tools/test/run-stage4-gate.ps1 -Mode Fast")
+            .contains("tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker")
+            .contains("Record any intentional `-Skip*` release gate switches");
     }
 }

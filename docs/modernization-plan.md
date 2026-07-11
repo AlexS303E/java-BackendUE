@@ -851,3 +851,11 @@ Goal: start Stage 4 by making the release verification path explicit and scripta
 - [x] Add a Stage 4 gate script with `Fast` and `Release` modes.
 - [x] Reuse the existing Gradle plus OpenAPI test runner for the fast gate.
 - [x] Keep release-only bootJar, prod smoke, mTLS smoke, and load smoke wired behind explicit Stage 4 switches.
+
+## Block 106 - Stage 4 release gate documentation guard
+
+Goal: make the Stage 4 gate the documented release verification entrypoint.
+
+- [x] Update production deployment release checks to point at `run-stage4-gate.ps1`.
+- [x] Update status maintenance instructions to use the Stage 4 fast/release gates.
+- [x] Add regression coverage that release docs mention the Stage 4 gate and its required smoke/load checks.

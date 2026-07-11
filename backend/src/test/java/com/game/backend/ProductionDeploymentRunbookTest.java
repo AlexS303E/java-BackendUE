@@ -28,8 +28,13 @@ class ProductionDeploymentRunbookTest {
         "SERVER_MTLS_TRUST_STORE",
         "tools/mtls/out/",
         "server_identity_certificates",
-        "tools/smoke/prod-profile-smoke.ps1",
-        "tools/mtls/run-mtls-smoke.ps1"
+        "tools/test/run-stage4-gate.ps1",
+        "-Mode Fast",
+        "-Mode Release",
+        "bootJar",
+        "production-profile smoke",
+        "mTLS smoke",
+        "load smoke"
     );
 
     @Test
