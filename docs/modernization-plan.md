@@ -923,3 +923,11 @@ Goal: make every Stage 4 summary artifact validate itself at write time.
 - [x] Wire `run-stage4-gate.ps1` to call `validate-stage4-summary.ps1` after writing a summary.
 - [x] Include the validator script in Stage 4 gate prerequisite checks.
 - [x] Cover the self-validation wiring in the Stage 4 gate regression test.
+
+## Block 115 - Stage 4 release gate default summary path
+
+Goal: make Stage 4 gate evidence automatic for local and CI runs.
+
+- [x] Default `-SummaryPath` to `artifacts/stage4/stage4-gate-summary.json`.
+- [x] Add `-NoSummary` for explicit no-artifact local runs.
+- [x] Cover the default summary path and opt-out switch in the Stage 4 gate regression test.

@@ -10,7 +10,8 @@ param(
     [switch]$SkipMtlsSmoke,
     [switch]$SkipLoadSmoke,
     [switch]$ListSteps,
-    [string]$SummaryPath = "",
+    [string]$SummaryPath = "artifacts/stage4/stage4-gate-summary.json",
+    [switch]$NoSummary,
     [string]$SkipReason = ""
 )
 
@@ -91,7 +92,7 @@ function Write-GateSummary {
         [Nullable[int]]$DurationMs = $null
     )
 
-    if ([string]::IsNullOrWhiteSpace($Path)) {
+    if ($NoSummary -or [string]::IsNullOrWhiteSpace($Path)) {
         return
     }
 
