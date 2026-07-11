@@ -56,6 +56,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern ARRAY_ITEM_BOUND = Pattern.compile("^\\s+(minItems|maxItems):\\s*(\\S+)\\s*$");
     private static final Pattern UNIQUE_ITEMS = Pattern.compile("^\\s+uniqueItems:\\s*(\\S+)\\s*$");
     private static final Pattern OBJECT_PROPERTY_BOUND = Pattern.compile("^\\s+(minProperties|maxProperties):\\s*(\\S+)\\s*$");
+    private static final Pattern SCALAR_SAMPLE = Pattern.compile("^\\s+(default|example):\\s*(\\S.*)$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -1138,6 +1139,36 @@ class OpenApiContractMatrixTest {
             .isEmpty();
     }
 
+    @Test
+    void openApiScalarDefaultsAndExamplesShouldMatchSchemaType() throws IOException {
+        Set<String> invalidSamples = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher matcher = SCALAR_SAMPLE.matcher(lines.get(index));
+                    if (!matcher.matches()) {
+                        continue;
+                    }
+
+                    String type = nearestSchemaType(lines, index);
+                    if (!isScalarSampleCompatibleWithType(matcher.group(2), type)) {
+                        invalidSamples.add(path.getFileName() + " line " + (index + 1) + " " + type + "/" + matcher.group(2));
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidSamples)
+            .as("OpenAPI scalar default/example values must match their declared schema type")
+            .isEmpty();
+    }
+
     private static Set<String> openApiOperations(Path path) throws IOException {
         Set<String> operations = new LinkedHashSet<>();
         String currentPath = null;
@@ -1746,6 +1777,24 @@ class OpenApiContractMatrixTest {
             case "int32", "int64" -> "integer".equals(type);
             default -> false;
         };
+    }
+
+    private static boolean isScalarSampleCompatibleWithType(String value, String type) {
+        return switch (type) {
+            case "string" -> !value.isBlank();
+            case "integer" -> isIntegerLiteral(value);
+            case "boolean" -> isBooleanLiteral(value);
+            default -> false;
+        };
+    }
+
+    private static boolean isIntegerLiteral(String value) {
+        try {
+            Integer.parseInt(value);
+            return true;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
     }
 
     private static int leadingSpaces(String line) {
