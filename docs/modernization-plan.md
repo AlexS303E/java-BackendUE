@@ -843,3 +843,11 @@ Goal: keep requestBody and parameter required flags unambiguous for generated cl
 - [x] Add a contract test that scans scalar OpenAPI `required` declarations.
 - [x] Require scalar `required` values to be explicit booleans.
 - [x] Leave schema `required` arrays and block lists to the existing required-property guard.
+
+## Block 105 - Stage 4 release gate entrypoint
+
+Goal: start Stage 4 by making the release verification path explicit and scriptable.
+
+- [x] Add a Stage 4 gate script with `Fast` and `Release` modes.
+- [x] Reuse the existing Gradle plus OpenAPI test runner for the fast gate.
+- [x] Keep release-only bootJar, prod smoke, mTLS smoke, and load smoke wired behind explicit Stage 4 switches.
