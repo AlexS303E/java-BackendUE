@@ -82,6 +82,17 @@ function Test-ReleaseGateHasSkippedChecks {
     return [bool]($SkipOpenApi -or $SkipBootJar -or $SkipProdSmoke -or $SkipMtlsSmoke -or $SkipLoadSmoke)
 }
 
+function Resolve-RepoRevision {
+    param([string]$RepositoryRoot)
+
+    $revision = (& git -C $RepositoryRoot rev-parse HEAD 2>$null)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($revision)) {
+        return "unknown"
+    }
+
+    return $revision.Trim()
+}
+
 function Write-GateSummary {
     param(
         [string]$Path,
@@ -112,6 +123,7 @@ function Write-GateSummary {
         stage = 4
         mode = $GateMode
         result = $Result
+        repo_revision = Resolve-RepoRevision -RepositoryRoot $root
         generated_at = (Get-Date).ToUniversalTime().ToString("o")
         duration_ms = $DurationMs
         skip_docker = [bool]$SkipDocker

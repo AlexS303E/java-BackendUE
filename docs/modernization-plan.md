@@ -939,3 +939,11 @@ Goal: make the default Stage 4 evidence artifact visible in release documentatio
 - [x] Document the default `artifacts/stage4/stage4-gate-summary.json` release evidence path.
 - [x] Document that `-NoSummary` is only for local dry runs without release evidence.
 - [x] Cover the evidence path and opt-out wording in the Stage 4 gate regression test.
+
+## Block 117 - Stage 4 release evidence revision
+
+Goal: bind Stage 4 release evidence to the repository revision that produced it.
+
+- [x] Add `repo_revision` to Stage 4 gate summary artifacts.
+- [x] Resolve the revision from the repository root when the summary is written.
+- [x] Validate and regression-test that Stage 4 summaries always include a revision value.

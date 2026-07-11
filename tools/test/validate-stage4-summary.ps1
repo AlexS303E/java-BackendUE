@@ -27,6 +27,7 @@ Assert-Condition ($summary.schema_version -eq 1) "Unexpected schema_version: $($
 Assert-Condition ($summary.stage -eq 4) "Unexpected stage: $($summary.stage)"
 Assert-Condition (@("Fast", "Release") -contains $summary.mode) "Unexpected mode: $($summary.mode)"
 Assert-Condition (@("planned", "passed", "failed") -contains $summary.result) "Unexpected result: $($summary.result)"
+Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.repo_revision)) "repo_revision is required"
 Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.generated_at)) "generated_at is required"
 Assert-Condition ($null -ne $summary.steps -and $summary.steps.Count -gt 0) "steps must contain at least one entry"
 
