@@ -835,3 +835,11 @@ Goal: keep nullable schema flags unambiguous for generated clients.
 - [x] Add a contract test that scans OpenAPI `nullable` declarations.
 - [x] Require every `nullable` value to be an explicit boolean.
 - [x] Fail before non-boolean nullable values reach generated DTOs.
+
+## Block 104 - Stage 3 OpenAPI required flag guard
+
+Goal: keep requestBody and parameter required flags unambiguous for generated clients.
+
+- [x] Add a contract test that scans scalar OpenAPI `required` declarations.
+- [x] Require scalar `required` values to be explicit booleans.
+- [x] Leave schema `required` arrays and block lists to the existing required-property guard.

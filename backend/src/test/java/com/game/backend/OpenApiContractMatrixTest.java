@@ -59,6 +59,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern SCALAR_SAMPLE = Pattern.compile("^\\s+(default|example):\\s*(\\S.*)$");
     private static final Pattern MEDIA_TYPE = Pattern.compile("^\\s+([A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+):\\s*$");
     private static final Pattern NULLABLE = Pattern.compile("^\\s+nullable:\\s*(\\S+)\\s*$");
+    private static final Pattern REQUIRED_SCALAR = Pattern.compile("^\\s+required:\\s*(\\S.*)$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -1218,6 +1219,34 @@ class OpenApiContractMatrixTest {
 
         assertThat(invalidNullableFlags)
             .as("OpenAPI nullable flags must stay explicit booleans")
+            .isEmpty();
+    }
+
+    @Test
+    void openApiRequiredScalarFlagsShouldBeBoolean() throws IOException {
+        Set<String> invalidRequiredFlags = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher matcher = REQUIRED_SCALAR.matcher(lines.get(index));
+                    if (!matcher.matches() || matcher.group(1).startsWith("[")) {
+                        continue;
+                    }
+                    if (!isBooleanLiteral(matcher.group(1))) {
+                        invalidRequiredFlags.add(path.getFileName() + " line " + (index + 1));
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidRequiredFlags)
+            .as("OpenAPI scalar required flags must stay explicit booleans")
             .isEmpty();
     }
 
