@@ -25,6 +25,8 @@ class Stage4ReleaseGateTest {
             .contains("tools\\load\\run-load-smoke.ps1")
             .contains("--no-daemon bootJar")
             .contains("-SkipOpenApi:$SkipOpenApi")
+            .contains("[switch]$ListSteps")
+            .contains("Planned Stage 4 gate steps:")
             .contains("Stage 4 gate passed.");
     }
 
@@ -33,6 +35,7 @@ class Stage4ReleaseGateTest {
         assertThat(Files.readString(PRODUCTION_DEPLOYMENT))
             .contains("tools/test/run-stage4-gate.ps1 -Mode Fast")
             .contains("tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker")
+            .contains("tools/test/run-stage4-gate.ps1 -Mode Release -ListSteps")
             .contains("bootJar")
             .contains("production-profile smoke")
             .contains("mTLS smoke")
@@ -41,6 +44,7 @@ class Stage4ReleaseGateTest {
         assertThat(Files.readString(STATUS))
             .contains("tools/test/run-stage4-gate.ps1 -Mode Fast")
             .contains("tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker")
+            .contains("tools/test/run-stage4-gate.ps1 -Mode Release -ListSteps")
             .contains("Record any intentional `-Skip*` release gate switches");
     }
 }

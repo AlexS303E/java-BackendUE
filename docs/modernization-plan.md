@@ -859,3 +859,11 @@ Goal: make the Stage 4 gate the documented release verification entrypoint.
 - [x] Update production deployment release checks to point at `run-stage4-gate.ps1`.
 - [x] Update status maintenance instructions to use the Stage 4 fast/release gates.
 - [x] Add regression coverage that release docs mention the Stage 4 gate and its required smoke/load checks.
+
+## Block 107 - Stage 4 release gate plan mode
+
+Goal: make the Stage 4 gate inspectable without starting Docker, smoke tests, or load tests.
+
+- [x] Add `-ListSteps` to print the planned fast/release gate steps without executing them.
+- [x] Make `-ListSteps` honor release skip switches in the printed plan.
+- [x] Document the plan mode and cover it with the Stage 4 gate regression test.

@@ -62,6 +62,7 @@ Operational requirements:
 Before promoting a production release:
 
 - Run `tools/test/run-stage4-gate.ps1 -Mode Fast` for the local/CI fast gate.
+- Run `tools/test/run-stage4-gate.ps1 -Mode Release -ListSteps` when reviewing the release gate plan without executing external smoke/load dependencies.
 - Run `tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker` in a release environment.
 - Confirm `/server/*` is unavailable on `server.port`.
 - Confirm `/server/*` authenticates only through the private mTLS connector.

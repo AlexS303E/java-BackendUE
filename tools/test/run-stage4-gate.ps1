@@ -8,7 +8,8 @@ param(
     [switch]$SkipBootJar,
     [switch]$SkipProdSmoke,
     [switch]$SkipMtlsSmoke,
-    [switch]$SkipLoadSmoke
+    [switch]$SkipLoadSmoke,
+    [switch]$ListSteps
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,6 +40,20 @@ function Invoke-CheckedStep {
     }
 }
 
+function Add-GateStep {
+    param(
+        [System.Collections.Generic.List[string]]$Steps,
+        [string]$Name,
+        [bool]$Enabled
+    )
+
+    if ($Enabled) {
+        $Steps.Add("[run] $Name") | Out-Null
+    } else {
+        $Steps.Add("[skip] $Name") | Out-Null
+    }
+}
+
 $root = Resolve-RepoRoot -ProvidedRepoRoot $RepoRoot
 $runAllTests = Join-Path $root "tools\test\run-all-tests.ps1"
 $prodSmoke = Join-Path $root "tools\smoke\prod-profile-smoke.ps1"
@@ -58,6 +73,24 @@ if (-not (Test-Path -LiteralPath $gradleWrapper)) {
 }
 
 Write-Host "Stage 4 gate mode: $Mode"
+
+$plannedSteps = New-Object System.Collections.Generic.List[string]
+Add-GateStep $plannedSteps "fast gate: Gradle tests and OpenAPI contract verification" $true
+if ($Mode -eq "Release") {
+    Add-GateStep $plannedSteps "release gate: bootJar" (-not $SkipBootJar)
+    Add-GateStep $plannedSteps "release gate: production profile smoke" (-not $SkipProdSmoke)
+    Add-GateStep $plannedSteps "release gate: mTLS smoke" (-not $SkipMtlsSmoke)
+    Add-GateStep $plannedSteps "release gate: load smoke" (-not $SkipLoadSmoke)
+}
+
+if ($ListSteps) {
+    Write-Host ""
+    Write-Host "Planned Stage 4 gate steps:"
+    foreach ($step in $plannedSteps) {
+        Write-Host "- $step"
+    }
+    exit 0
+}
 
 Invoke-CheckedStep "Stage 4 fast gate: Gradle tests and OpenAPI contract verification" {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $runAllTests `
