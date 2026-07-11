@@ -803,3 +803,11 @@ Goal: keep array validation bounds valid for generated clients and request valid
 - [x] Add a contract test that scans OpenAPI `minItems`, `maxItems`, and `uniqueItems` declarations.
 - [x] Require array item bounds to be non-negative integers.
 - [x] Require `minItems <= maxItems` and boolean `uniqueItems` values.
+
+## Block 100 - Stage 3 OpenAPI object property bounds guard
+
+Goal: keep object/map validation bounds valid for generated clients and request validators.
+
+- [x] Add a contract test that scans OpenAPI `minProperties` and `maxProperties` declarations.
+- [x] Require object property bounds to be non-negative integers.
+- [x] Require `minProperties <= maxProperties` when both are declared in one schema block.
