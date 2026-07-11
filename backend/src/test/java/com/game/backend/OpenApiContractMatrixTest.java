@@ -58,6 +58,7 @@ class OpenApiContractMatrixTest {
     private static final Pattern OBJECT_PROPERTY_BOUND = Pattern.compile("^\\s+(minProperties|maxProperties):\\s*(\\S+)\\s*$");
     private static final Pattern SCALAR_SAMPLE = Pattern.compile("^\\s+(default|example):\\s*(\\S.*)$");
     private static final Pattern MEDIA_TYPE = Pattern.compile("^\\s+([A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+):\\s*$");
+    private static final Pattern NULLABLE = Pattern.compile("^\\s+nullable:\\s*(\\S+)\\s*$");
 
     @Test
     void contractMatrixCoversEveryOpenApiOperation() throws IOException {
@@ -1192,6 +1193,31 @@ class OpenApiContractMatrixTest {
 
         assertThat(unsupportedMediaTypes)
             .as("OpenAPI media types must stay limited to JSON success bodies and ProblemDetails errors")
+            .isEmpty();
+    }
+
+    @Test
+    void openApiNullableFlagsShouldBeBoolean() throws IOException {
+        Set<String> invalidNullableFlags = new LinkedHashSet<>();
+
+        try (var paths = Files.list(OPENAPI_ROOT)) {
+            for (Path path : paths
+                .filter(Files::isRegularFile)
+                .filter(file -> file.toString().endsWith(".yaml"))
+                .sorted()
+                .toList()) {
+                List<String> lines = Files.readAllLines(path);
+                for (int index = 0; index < lines.size(); index++) {
+                    Matcher matcher = NULLABLE.matcher(lines.get(index));
+                    if (matcher.matches() && !isBooleanLiteral(matcher.group(1))) {
+                        invalidNullableFlags.add(path.getFileName() + " line " + (index + 1));
+                    }
+                }
+            }
+        }
+
+        assertThat(invalidNullableFlags)
+            .as("OpenAPI nullable flags must stay explicit booleans")
             .isEmpty();
     }
 

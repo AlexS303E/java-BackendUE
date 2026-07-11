@@ -827,3 +827,11 @@ Goal: keep HTTP payload media types explicit and stable for generated clients.
 - [x] Add a contract test that scans media type keys in OpenAPI `content` blocks.
 - [x] Allow JSON success/request payloads via `application/json`.
 - [x] Allow error payloads via `application/problem+json` only.
+
+## Block 103 - Stage 3 OpenAPI nullable flag guard
+
+Goal: keep nullable schema flags unambiguous for generated clients.
+
+- [x] Add a contract test that scans OpenAPI `nullable` declarations.
+- [x] Require every `nullable` value to be an explicit boolean.
+- [x] Fail before non-boolean nullable values reach generated DTOs.
