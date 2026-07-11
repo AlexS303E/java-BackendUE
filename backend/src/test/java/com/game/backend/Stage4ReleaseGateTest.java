@@ -71,12 +71,16 @@ class Stage4ReleaseGateTest {
             .contains("production-profile smoke")
             .contains("mTLS smoke")
             .contains("load smoke")
+            .contains("artifacts/stage4/stage4-gate-summary.json")
+            .contains("-NoSummary")
             .contains("-SkipReason");
 
         assertThat(Files.readString(STATUS))
             .contains("tools/test/run-stage4-gate.ps1 -Mode Fast")
             .contains("tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker")
             .contains("tools/test/run-stage4-gate.ps1 -Mode Release -ListSteps")
+            .contains("artifacts/stage4/stage4-gate-summary.json")
+            .contains("-NoSummary")
             .contains("Record any intentional `-Skip*` release gate switches");
     }
 }

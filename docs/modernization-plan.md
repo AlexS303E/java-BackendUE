@@ -931,3 +931,11 @@ Goal: make Stage 4 gate evidence automatic for local and CI runs.
 - [x] Default `-SummaryPath` to `artifacts/stage4/stage4-gate-summary.json`.
 - [x] Add `-NoSummary` for explicit no-artifact local runs.
 - [x] Cover the default summary path and opt-out switch in the Stage 4 gate regression test.
+
+## Block 116 - Stage 4 release evidence documentation guard
+
+Goal: make the default Stage 4 evidence artifact visible in release documentation.
+
+- [x] Document the default `artifacts/stage4/stage4-gate-summary.json` release evidence path.
+- [x] Document that `-NoSummary` is only for local dry runs without release evidence.
+- [x] Cover the evidence path and opt-out wording in the Stage 4 gate regression test.

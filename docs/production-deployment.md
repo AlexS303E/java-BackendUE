@@ -68,4 +68,4 @@ Before promoting a production release:
 - Confirm `/server/*` authenticates only through the private mTLS connector.
 - Confirm Actuator health is available only on `management.server.port` according to the production exposure policy.
 
-`Release` mode includes the fast gate, `bootJar`, production-profile smoke, mTLS smoke, and load smoke. Individual `-Skip*` switches are allowed only when the skipped check is run separately and recorded in release evidence. Any release gate skip except `-SkipDocker` must include `-SkipReason` so the JSON summary explains the omission.
+`Release` mode includes the fast gate, `bootJar`, production-profile smoke, mTLS smoke, and load smoke. By default the gate writes and self-validates `artifacts/stage4/stage4-gate-summary.json`; use `-NoSummary` only for local dry runs where no release evidence is expected. Individual `-Skip*` switches are allowed only when the skipped check is run separately and recorded in release evidence. Any release gate skip except `-SkipDocker` must include `-SkipReason` so the JSON summary explains the omission.

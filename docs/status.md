@@ -215,4 +215,5 @@ Re-run the following when making changes:
 1. `tools/test/run-stage4-gate.ps1 -Mode Fast`
 2. `tools/test/run-stage4-gate.ps1 -Mode Release -ListSteps`
 3. `tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker`
-4. Record any intentional `-Skip*` release gate switches with `-SkipReason` and the separately executed evidence.
+4. Attach the generated `artifacts/stage4/stage4-gate-summary.json` to release evidence, unless the run was an explicit `-NoSummary` local dry run.
+5. Record any intentional `-Skip*` release gate switches with `-SkipReason` and the separately executed evidence.
