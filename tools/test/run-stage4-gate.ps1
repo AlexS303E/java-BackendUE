@@ -9,7 +9,8 @@ param(
     [switch]$SkipProdSmoke,
     [switch]$SkipMtlsSmoke,
     [switch]$SkipLoadSmoke,
-    [switch]$ListSteps
+    [switch]$ListSteps,
+    [string]$SummaryPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,16 +43,60 @@ function Invoke-CheckedStep {
 
 function Add-GateStep {
     param(
-        [System.Collections.Generic.List[string]]$Steps,
+        [System.Collections.Generic.List[object]]$Steps,
         [string]$Name,
         [bool]$Enabled
     )
 
-    if ($Enabled) {
-        $Steps.Add("[run] $Name") | Out-Null
+    $status = if ($Enabled) {
+        "run"
     } else {
-        $Steps.Add("[skip] $Name") | Out-Null
+        "skip"
     }
+
+    $Steps.Add([pscustomobject]@{
+        name = $Name
+        status = $status
+    }) | Out-Null
+}
+
+function Write-GateSummary {
+    param(
+        [string]$Path,
+        [string]$GateMode,
+        [string]$Result,
+        [System.Collections.Generic.List[object]]$Steps
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    $resolvedPath = if ([IO.Path]::IsPathRooted($Path)) {
+        $Path
+    } else {
+        Join-Path $root $Path
+    }
+    $summaryDir = Split-Path -Parent $resolvedPath
+    if (-not [string]::IsNullOrWhiteSpace($summaryDir)) {
+        New-Item -ItemType Directory -Path $summaryDir -Force | Out-Null
+    }
+
+    [pscustomobject]@{
+        stage = 4
+        mode = $GateMode
+        result = $Result
+        generated_at = (Get-Date).ToUniversalTime().ToString("o")
+        skip_docker = [bool]$SkipDocker
+        skip_openapi = [bool]$SkipOpenApi
+        skip_boot_jar = [bool]$SkipBootJar
+        skip_prod_smoke = [bool]$SkipProdSmoke
+        skip_mtls_smoke = [bool]$SkipMtlsSmoke
+        skip_load_smoke = [bool]$SkipLoadSmoke
+        steps = $Steps
+    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $resolvedPath -Encoding UTF8
+
+    Write-Host "Stage 4 gate summary written to $resolvedPath"
 }
 
 $root = Resolve-RepoRoot -ProvidedRepoRoot $RepoRoot
@@ -74,7 +119,7 @@ if (-not (Test-Path -LiteralPath $gradleWrapper)) {
 
 Write-Host "Stage 4 gate mode: $Mode"
 
-$plannedSteps = New-Object System.Collections.Generic.List[string]
+$plannedSteps = New-Object 'System.Collections.Generic.List[object]'
 Add-GateStep $plannedSteps "fast gate: Gradle tests and OpenAPI contract verification" $true
 if ($Mode -eq "Release") {
     Add-GateStep $plannedSteps "release gate: bootJar" (-not $SkipBootJar)
@@ -87,8 +132,9 @@ if ($ListSteps) {
     Write-Host ""
     Write-Host "Planned Stage 4 gate steps:"
     foreach ($step in $plannedSteps) {
-        Write-Host "- $step"
+        Write-Host "- [$($step.status)] $($step.name)"
     }
+    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "planned" -Steps $plannedSteps
     exit 0
 }
 
@@ -133,3 +179,4 @@ if ($Mode -eq "Release") {
 
 Write-Host ""
 Write-Host "Stage 4 gate passed." -ForegroundColor Green
+Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "passed" -Steps $plannedSteps

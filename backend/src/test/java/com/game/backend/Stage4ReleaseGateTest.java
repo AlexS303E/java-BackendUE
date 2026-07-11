@@ -26,6 +26,9 @@ class Stage4ReleaseGateTest {
             .contains("--no-daemon bootJar")
             .contains("-SkipOpenApi:$SkipOpenApi")
             .contains("[switch]$ListSteps")
+            .contains("[string]$SummaryPath")
+            .contains("Write-GateSummary")
+            .contains("ConvertTo-Json")
             .contains("Planned Stage 4 gate steps:")
             .contains("Stage 4 gate passed.");
     }

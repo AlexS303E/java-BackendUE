@@ -867,3 +867,11 @@ Goal: make the Stage 4 gate inspectable without starting Docker, smoke tests, or
 - [x] Add `-ListSteps` to print the planned fast/release gate steps without executing them.
 - [x] Make `-ListSteps` honor release skip switches in the printed plan.
 - [x] Document the plan mode and cover it with the Stage 4 gate regression test.
+
+## Block 108 - Stage 4 release gate summary artifact
+
+Goal: make Stage 4 gate results attachable as release evidence.
+
+- [x] Add `-SummaryPath` support to write a JSON gate summary artifact.
+- [x] Include mode, result, skip flags, timestamp, and planned step statuses.
+- [x] Support summary generation for both `-ListSteps` and successful gate execution.
