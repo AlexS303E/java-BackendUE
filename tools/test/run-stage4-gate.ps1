@@ -10,7 +10,8 @@ param(
     [switch]$SkipMtlsSmoke,
     [switch]$SkipLoadSmoke,
     [switch]$ListSteps,
-    [string]$SummaryPath = ""
+    [string]$SummaryPath = "",
+    [string]$SkipReason = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -60,6 +61,10 @@ function Add-GateStep {
     }) | Out-Null
 }
 
+function Test-ReleaseGateHasSkippedChecks {
+    return [bool]($SkipOpenApi -or $SkipBootJar -or $SkipProdSmoke -or $SkipMtlsSmoke -or $SkipLoadSmoke)
+}
+
 function Write-GateSummary {
     param(
         [string]$Path,
@@ -94,6 +99,7 @@ function Write-GateSummary {
         skip_prod_smoke = [bool]$SkipProdSmoke
         skip_mtls_smoke = [bool]$SkipMtlsSmoke
         skip_load_smoke = [bool]$SkipLoadSmoke
+        skip_reason = $SkipReason
         error_message = $ErrorMessage
         steps = $Steps
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $resolvedPath -Encoding UTF8
@@ -120,6 +126,10 @@ if (-not (Test-Path -LiteralPath $gradleWrapper)) {
 }
 
 Write-Host "Stage 4 gate mode: $Mode"
+
+if ($Mode -eq "Release" -and (Test-ReleaseGateHasSkippedChecks) -and [string]::IsNullOrWhiteSpace($SkipReason)) {
+    throw "Stage 4 Release gate skip switches require -SkipReason so release evidence explains the omission."
+}
 
 $plannedSteps = New-Object 'System.Collections.Generic.List[object]'
 Add-GateStep $plannedSteps "fast gate: Gradle tests and OpenAPI contract verification" $true

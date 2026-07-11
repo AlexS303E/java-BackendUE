@@ -883,3 +883,11 @@ Goal: preserve release gate evidence even when a Stage 4 check fails.
 - [x] Write failed JSON summaries when an executed gate step throws.
 - [x] Include the failure message in the summary artifact.
 - [x] Preserve the original failing exit behavior after writing evidence.
+
+## Block 110 - Stage 4 release gate skip reason guard
+
+Goal: keep skipped release checks explicit in Stage 4 evidence.
+
+- [x] Add `-SkipReason` to the Stage 4 gate summary.
+- [x] Require a skip reason for Release-mode skipped checks other than Docker startup.
+- [x] Document and test that intentional release gate skips must explain the omission.

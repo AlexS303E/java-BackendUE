@@ -215,4 +215,4 @@ Re-run the following when making changes:
 1. `tools/test/run-stage4-gate.ps1 -Mode Fast`
 2. `tools/test/run-stage4-gate.ps1 -Mode Release -ListSteps`
 3. `tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker`
-4. Record any intentional `-Skip*` release gate switches with the separately executed evidence.
+4. Record any intentional `-Skip*` release gate switches with `-SkipReason` and the separately executed evidence.

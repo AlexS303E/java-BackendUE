@@ -27,6 +27,9 @@ class Stage4ReleaseGateTest {
             .contains("-SkipOpenApi:$SkipOpenApi")
             .contains("[switch]$ListSteps")
             .contains("[string]$SummaryPath")
+            .contains("[string]$SkipReason")
+            .contains("Test-ReleaseGateHasSkippedChecks")
+            .contains("skip_reason")
             .contains("Write-GateSummary")
             .contains("ConvertTo-Json")
             .contains("error_message")
@@ -44,7 +47,8 @@ class Stage4ReleaseGateTest {
             .contains("bootJar")
             .contains("production-profile smoke")
             .contains("mTLS smoke")
-            .contains("load smoke");
+            .contains("load smoke")
+            .contains("-SkipReason");
 
         assertThat(Files.readString(STATUS))
             .contains("tools/test/run-stage4-gate.ps1 -Mode Fast")
