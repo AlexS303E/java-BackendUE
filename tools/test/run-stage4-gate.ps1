@@ -65,7 +65,8 @@ function Write-GateSummary {
         [string]$Path,
         [string]$GateMode,
         [string]$Result,
-        [System.Collections.Generic.List[object]]$Steps
+        [System.Collections.Generic.List[object]]$Steps,
+        [string]$ErrorMessage = ""
     )
 
     if ([string]::IsNullOrWhiteSpace($Path)) {
@@ -93,6 +94,7 @@ function Write-GateSummary {
         skip_prod_smoke = [bool]$SkipProdSmoke
         skip_mtls_smoke = [bool]$SkipMtlsSmoke
         skip_load_smoke = [bool]$SkipLoadSmoke
+        error_message = $ErrorMessage
         steps = $Steps
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $resolvedPath -Encoding UTF8
 
@@ -138,45 +140,50 @@ if ($ListSteps) {
     exit 0
 }
 
-Invoke-CheckedStep "Stage 4 fast gate: Gradle tests and OpenAPI contract verification" {
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $runAllTests `
-        -RepoRoot $root `
-        -JavaHome $JavaHome `
-        -SkipDocker:$SkipDocker `
-        -SkipOpenApi:$SkipOpenApi
-}
+try {
+    Invoke-CheckedStep "Stage 4 fast gate: Gradle tests and OpenAPI contract verification" {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $runAllTests `
+            -RepoRoot $root `
+            -JavaHome $JavaHome `
+            -SkipDocker:$SkipDocker `
+            -SkipOpenApi:$SkipOpenApi
+    }
 
-if ($Mode -eq "Release") {
-    if (-not $SkipBootJar) {
-        Invoke-CheckedStep "Stage 4 release gate: bootJar" {
-            Push-Location $backendDir
-            try {
-                & $gradleWrapper --no-daemon bootJar
-            } finally {
-                Pop-Location
+    if ($Mode -eq "Release") {
+        if (-not $SkipBootJar) {
+            Invoke-CheckedStep "Stage 4 release gate: bootJar" {
+                Push-Location $backendDir
+                try {
+                    & $gradleWrapper --no-daemon bootJar
+                } finally {
+                    Pop-Location
+                }
+            }
+        }
+
+        if (-not $SkipProdSmoke) {
+            Invoke-CheckedStep "Stage 4 release gate: production profile smoke" {
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $prodSmoke -RepoRoot $root -SkipDocker:$SkipDocker
+            }
+        }
+
+        if (-not $SkipMtlsSmoke) {
+            Invoke-CheckedStep "Stage 4 release gate: mTLS smoke" {
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $mtlsSmoke -RepoRoot $root -SkipDocker:$SkipDocker
+            }
+        }
+
+        if (-not $SkipLoadSmoke) {
+            Invoke-CheckedStep "Stage 4 release gate: load smoke" {
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $loadSmoke
             }
         }
     }
 
-    if (-not $SkipProdSmoke) {
-        Invoke-CheckedStep "Stage 4 release gate: production profile smoke" {
-            & powershell -NoProfile -ExecutionPolicy Bypass -File $prodSmoke -RepoRoot $root -SkipDocker:$SkipDocker
-        }
-    }
-
-    if (-not $SkipMtlsSmoke) {
-        Invoke-CheckedStep "Stage 4 release gate: mTLS smoke" {
-            & powershell -NoProfile -ExecutionPolicy Bypass -File $mtlsSmoke -RepoRoot $root -SkipDocker:$SkipDocker
-        }
-    }
-
-    if (-not $SkipLoadSmoke) {
-        Invoke-CheckedStep "Stage 4 release gate: load smoke" {
-            & powershell -NoProfile -ExecutionPolicy Bypass -File $loadSmoke
-        }
-    }
+    Write-Host ""
+    Write-Host "Stage 4 gate passed." -ForegroundColor Green
+    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "passed" -Steps $plannedSteps
+} catch {
+    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "failed" -Steps $plannedSteps -ErrorMessage $_.Exception.Message
+    throw
 }
-
-Write-Host ""
-Write-Host "Stage 4 gate passed." -ForegroundColor Green
-Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "passed" -Steps $plannedSteps

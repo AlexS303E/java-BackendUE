@@ -875,3 +875,11 @@ Goal: make Stage 4 gate results attachable as release evidence.
 - [x] Add `-SummaryPath` support to write a JSON gate summary artifact.
 - [x] Include mode, result, skip flags, timestamp, and planned step statuses.
 - [x] Support summary generation for both `-ListSteps` and successful gate execution.
+
+## Block 109 - Stage 4 release gate failure summary
+
+Goal: preserve release gate evidence even when a Stage 4 check fails.
+
+- [x] Write failed JSON summaries when an executed gate step throws.
+- [x] Include the failure message in the summary artifact.
+- [x] Preserve the original failing exit behavior after writing evidence.

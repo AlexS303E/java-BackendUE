@@ -29,6 +29,8 @@ class Stage4ReleaseGateTest {
             .contains("[string]$SummaryPath")
             .contains("Write-GateSummary")
             .contains("ConvertTo-Json")
+            .contains("error_message")
+            .contains("-Result \"failed\"")
             .contains("Planned Stage 4 gate steps:")
             .contains("Stage 4 gate passed.");
     }
