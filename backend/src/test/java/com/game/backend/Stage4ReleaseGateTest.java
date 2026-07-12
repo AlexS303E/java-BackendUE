@@ -13,6 +13,7 @@ class Stage4ReleaseGateTest {
     private static final Path STAGE4_SUMMARY_VALIDATOR = Path.of("..", "tools", "test", "validate-stage4-summary.ps1");
     private static final Path STAGE4_SUMMARY_VALIDATOR_TEST = Path.of("..", "tools", "test", "test-stage4-summary-validator.ps1");
     private static final Path PRODUCTION_DEPLOYMENT = Path.of("..", "docs", "production-deployment.md");
+    private static final Path PRODUCTION_READINESS_CHECKLIST = Path.of("..", "docs", "production-readiness-checklist.md");
     private static final Path STATUS = Path.of("..", "docs", "status.md");
 
     @Test
@@ -133,5 +134,12 @@ class Stage4ReleaseGateTest {
             .contains("artifacts/stage4/stage4-gate-summary.json")
             .contains("-NoSummary")
             .contains("Record any intentional `-Skip*` release gate switches");
+
+        assertThat(Files.readString(PRODUCTION_READINESS_CHECKLIST))
+            .contains("Stage 4 release gate")
+            .contains("tools/test/run-stage4-gate.ps1")
+            .contains("artifacts/stage4/stage4-gate-summary.json")
+            .contains("tools/test/validate-stage4-summary.ps1")
+            .contains("tools/test/test-stage4-summary-validator.ps1");
     }
 }

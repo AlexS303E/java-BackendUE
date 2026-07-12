@@ -1035,3 +1035,11 @@ Goal: keep status maintenance instructions aligned with the final Stage 4 eviden
 - [x] Add the negative summary validator smoke to status update checks.
 - [x] Require explicit validation of the generated Stage 4 summary before attaching release evidence.
 - [x] Regression-test that status docs mention the validator smoke and summary validation step.
+
+## Block 129 - Stage 4 release evidence readiness checklist
+
+Goal: make the production readiness checklist reflect the final Stage 4 release gate.
+
+- [x] Add Stage 4 release gate evidence to the deployment checklist.
+- [x] Mention the generated summary artifact, validator, and validator negative smoke.
+- [x] Regression-test that readiness docs mention the final Stage 4 evidence flow.
