@@ -34,6 +34,10 @@ Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.generated_at)) "gen
 Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.gate_started_at)) "gate_started_at is required"
 Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.gate_finished_at)) "gate_finished_at is required"
 Assert-Condition ($null -ne $summary.steps -and $summary.steps.Count -gt 0) "steps must contain at least one entry"
+Assert-Condition ($summary.total_steps -eq $summary.steps.Count) "total_steps must match steps count"
+Assert-Condition ($summary.run_steps -ge 0) "run_steps must be non-negative"
+Assert-Condition ($summary.skipped_steps -ge 0) "skipped_steps must be non-negative"
+Assert-Condition (($summary.run_steps + $summary.skipped_steps) -eq $summary.total_steps) "run_steps and skipped_steps must add up to total_steps"
 
 foreach ($step in $summary.steps) {
     Assert-Condition (-not [string]::IsNullOrWhiteSpace($step.name)) "step.name is required"

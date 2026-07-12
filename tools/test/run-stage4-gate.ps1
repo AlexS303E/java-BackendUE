@@ -152,6 +152,9 @@ function Write-GateSummary {
         New-Item -ItemType Directory -Path $summaryDir -Force | Out-Null
     }
 
+    $runStepCount = @($Steps | Where-Object { $_.status -eq "run" }).Count
+    $skippedStepCount = @($Steps | Where-Object { $_.status -eq "skip" }).Count
+
     [pscustomobject]@{
         schema_name = "stage4_gate_summary"
         schema_version = 1
@@ -165,6 +168,9 @@ function Write-GateSummary {
         gate_started_at = $gateStartedAtText
         gate_finished_at = $summaryFinishedAt.ToUniversalTime().ToString("o")
         duration_ms = $DurationMs
+        total_steps = $Steps.Count
+        run_steps = $runStepCount
+        skipped_steps = $skippedStepCount
         skip_docker = [bool]$SkipDocker
         skip_openapi = [bool]$SkipOpenApi
         skip_boot_jar = [bool]$SkipBootJar

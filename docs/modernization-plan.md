@@ -971,3 +971,11 @@ Goal: make Stage 4 release evidence show the overall gate execution window.
 - [x] Add top-level `gate_started_at` and `gate_finished_at` fields to Stage 4 summaries.
 - [x] Populate the timing window for planned, passed, and failed summary results.
 - [x] Validate and regression-test that Stage 4 summaries always include the timing window.
+
+## Block 121 - Stage 4 release evidence step counters
+
+Goal: make Stage 4 release evidence easy to scan without parsing every step.
+
+- [x] Add `total_steps`, `run_steps`, and `skipped_steps` to Stage 4 summaries.
+- [x] Derive the counters from the planned gate step list at summary write time.
+- [x] Validate and regression-test that the counters match the detailed step list.
