@@ -1043,3 +1043,11 @@ Goal: make the production readiness checklist reflect the final Stage 4 release 
 - [x] Add Stage 4 release gate evidence to the deployment checklist.
 - [x] Mention the generated summary artifact, validator, and validator negative smoke.
 - [x] Regression-test that readiness docs mention the final Stage 4 evidence flow.
+
+## Block 130 - Stage 4 closure
+
+Goal: close Stage 4 with an explicit release-gate evidence baseline.
+
+- [x] Stage 4 is complete: release gate entrypoint, summary artifact, schema validation, negative validator smoke, status docs, and readiness checklist are synchronized.
+- [x] Closure evidence commands: `tools/test/run-stage4-gate.ps1 -Mode Release -ListSteps`, `tools/test/test-stage4-summary-validator.ps1 -RepoRoot .`, focused `Stage4ReleaseGateTest`, and `tools/openapi/verify-openapi-stage3.ps1 -RepoRoot .`.
+- [x] Future release promotions should use `tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker` and attach the validated `artifacts/stage4/stage4-gate-summary.json`.

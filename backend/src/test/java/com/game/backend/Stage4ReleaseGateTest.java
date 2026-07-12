@@ -14,6 +14,7 @@ class Stage4ReleaseGateTest {
     private static final Path STAGE4_SUMMARY_VALIDATOR_TEST = Path.of("..", "tools", "test", "test-stage4-summary-validator.ps1");
     private static final Path PRODUCTION_DEPLOYMENT = Path.of("..", "docs", "production-deployment.md");
     private static final Path PRODUCTION_READINESS_CHECKLIST = Path.of("..", "docs", "production-readiness-checklist.md");
+    private static final Path MODERNIZATION_PLAN = Path.of("..", "docs", "modernization-plan.md");
     private static final Path STATUS = Path.of("..", "docs", "status.md");
 
     @Test
@@ -141,5 +142,12 @@ class Stage4ReleaseGateTest {
             .contains("artifacts/stage4/stage4-gate-summary.json")
             .contains("tools/test/validate-stage4-summary.ps1")
             .contains("tools/test/test-stage4-summary-validator.ps1");
+
+        assertThat(Files.readString(MODERNIZATION_PLAN))
+            .contains("Stage 4 closure")
+            .contains("Stage 4 is complete")
+            .contains("tools/test/run-stage4-gate.ps1 -Mode Release -ListSteps")
+            .contains("tools/test/test-stage4-summary-validator.ps1 -RepoRoot .")
+            .contains("tools/openapi/verify-openapi-stage3.ps1 -RepoRoot .");
     }
 }

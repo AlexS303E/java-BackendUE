@@ -218,3 +218,7 @@ Re-run the following when making changes:
 4. `tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker`
 5. Validate the generated `artifacts/stage4/stage4-gate-summary.json` with `tools/test/validate-stage4-summary.ps1` and attach it to release evidence, unless the run was an explicit `-NoSummary` local dry run.
 6. Record any intentional `-Skip*` release gate switches with `-SkipReason` and the separately executed evidence.
+
+## Stage 4 Closure
+
+Stage 4 is complete. The release gate entrypoint, summary artifact, schema validator, negative validator smoke, status instructions, and readiness checklist are synchronized around `artifacts/stage4/stage4-gate-summary.json`.
