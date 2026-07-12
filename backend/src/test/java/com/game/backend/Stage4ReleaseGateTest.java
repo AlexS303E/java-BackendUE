@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class Stage4ReleaseGateTest {
     private static final Path STAGE4_GATE = Path.of("..", "tools", "test", "run-stage4-gate.ps1");
     private static final Path STAGE4_SUMMARY_VALIDATOR = Path.of("..", "tools", "test", "validate-stage4-summary.ps1");
+    private static final Path STAGE4_SUMMARY_VALIDATOR_TEST = Path.of("..", "tools", "test", "test-stage4-summary-validator.ps1");
     private static final Path PRODUCTION_DEPLOYMENT = Path.of("..", "docs", "production-deployment.md");
     private static final Path STATUS = Path.of("..", "docs", "status.md");
 
@@ -86,6 +87,16 @@ class Stage4ReleaseGateTest {
             .contains("started_at must be empty for skipped step")
             .contains("duration_ms must be empty for skipped step")
             .contains("Stage 4 summary schema is valid");
+    }
+
+    @Test
+    void stage4SummaryValidatorShouldHaveNegativeCoverage() throws IOException {
+        assertThat(Files.readString(STAGE4_SUMMARY_VALIDATOR_TEST))
+            .contains("Assert-ValidatorFails")
+            .contains("Unexpected schema_name")
+            .contains("run_steps and skipped_steps must add up to total_steps")
+            .contains("gate_finished_at must be greater than or equal to gate_started_at")
+            .contains("Stage 4 summary validator negative tests passed.");
     }
 
     @Test

@@ -1019,3 +1019,11 @@ Goal: make the Stage 4 summary schema visible in release documentation.
 - [x] Document the Stage 4 summary as the release evidence contract.
 - [x] List required schema, source, timing, outcome, and step accounting fields.
 - [x] Regression-test that production deployment docs mention the summary schema fields.
+
+## Block 127 - Stage 4 release evidence negative validator coverage
+
+Goal: prove the Stage 4 summary validator rejects malformed release evidence.
+
+- [x] Add a runnable negative test script for `validate-stage4-summary.ps1`.
+- [x] Cover invalid schema identity, inconsistent counters, and invalid timing order.
+- [x] Regression-test that the negative validator coverage stays present.
