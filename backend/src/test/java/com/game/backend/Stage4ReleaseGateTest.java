@@ -128,6 +128,8 @@ class Stage4ReleaseGateTest {
             .contains("tools/test/run-stage4-gate.ps1 -Mode Fast")
             .contains("tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker")
             .contains("tools/test/run-stage4-gate.ps1 -Mode Release -ListSteps")
+            .contains("tools/test/test-stage4-summary-validator.ps1 -RepoRoot .")
+            .contains("tools/test/validate-stage4-summary.ps1")
             .contains("artifacts/stage4/stage4-gate-summary.json")
             .contains("-NoSummary")
             .contains("Record any intentional `-Skip*` release gate switches");

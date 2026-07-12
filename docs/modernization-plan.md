@@ -1027,3 +1027,11 @@ Goal: prove the Stage 4 summary validator rejects malformed release evidence.
 - [x] Add a runnable negative test script for `validate-stage4-summary.ps1`.
 - [x] Cover invalid schema identity, inconsistent counters, and invalid timing order.
 - [x] Regression-test that the negative validator coverage stays present.
+
+## Block 128 - Stage 4 release evidence status sync
+
+Goal: keep status maintenance instructions aligned with the final Stage 4 evidence flow.
+
+- [x] Add the negative summary validator smoke to status update checks.
+- [x] Require explicit validation of the generated Stage 4 summary before attaching release evidence.
+- [x] Regression-test that status docs mention the validator smoke and summary validation step.

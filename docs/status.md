@@ -214,6 +214,7 @@ Backend **не является source of truth** для:
 Re-run the following when making changes:
 1. `tools/test/run-stage4-gate.ps1 -Mode Fast`
 2. `tools/test/run-stage4-gate.ps1 -Mode Release -ListSteps`
-3. `tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker`
-4. Attach the generated `artifacts/stage4/stage4-gate-summary.json` to release evidence, unless the run was an explicit `-NoSummary` local dry run.
-5. Record any intentional `-Skip*` release gate switches with `-SkipReason` and the separately executed evidence.
+3. `tools/test/test-stage4-summary-validator.ps1 -RepoRoot .`
+4. `tools/test/run-stage4-gate.ps1 -Mode Release -SkipDocker`
+5. Validate the generated `artifacts/stage4/stage4-gate-summary.json` with `tools/test/validate-stage4-summary.ps1` and attach it to release evidence, unless the run was an explicit `-NoSummary` local dry run.
+6. Record any intentional `-Skip*` release gate switches with `-SkipReason` and the separately executed evidence.
