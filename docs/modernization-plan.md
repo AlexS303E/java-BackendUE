@@ -963,3 +963,11 @@ Goal: make Stage 4 release evidence easier to trace back to the source branch.
 - [x] Add `repo_branch` to Stage 4 gate summary artifacts.
 - [x] Resolve the branch from the repository root when the summary is written.
 - [x] Validate and regression-test that Stage 4 summaries always include a branch value.
+
+## Block 120 - Stage 4 release evidence timing window
+
+Goal: make Stage 4 release evidence show the overall gate execution window.
+
+- [x] Add top-level `gate_started_at` and `gate_finished_at` fields to Stage 4 summaries.
+- [x] Populate the timing window for planned, passed, and failed summary results.
+- [x] Validate and regression-test that Stage 4 summaries always include the timing window.

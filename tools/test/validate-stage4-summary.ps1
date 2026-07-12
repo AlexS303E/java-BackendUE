@@ -31,6 +31,8 @@ Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.repo_revision)) "re
 Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.repo_branch)) "repo_branch is required"
 Assert-Condition ($null -ne $summary.repo_dirty -and $summary.repo_dirty.GetType().Name -eq "Boolean") "repo_dirty must be boolean"
 Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.generated_at)) "generated_at is required"
+Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.gate_started_at)) "gate_started_at is required"
+Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.gate_finished_at)) "gate_finished_at is required"
 Assert-Condition ($null -ne $summary.steps -and $summary.steps.Count -gt 0) "steps must contain at least one entry"
 
 foreach ($step in $summary.steps) {

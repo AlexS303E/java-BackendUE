@@ -122,11 +122,24 @@ function Write-GateSummary {
         [string]$Result,
         [System.Collections.Generic.List[object]]$Steps,
         [string]$ErrorMessage = "",
-        [Nullable[int]]$DurationMs = $null
+        [Nullable[int]]$DurationMs = $null,
+        [object]$GateStartedAt = $null,
+        [object]$GateFinishedAt = $null
     )
 
     if ($NoSummary -or [string]::IsNullOrWhiteSpace($Path)) {
         return
+    }
+
+    $summaryFinishedAt = if ($null -ne $GateFinishedAt) {
+        $GateFinishedAt
+    } else {
+        (Get-Date).ToUniversalTime()
+    }
+    $gateStartedAtText = if ($null -ne $GateStartedAt) {
+        $GateStartedAt.ToUniversalTime().ToString("o")
+    } else {
+        $null
     }
 
     $resolvedPath = if ([IO.Path]::IsPathRooted($Path)) {
@@ -149,6 +162,8 @@ function Write-GateSummary {
         repo_branch = Resolve-RepoBranch -RepositoryRoot $root
         repo_dirty = Test-RepoHasUncommittedChanges -RepositoryRoot $root
         generated_at = (Get-Date).ToUniversalTime().ToString("o")
+        gate_started_at = $gateStartedAtText
+        gate_finished_at = $summaryFinishedAt.ToUniversalTime().ToString("o")
         duration_ms = $DurationMs
         skip_docker = [bool]$SkipDocker
         skip_openapi = [bool]$SkipOpenApi
@@ -190,6 +205,7 @@ if ($Mode -eq "Release" -and (Test-ReleaseGateHasSkippedChecks) -and [string]::I
     throw "Stage 4 Release gate skip switches require -SkipReason so release evidence explains the omission."
 }
 
+$gateStartedAt = (Get-Date).ToUniversalTime()
 $plannedSteps = New-Object 'System.Collections.Generic.List[object]'
 Add-GateStep $plannedSteps "fast gate: Gradle tests and OpenAPI contract verification" $true
 if ($Mode -eq "Release") {
@@ -205,12 +221,11 @@ if ($ListSteps) {
     foreach ($step in $plannedSteps) {
         Write-Host "- [$($step.status)] $($step.name)"
     }
-    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "planned" -Steps $plannedSteps
+    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "planned" -Steps $plannedSteps -GateStartedAt $gateStartedAt
     exit 0
 }
 
 try {
-    $gateStartedAt = (Get-Date).ToUniversalTime()
     Invoke-CheckedStep "Stage 4 fast gate: Gradle tests and OpenAPI contract verification" {
         & powershell -NoProfile -ExecutionPolicy Bypass -File $runAllTests `
             -RepoRoot $root `
@@ -258,7 +273,7 @@ try {
     $gateDurationMs = [int][Math]::Round(($gateFinishedAt - $gateStartedAt).TotalMilliseconds)
     Write-Host ""
     Write-Host "Stage 4 gate passed." -ForegroundColor Green
-    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "passed" -Steps $plannedSteps -DurationMs $gateDurationMs
+    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "passed" -Steps $plannedSteps -DurationMs $gateDurationMs -GateStartedAt $gateStartedAt -GateFinishedAt $gateFinishedAt
 } catch {
     $gateFinishedAt = (Get-Date).ToUniversalTime()
     $gateDurationMs = if ($null -ne $gateStartedAt) {
@@ -266,6 +281,6 @@ try {
     } else {
         $null
     }
-    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "failed" -Steps $plannedSteps -ErrorMessage $_.Exception.Message -DurationMs $gateDurationMs
+    Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "failed" -Steps $plannedSteps -ErrorMessage $_.Exception.Message -DurationMs $gateDurationMs -GateStartedAt $gateStartedAt -GateFinishedAt $gateFinishedAt
     throw
 }
