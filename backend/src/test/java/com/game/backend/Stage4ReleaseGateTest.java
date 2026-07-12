@@ -75,6 +75,8 @@ class Stage4ReleaseGateTest {
             .contains("gate_finished_at must be greater than or equal to gate_started_at")
             .contains("total_steps must match steps count")
             .contains("run_steps and skipped_steps must add up to total_steps")
+            .contains("run_steps must match run step count")
+            .contains("skipped_steps must match skipped step count")
             .contains("@(\"Fast\", \"Release\")")
             .contains("@(\"planned\", \"passed\", \"failed\")")
             .contains("@(\"run\", \"skip\")")

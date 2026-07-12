@@ -1003,3 +1003,11 @@ Goal: keep skipped Stage 4 step evidence distinct from executed step evidence.
 - [x] Require skipped steps to keep start and finish timestamps empty.
 - [x] Require skipped steps to keep duration empty.
 - [x] Regression-test the skipped-step timing validation contract.
+
+## Block 125 - Stage 4 release evidence counter detail validation
+
+Goal: keep Stage 4 summary step counters synchronized with detailed step statuses.
+
+- [x] Count actual `run` and `skip` steps from the summary detail list.
+- [x] Require `run_steps` to match the detailed run-step count.
+- [x] Require `skipped_steps` to match the detailed skipped-step count.

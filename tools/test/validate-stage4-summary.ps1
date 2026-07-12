@@ -41,6 +41,10 @@ Assert-Condition ($summary.total_steps -eq $summary.steps.Count) "total_steps mu
 Assert-Condition ($summary.run_steps -ge 0) "run_steps must be non-negative"
 Assert-Condition ($summary.skipped_steps -ge 0) "skipped_steps must be non-negative"
 Assert-Condition (($summary.run_steps + $summary.skipped_steps) -eq $summary.total_steps) "run_steps and skipped_steps must add up to total_steps"
+$actualRunSteps = @($summary.steps | Where-Object { $_.status -eq "run" }).Count
+$actualSkippedSteps = @($summary.steps | Where-Object { $_.status -eq "skip" }).Count
+Assert-Condition ($summary.run_steps -eq $actualRunSteps) "run_steps must match run step count"
+Assert-Condition ($summary.skipped_steps -eq $actualSkippedSteps) "skipped_steps must match skipped step count"
 
 foreach ($step in $summary.steps) {
     Assert-Condition (-not [string]::IsNullOrWhiteSpace($step.name)) "step.name is required"
