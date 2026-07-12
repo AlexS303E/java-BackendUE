@@ -33,6 +33,9 @@ Assert-Condition ($null -ne $summary.repo_dirty -and $summary.repo_dirty.GetType
 Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.generated_at)) "generated_at is required"
 Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.gate_started_at)) "gate_started_at is required"
 Assert-Condition (-not [string]::IsNullOrWhiteSpace($summary.gate_finished_at)) "gate_finished_at is required"
+$gateStartedAt = [datetimeoffset]::Parse($summary.gate_started_at)
+$gateFinishedAt = [datetimeoffset]::Parse($summary.gate_finished_at)
+Assert-Condition ($gateFinishedAt -ge $gateStartedAt) "gate_finished_at must be greater than or equal to gate_started_at"
 Assert-Condition ($null -ne $summary.steps -and $summary.steps.Count -gt 0) "steps must contain at least one entry"
 Assert-Condition ($summary.total_steps -eq $summary.steps.Count) "total_steps must match steps count"
 Assert-Condition ($summary.run_steps -ge 0) "run_steps must be non-negative"

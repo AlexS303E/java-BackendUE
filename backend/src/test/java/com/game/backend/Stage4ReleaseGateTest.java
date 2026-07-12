@@ -71,6 +71,8 @@ class Stage4ReleaseGateTest {
             .contains("repo_dirty must be boolean")
             .contains("gate_started_at is required")
             .contains("gate_finished_at is required")
+            .contains("[datetimeoffset]::Parse")
+            .contains("gate_finished_at must be greater than or equal to gate_started_at")
             .contains("total_steps must match steps count")
             .contains("run_steps and skipped_steps must add up to total_steps")
             .contains("@(\"Fast\", \"Release\")")

@@ -979,3 +979,11 @@ Goal: make Stage 4 release evidence easy to scan without parsing every step.
 - [x] Add `total_steps`, `run_steps`, and `skipped_steps` to Stage 4 summaries.
 - [x] Derive the counters from the planned gate step list at summary write time.
 - [x] Validate and regression-test that the counters match the detailed step list.
+
+## Block 122 - Stage 4 release evidence timing order
+
+Goal: keep Stage 4 release evidence timing fields internally consistent.
+
+- [x] Parse top-level gate timestamps during summary validation.
+- [x] Require `gate_finished_at` to be greater than or equal to `gate_started_at`.
+- [x] Regression-test the timing order validation contract.
