@@ -69,3 +69,11 @@ Before promoting a production release:
 - Confirm Actuator health is available only on `management.server.port` according to the production exposure policy.
 
 `Release` mode includes the fast gate, `bootJar`, production-profile smoke, mTLS smoke, and load smoke. By default the gate writes and self-validates `artifacts/stage4/stage4-gate-summary.json`; use `-NoSummary` only for local dry runs where no release evidence is expected. Individual `-Skip*` switches are allowed only when the skipped check is run separately and recorded in release evidence. Any release gate skip except `-SkipDocker` must include `-SkipReason` so the JSON summary explains the omission.
+
+The Stage 4 summary is the release evidence contract. It must validate with `tools/test/validate-stage4-summary.ps1` and include:
+
+- Schema identity: `schema_name = stage4_gate_summary`, `schema_version = 1`, and `stage = 4`.
+- Gate outcome: `mode`, `result`, `error_message`, and skip flags/reason.
+- Source traceability: `repo_revision`, `repo_branch`, and `repo_dirty`.
+- Timing: `generated_at`, `gate_started_at`, `gate_finished_at`, `duration_ms`, and per-step timing for executed steps.
+- Step accounting: `total_steps`, `run_steps`, `skipped_steps`, and the detailed `steps` list.

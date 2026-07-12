@@ -99,6 +99,17 @@ class Stage4ReleaseGateTest {
             .contains("mTLS smoke")
             .contains("load smoke")
             .contains("artifacts/stage4/stage4-gate-summary.json")
+            .contains("tools/test/validate-stage4-summary.ps1")
+            .contains("schema_name = stage4_gate_summary")
+            .contains("schema_version = 1")
+            .contains("repo_revision")
+            .contains("repo_branch")
+            .contains("repo_dirty")
+            .contains("gate_started_at")
+            .contains("gate_finished_at")
+            .contains("total_steps")
+            .contains("run_steps")
+            .contains("skipped_steps")
             .contains("-NoSummary")
             .contains("-SkipReason");
 

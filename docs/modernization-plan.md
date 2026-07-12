@@ -1011,3 +1011,11 @@ Goal: keep Stage 4 summary step counters synchronized with detailed step statuse
 - [x] Count actual `run` and `skip` steps from the summary detail list.
 - [x] Require `run_steps` to match the detailed run-step count.
 - [x] Require `skipped_steps` to match the detailed skipped-step count.
+
+## Block 126 - Stage 4 release evidence schema documentation
+
+Goal: make the Stage 4 summary schema visible in release documentation.
+
+- [x] Document the Stage 4 summary as the release evidence contract.
+- [x] List required schema, source, timing, outcome, and step accounting fields.
+- [x] Regression-test that production deployment docs mention the summary schema fields.
