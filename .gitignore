@@ -37,6 +37,7 @@ logs/
 .env
 
 # --- Project-specific ---
+artifacts/
 backups/
 tools/mtls/**/out/
 tools/mtls/out*/
