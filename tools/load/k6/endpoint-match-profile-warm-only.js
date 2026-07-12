@@ -15,6 +15,8 @@ export const options = {
 };
 
 export function setup() {
+  const catalog = http.get(`${BASE_URL}/catalog/snapshot?realm_id=global`);
+  const catalogVersion = catalog.status === 200 ? Number(catalog.json("catalog_version")) : 1;
   const accounts = [];
   for (let i = 0; i < options.vus; i++) {
     const loginName = `warm_${Date.now()}_${i}`;
@@ -40,8 +42,8 @@ export function setup() {
       team_tag: "team.red",
       weapon_preset_slot: 1,
       outfit_preset_slot: 1,
-      supported_catalog_versions: [1],
-      preferred_catalog_version: 1,
+      supported_catalog_versions: [catalogVersion],
+      preferred_catalog_version: catalogVersion,
       server_build_id: SERVER_BUILD_ID,
       game_mode_id: "default",
     }), {
@@ -58,8 +60,6 @@ export function setup() {
       token: login.json("access_token"),
     });
   }
-  const catalog = http.get(`${BASE_URL}/catalog/snapshot?realm_id=global`);
-  const catalogVersion = catalog.status === 200 ? Number(catalog.json("catalog_version")) : 1;
   return { accounts, catalogVersion };
 }
 

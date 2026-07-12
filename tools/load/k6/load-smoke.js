@@ -8,6 +8,8 @@ const SERVER_ID = __ENV.SERVER_ID || "10000000-0000-0000-0000-000000000001";
 const SERVER_FINGERPRINT = __ENV.SERVER_FINGERPRINT || "dev-ds-fingerprint";
 const SERVER_BUILD_ID = __ENV.SERVER_BUILD_ID || "ds-dev-smoke";
 
+http.setResponseCallback(http.expectedStatuses({ min: 200, max: 399 }, 409, 422));
+
 export const options = {
   vus: 25,
   duration: "3m",
@@ -15,6 +17,8 @@ export const options = {
 };
 
 export function setup() {
+  const catalog = http.get(`${BASE_URL}/catalog/snapshot?realm_id=global`);
+  const catalogVersion = catalog.status === 200 ? Number(catalog.json("catalog_version")) : 1;
   const accounts = [];
   for (let i = 0; i < options.vus; i++) {
     const loginName = `smoke_${Date.now()}_${i}`;
@@ -40,9 +44,10 @@ export function setup() {
       team_tag: "team.red",
       weapon_preset_slot: 1,
       outfit_preset_slot: 1,
-      supported_catalog_versions: [1],
-      preferred_catalog_version: 1,
+      supported_catalog_versions: [catalogVersion],
+      preferred_catalog_version: catalogVersion,
       server_build_id: SERVER_BUILD_ID,
+      game_mode_id: "default",
     }), {
       headers: {
         "Content-Type": "application/json",
@@ -55,8 +60,6 @@ export function setup() {
     const weaponPresetRevision = build.json("dependency_revisions.weapon_preset_revision");
     accounts.push({ playerId, token, matchId, weaponPresetRevision, loginName });
   }
-  const catalog = http.get(`${BASE_URL}/catalog/snapshot?realm_id=global`);
-  const catalogVersion = catalog.status === 200 ? Number(catalog.json("catalog_version")) : 1;
   return { accounts, catalogVersion };
 }
 
@@ -115,9 +118,10 @@ export default function (data) {
         team_tag: "team.red",
         weapon_preset_slot: 1,
         outfit_preset_slot: 1,
-        supported_catalog_versions: [1],
-        preferred_catalog_version: 1,
+        supported_catalog_versions: [data.catalogVersion],
+        preferred_catalog_version: data.catalogVersion,
         server_build_id: SERVER_BUILD_ID,
+        game_mode_id: "default",
       }), { headers: serverHeaders });
       check(r, { "build status 200 or 422": (resp) => resp.status === 200 || resp.status === 422 });
       break;
