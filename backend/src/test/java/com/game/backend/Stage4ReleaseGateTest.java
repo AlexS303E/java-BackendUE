@@ -78,6 +78,9 @@ class Stage4ReleaseGateTest {
             .contains("@(\"Fast\", \"Release\")")
             .contains("@(\"planned\", \"passed\", \"failed\")")
             .contains("@(\"run\", \"skip\")")
+            .contains("started_at is required for run step")
+            .contains("duration_ms must be non-negative for run step")
+            .contains("finished_at must be greater than or equal to started_at for run step")
             .contains("Stage 4 summary schema is valid");
     }
 

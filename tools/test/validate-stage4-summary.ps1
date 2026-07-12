@@ -45,6 +45,14 @@ Assert-Condition (($summary.run_steps + $summary.skipped_steps) -eq $summary.tot
 foreach ($step in $summary.steps) {
     Assert-Condition (-not [string]::IsNullOrWhiteSpace($step.name)) "step.name is required"
     Assert-Condition (@("run", "skip") -contains $step.status) "Unexpected step status for $($step.name): $($step.status)"
+    if ($step.status -eq "run" -and $summary.result -ne "planned") {
+        Assert-Condition (-not [string]::IsNullOrWhiteSpace($step.started_at)) "started_at is required for run step $($step.name)"
+        Assert-Condition (-not [string]::IsNullOrWhiteSpace($step.finished_at)) "finished_at is required for run step $($step.name)"
+        Assert-Condition ($null -ne $step.duration_ms -and $step.duration_ms -ge 0) "duration_ms must be non-negative for run step $($step.name)"
+        $stepStartedAt = [datetimeoffset]::Parse($step.started_at)
+        $stepFinishedAt = [datetimeoffset]::Parse($step.finished_at)
+        Assert-Condition ($stepFinishedAt -ge $stepStartedAt) "finished_at must be greater than or equal to started_at for run step $($step.name)"
+    }
 }
 
 Write-Host "Stage 4 summary schema is valid: $SummaryPath" -ForegroundColor Green

@@ -987,3 +987,11 @@ Goal: keep Stage 4 release evidence timing fields internally consistent.
 - [x] Parse top-level gate timestamps during summary validation.
 - [x] Require `gate_finished_at` to be greater than or equal to `gate_started_at`.
 - [x] Regression-test the timing order validation contract.
+
+## Block 123 - Stage 4 release evidence step timing validation
+
+Goal: keep executed Stage 4 step timing evidence internally consistent.
+
+- [x] Require executed `run` steps to include start, finish, and non-negative duration fields.
+- [x] Require executed step finish timestamps to be greater than or equal to start timestamps.
+- [x] Regression-test the per-step timing validation contract.
