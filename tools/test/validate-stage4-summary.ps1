@@ -52,6 +52,10 @@ foreach ($step in $summary.steps) {
         $stepStartedAt = [datetimeoffset]::Parse($step.started_at)
         $stepFinishedAt = [datetimeoffset]::Parse($step.finished_at)
         Assert-Condition ($stepFinishedAt -ge $stepStartedAt) "finished_at must be greater than or equal to started_at for run step $($step.name)"
+    } elseif ($step.status -eq "skip") {
+        Assert-Condition ([string]::IsNullOrWhiteSpace($step.started_at)) "started_at must be empty for skipped step $($step.name)"
+        Assert-Condition ([string]::IsNullOrWhiteSpace($step.finished_at)) "finished_at must be empty for skipped step $($step.name)"
+        Assert-Condition ($null -eq $step.duration_ms) "duration_ms must be empty for skipped step $($step.name)"
     }
 }
 

@@ -995,3 +995,11 @@ Goal: keep executed Stage 4 step timing evidence internally consistent.
 - [x] Require executed `run` steps to include start, finish, and non-negative duration fields.
 - [x] Require executed step finish timestamps to be greater than or equal to start timestamps.
 - [x] Regression-test the per-step timing validation contract.
+
+## Block 124 - Stage 4 release evidence skipped step timing guard
+
+Goal: keep skipped Stage 4 step evidence distinct from executed step evidence.
+
+- [x] Require skipped steps to keep start and finish timestamps empty.
+- [x] Require skipped steps to keep duration empty.
+- [x] Regression-test the skipped-step timing validation contract.

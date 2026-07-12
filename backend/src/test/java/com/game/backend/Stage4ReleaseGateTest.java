@@ -81,6 +81,8 @@ class Stage4ReleaseGateTest {
             .contains("started_at is required for run step")
             .contains("duration_ms must be non-negative for run step")
             .contains("finished_at must be greater than or equal to started_at for run step")
+            .contains("started_at must be empty for skipped step")
+            .contains("duration_ms must be empty for skipped step")
             .contains("Stage 4 summary schema is valid");
     }
 
