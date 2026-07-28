@@ -191,26 +191,9 @@ public class AuthRepository extends JdbcRepository {
         );
     }
 
-    public List<String> findEnabledCatalogItemIds(long catalogVersion) {
-        return queryForList(
-            """
-                SELECT item_id
-                FROM catalog_items
-                WHERE catalog_version = ?
-                  AND is_enabled = true
-                ORDER BY item_id
-                """,
-            String.class,
-            catalogVersion
-        );
-    }
-
-    public void insertBootstrapEntitlementLedgerEvent(
-        UUID ledgerEventId,
+    public void insertBootstrapEntitlementLedgerEvents(
         UUID playerId,
-        String itemId,
         long catalogVersion,
-        String idempotencyKey,
         OffsetDateTime now
     ) {
         update(
@@ -227,14 +210,24 @@ public class AuthRepository extends JdbcRepository {
                   idempotency_key,
                   created_at
                 )
-                VALUES (?, ?, ?, ?, 'reveal_item', 'default', 'system', 'bootstrap', ?, ?)
+                SELECT
+                  gen_random_uuid(),
+                  ?,
+                  item_id,
+                  catalog_version,
+                  'reveal_item',
+                  'default',
+                  'system',
+                  'bootstrap',
+                  'bootstrap:' || catalog_version || ':' || item_id,
+                  ?
+                FROM catalog_items
+                WHERE catalog_version = ?
+                  AND is_enabled = true
                 """,
-            ledgerEventId,
             playerId,
-            itemId,
-            catalogVersion,
-            idempotencyKey,
-            now
+            now,
+            catalogVersion
         );
     }
 

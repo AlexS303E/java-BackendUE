@@ -54,18 +54,7 @@ public class PlayerBootstrapService {
     private void bootstrapAccess(UUID playerId, long catalogVersion, OffsetDateTime now) {
         repository.insertAccessProjectionState(playerId, now);
 
-        List<String> itemIds = repository.findEnabledCatalogItemIds(catalogVersion);
-
-        for (String itemId : itemIds) {
-            repository.insertBootstrapEntitlementLedgerEvent(
-                UUID.randomUUID(),
-                playerId,
-                itemId,
-                catalogVersion,
-                "bootstrap:" + catalogVersion + ":" + itemId,
-                now
-            );
-        }
+        repository.insertBootstrapEntitlementLedgerEvents(playerId, catalogVersion, now);
 
         repository.insertEnabledCatalogAccess(playerId, catalogVersion, now);
     }
