@@ -35,6 +35,12 @@ class ManagementPortHardeningValidatorTest {
         ))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("must differ from app.server-auth.mtls.port");
+
+        assertThatThrownBy(() -> ManagementPortHardeningValidator.validateForStartup(
+            new String[]{"prod"}, 8080, 8081, 9443, "0.0.0.0"
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("must not bind all interfaces");
     }
 
     @Test
