@@ -12,6 +12,7 @@ public record OutboxEvent(
     String aggregateId,
     String payload,
     int payloadSchemaVersion,
-    int attempts
+    int attempts,
+    UUID processingToken
 ) {
 }

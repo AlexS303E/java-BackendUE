@@ -193,6 +193,33 @@ class OutboxWorkerIntegrationTest {
         assertThat(meterRegistry.get("outbox.circuit_breaker.open").gauge().value()).isEqualTo(1.0);
     }
 
+    @Test
+    void shouldRejectCompletionFromWorkerThatLostLease() {
+        UUID eventId = insertOutboxEvent("weapon_preset.saved", "{}");
+        UUID staleToken = UUID.randomUUID();
+        UUID currentToken = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.now();
+        jdbcTemplate.update(
+                """
+                    UPDATE outbox_events
+                    SET status = 'processing', processing_token = ?, processing_owner = 'worker-b'
+                    WHERE event_id = ?
+                    """,
+                currentToken,
+                eventId
+        );
+
+        int updated = new OutboxRepository(jdbcTemplate).markProcessed(eventId, staleToken, now);
+
+        assertThat(updated).isZero();
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT status, processing_token FROM outbox_events WHERE event_id = ?",
+                eventId
+        );
+        assertThat(row.get("status")).isEqualTo("processing");
+        assertThat(row.get("processing_token")).isEqualTo(currentToken);
+    }
+
     private UUID insertOutboxEvent(String eventType, String payload) {
         UUID eventId = UUID.randomUUID();
         eventIds.add(eventId);

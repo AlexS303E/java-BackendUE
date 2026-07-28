@@ -17,7 +17,8 @@ public class OutboxRepository extends JdbcRepository {
         String aggregateId,
         String payload,
         int payloadSchemaVersion,
-        int attempts
+        int attempts,
+        UUID processingToken
     ) {
     }
 
@@ -65,7 +66,9 @@ public class OutboxRepository extends JdbcRepository {
         int maxAttempts,
         OffsetDateTime now,
         int batchSize,
-        OffsetDateTime processingDeadline
+        OffsetDateTime processingDeadline,
+        String processingOwner,
+        UUID processingToken
     ) {
         return query(
             """
@@ -82,7 +85,11 @@ public class OutboxRepository extends JdbcRepository {
                 UPDATE outbox_events oe
                 SET status = 'processing',
                     attempts = oe.attempts + 1,
-                    next_attempt_at = ?
+                    next_attempt_at = ?,
+                    processing_owner = ?,
+                    processing_token = ?,
+                    processing_started_at = ?,
+                    processing_deadline = ?
                 FROM claimed
                 WHERE oe.event_id = claimed.event_id
                 RETURNING
@@ -92,7 +99,8 @@ public class OutboxRepository extends JdbcRepository {
                   oe.aggregate_id,
                   oe.payload::text AS payload,
                   oe.payload_schema_version,
-                  oe.attempts
+                  oe.attempts,
+                  oe.processing_token
                 """,
             (rs, rowNum) -> new OutboxEventRecord(
                 rs.getObject("event_id", UUID.class),
@@ -101,54 +109,80 @@ public class OutboxRepository extends JdbcRepository {
                 rs.getString("aggregate_id"),
                 rs.getString("payload"),
                 rs.getInt("payload_schema_version"),
-                rs.getInt("attempts")
+                rs.getInt("attempts"),
+                rs.getObject("processing_token", UUID.class)
             ),
             maxAttempts,
             now,
             batchSize,
+            processingDeadline,
+            processingOwner,
+            processingToken,
+            now,
             processingDeadline
         );
     }
 
-    public void markProcessed(UUID eventId, OffsetDateTime now) {
-        update(
+    public int markProcessed(UUID eventId, UUID processingToken, OffsetDateTime now) {
+        return update(
             """
                 UPDATE outbox_events
                 SET status = 'processed',
                     processed_at = ?,
-                    last_error = null
+                    last_error = null,
+                    processing_owner = null,
+                    processing_token = null,
+                    processing_started_at = null,
+                    processing_deadline = null
                 WHERE event_id = ?
+                  AND status = 'processing'
+                  AND processing_token = ?
                 """,
             now,
-            eventId
+            eventId,
+            processingToken
         );
     }
 
-    public void markDeadLetter(UUID eventId, String error) {
-        update(
+    public int markDeadLetter(UUID eventId, UUID processingToken, String error) {
+        return update(
             """
                 UPDATE outbox_events
                 SET status = 'dead_letter',
-                    last_error = ?
+                    last_error = ?,
+                    processing_owner = null,
+                    processing_token = null,
+                    processing_started_at = null,
+                    processing_deadline = null
                 WHERE event_id = ?
+                  AND status = 'processing'
+                  AND processing_token = ?
                 """,
             error,
-            eventId
+            eventId,
+            processingToken
         );
     }
 
-    public void markFailed(UUID eventId, OffsetDateTime nextAttemptAt, String error) {
-        update(
+    public int markFailed(UUID eventId, UUID processingToken, OffsetDateTime nextAttemptAt, String error) {
+        return update(
             """
                 UPDATE outbox_events
                 SET status = 'failed',
                     next_attempt_at = ?,
-                    last_error = ?
+                    last_error = ?,
+                    processing_owner = null,
+                    processing_token = null,
+                    processing_started_at = null,
+                    processing_deadline = null
                 WHERE event_id = ?
+                  AND status = 'processing'
+                  AND processing_token = ?
                 """,
             nextAttemptAt,
             error,
-            eventId
+            eventId,
+            processingToken
         );
     }
 
@@ -163,7 +197,11 @@ public class OutboxRepository extends JdbcRepository {
                     last_error = CASE
                       WHEN attempts >= ? THEN 'processing timeout; moved to dead_letter'
                       ELSE 'processing timeout'
-                    END
+                    END,
+                    processing_owner = null,
+                    processing_token = null,
+                    processing_started_at = null,
+                    processing_deadline = null
                 WHERE status = 'processing'
                   AND next_attempt_at <= ?
                 """,

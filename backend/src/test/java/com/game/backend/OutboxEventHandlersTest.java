@@ -98,7 +98,8 @@ class OutboxEventHandlersTest {
                 "test",
                 payload,
                 1,
-                1
+                1,
+                UUID.randomUUID()
         );
     }
 }

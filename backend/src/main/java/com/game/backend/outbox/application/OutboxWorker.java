@@ -33,6 +33,8 @@ public class OutboxWorker {
     private final int circuitBreakerFailureThreshold;
     private final long circuitBreakerCooldownSeconds;
     private final Counter circuitBreakerOpenedCounter;
+    private final Counter lostLeaseCounter;
+    private final String workerId = UUID.randomUUID().toString();
 
     private int consecutiveFailedBatches = 0;
     private OffsetDateTime circuitBreakerOpenUntil;
@@ -62,6 +64,9 @@ public class OutboxWorker {
         this.circuitBreakerCooldownSeconds = Math.max(1, circuitBreakerCooldownSeconds);
         this.circuitBreakerOpenedCounter = Counter.builder("outbox.circuit_breaker.opened")
             .description("Number of times the outbox worker circuit breaker opened")
+            .register(meterRegistry);
+        this.lostLeaseCounter = Counter.builder("outbox.lease.lost")
+            .description("Outbox state transitions rejected because the worker lost its lease")
             .register(meterRegistry);
         Gauge.builder("outbox.circuit_breaker.open", this, OutboxWorker::circuitBreakerOpenValue)
             .description("Whether the outbox worker circuit breaker is currently open")
@@ -103,11 +108,14 @@ public class OutboxWorker {
     }
 
     private List<OutboxEvent> claimBatch(OffsetDateTime now) {
+        UUID processingToken = UUID.randomUUID();
         return transactionTemplate.execute(status -> repository.claimBatch(
             maxAttempts,
             now,
             batchSize,
-            now.plusSeconds(processingTimeoutSeconds)
+            now.plusSeconds(processingTimeoutSeconds),
+            workerId,
+            processingToken
         )).stream()
             .map(this::toOutboxEvent)
             .toList();
@@ -121,7 +129,8 @@ public class OutboxWorker {
             record.aggregateId(),
             record.payload(),
             record.payloadSchemaVersion(),
-            record.attempts()
+            record.attempts(),
+            record.processingToken()
         );
     }
 
@@ -129,29 +138,35 @@ public class OutboxWorker {
         OffsetDateTime now = OffsetDateTime.now();
         try {
             outboxPublisher.publish(event);
-            markProcessed(event.eventId(), now);
-            return true;
+            return markProcessed(event, now);
         } catch (RuntimeException exception) {
             markFailed(event, now, exception);
             return false;
         }
     }
 
-    private void markProcessed(UUID eventId, OffsetDateTime now) {
-        repository.markProcessed(eventId, now);
+    private boolean markProcessed(OutboxEvent event, OffsetDateTime now) {
+        return recordLeaseResult(repository.markProcessed(event.eventId(), event.processingToken(), now));
     }
 
     private void markFailed(OutboxEvent event, OffsetDateTime now, RuntimeException exception) {
         int newAttempts = event.attempts();
         if (newAttempts >= maxAttempts) {
-            repository.markDeadLetter(event.eventId(), exception.getMessage());
+            recordLeaseResult(repository.markDeadLetter(event.eventId(), event.processingToken(), exception.getMessage()));
         } else {
-            repository.markFailed(
+            recordLeaseResult(repository.markFailed(
                 event.eventId(),
+                event.processingToken(),
                 now.plusSeconds(retryDelaySeconds * Math.max(1, newAttempts)),
                 exception.getMessage()
-            );
+            ));
         }
+    }
+
+    private boolean recordLeaseResult(int updatedRows) {
+        if (updatedRows == 1) return true;
+        lostLeaseCounter.increment();
+        return false;
     }
 
     private void requeueTimedOutProcessingEvents(OffsetDateTime now) {
