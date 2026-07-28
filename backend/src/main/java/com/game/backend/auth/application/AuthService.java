@@ -28,6 +28,7 @@ public class AuthService {
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
     private final Duration refreshTokenTtl;
+    private final String dummyPasswordHash;
 
     public AuthService(
         AuthRepository repository,
@@ -43,6 +44,7 @@ public class AuthService {
         this.jwtTokenService = jwtTokenService;
         this.refreshTokenService = refreshTokenService;
         this.refreshTokenTtl = Duration.parse(refreshTokenTtl);
+        this.dummyPasswordHash = passwordEncoder.encode("unusable-login-password");
     }
 
     /**
@@ -70,6 +72,10 @@ public class AuthService {
     @Transactional
     public AuthTokenPair login(String loginName, String password) {
         Account account = accountByLoginName(loginName);
+        if (account == null) {
+            passwordEncoder.matches(password, dummyPasswordHash);
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Invalid login name or password");
+        }
         if (!passwordEncoder.matches(password, account.passwordHash())) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Invalid login name or password");
         }
@@ -111,10 +117,7 @@ public class AuthService {
 
     private Account accountByLoginName(String loginName) {
         List<Account> accounts = repository.findAccountsByLoginName(loginName);
-        if (accounts.isEmpty()) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Invalid login name or password");
-        }
-        return accounts.getFirst();
+        return accounts.isEmpty() ? null : accounts.getFirst();
     }
 
     private void ensureActive(String status) {
