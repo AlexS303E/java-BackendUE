@@ -1,5 +1,6 @@
 package com.game.backend.admin.application;
 
+import com.game.backend.common.network.TrustedClientIpResolver;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,7 +12,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -24,9 +24,11 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
     private static final String DEFAULT_ADMIN_ID = "dev-admin";
 
     private final AdminSecurityProperties properties;
+    private final TrustedClientIpResolver clientIpResolver;
 
-    public AdminAuthenticationFilter(AdminSecurityProperties properties) {
+    public AdminAuthenticationFilter(AdminSecurityProperties properties, TrustedClientIpResolver clientIpResolver) {
         this.properties = properties;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @Override
@@ -125,16 +127,8 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
         if (properties.getAllowedCidrs().isEmpty()) {
             return true;
         }
-        String clientIp = clientIp(request);
+        String clientIp = clientIpResolver.resolve(request);
         return properties.getAllowedCidrs().stream().anyMatch(rule -> ipMatches(clientIp, rule));
-    }
-
-    private String clientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 
     private boolean ipMatches(String clientIp, String rule) {
@@ -147,8 +141,8 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
         }
         try {
             String[] parts = trimmed.split("/", 2);
-            byte[] address = InetAddress.getByName(clientIp).getAddress();
-            byte[] network = InetAddress.getByName(parts[0]).getAddress();
+            byte[] address = java.net.InetAddress.getByName(clientIp).getAddress();
+            byte[] network = java.net.InetAddress.getByName(parts[0]).getAddress();
             if (address.length != network.length) {
                 return false;
             }

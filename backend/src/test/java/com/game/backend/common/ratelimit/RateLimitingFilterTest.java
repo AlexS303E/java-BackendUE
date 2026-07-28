@@ -1,5 +1,7 @@
 package com.game.backend.common.ratelimit;
 
+import com.game.backend.common.network.TrustedClientIpResolver;
+import com.game.backend.common.network.TrustedProxyProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletRequest;
@@ -33,18 +35,24 @@ class RateLimitingFilterTest {
     }
 
     @Test
-    void shouldUseServerIdentityAsServerBucketKey() throws Exception {
+    void shouldUseTrustedClientIpAsServerBucketKey() throws Exception {
         RateLimitingFilter filter = filter(true, 10, 1, 10);
 
         assertThat(doRequest(filter, "/server/runtime-events", "10.0.0.1", "server-a", null).status()).isEqualTo(200);
-        assertThat(doRequest(filter, "/server/runtime-events", "10.0.0.1", "server-b", null).status()).isEqualTo(200);
-
-        assertThat(doRequest(filter, "/server/runtime-events", "10.0.0.1", "server-a", null).status()).isEqualTo(429);
+        assertThat(doRequest(filter, "/server/runtime-events", "10.0.0.1", "server-b", null).status()).isEqualTo(429);
         assertThat(rateLimitRejections("server")).isEqualTo(1.0);
 
         RateLimitingFilter anotherFilter = filter(true, 10, 1, 10);
         assertThat(doRequest(anotherFilter, "/server/runtime-events", "10.0.0.1", "server-c", null).status()).isEqualTo(200);
-        assertThat(doRequest(anotherFilter, "/server/runtime-events", "10.0.0.2", "server-c", null).status()).isEqualTo(429);
+        assertThat(doRequest(anotherFilter, "/server/runtime-events", "10.0.0.2", "server-c", null).status()).isEqualTo(200);
+    }
+
+    @Test
+    void shouldIgnoreForwardedForFromDirectClient() throws Exception {
+        RateLimitingFilter filter = filter(true, 1, 10, 10);
+
+        assertThat(doRequest(filter, "/auth/login", "192.168.1.10", null, null, "10.0.0.1").status()).isEqualTo(200);
+        assertThat(doRequest(filter, "/auth/login", "192.168.1.10", null, null, "10.0.0.2").status()).isEqualTo(429);
     }
 
     @Test
@@ -63,7 +71,7 @@ class RateLimitingFilterTest {
         properties.setAuthLimit(authLimit);
         properties.setServerLimit(serverLimit);
         properties.setAdminLimit(adminLimit);
-        return new RateLimitingFilter(properties, meterRegistry);
+        return new RateLimitingFilter(properties, meterRegistry, new TrustedClientIpResolver(new TrustedProxyProperties()));
     }
 
     private double rateLimitRejections(String bucket) {
@@ -80,6 +88,17 @@ class RateLimitingFilterTest {
         String serverId,
         String adminId
     ) throws Exception {
+        return doRequest(filter, path, remoteAddr, serverId, adminId, null);
+    }
+
+    private FilterResult doRequest(
+        RateLimitingFilter filter,
+        String path,
+        String remoteAddr,
+        String serverId,
+        String adminId,
+        String forwardedFor
+    ) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
         request.setRemoteAddr(remoteAddr);
         if (serverId != null) {
@@ -87,6 +106,9 @@ class RateLimitingFilterTest {
         }
         if (adminId != null) {
             request.addHeader("X-Admin-Id", adminId);
+        }
+        if (forwardedFor != null) {
+            request.addHeader("X-Forwarded-For", forwardedFor);
         }
         MockHttpServletResponse response = new MockHttpServletResponse();
         CountingFilterChain chain = new CountingFilterChain();

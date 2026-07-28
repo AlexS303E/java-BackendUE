@@ -2,6 +2,7 @@ package com.game.backend.common.ratelimit;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import com.game.backend.common.network.TrustedClientIpResolver;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,7 +13,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -24,18 +24,29 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private final RateLimitProperties properties;
     private final Clock clock;
     private final MeterRegistry meterRegistry;
+    private final TrustedClientIpResolver clientIpResolver;
     private final Map<String, WindowCounter> counters = new ConcurrentHashMap<>();
     private final AtomicLong lastCleanupAt = new AtomicLong(0);
 
     @Autowired
-    public RateLimitingFilter(RateLimitProperties properties, MeterRegistry meterRegistry) {
-        this(properties, Clock.systemUTC(), meterRegistry);
+    public RateLimitingFilter(
+        RateLimitProperties properties,
+        MeterRegistry meterRegistry,
+        TrustedClientIpResolver clientIpResolver
+    ) {
+        this(properties, Clock.systemUTC(), meterRegistry, clientIpResolver);
     }
 
-    RateLimitingFilter(RateLimitProperties properties, Clock clock, MeterRegistry meterRegistry) {
+    RateLimitingFilter(
+        RateLimitProperties properties,
+        Clock clock,
+        MeterRegistry meterRegistry,
+        TrustedClientIpResolver clientIpResolver
+    ) {
         this.properties = properties;
         this.clock = clock;
         this.meterRegistry = meterRegistry;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @Override
@@ -71,24 +82,16 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             return new RateLimitBucket("auth", "auth:" + clientIp(request), properties.getAuthLimit());
         }
         if (path.startsWith("/server/")) {
-            return new RateLimitBucket("server", "server:" + firstNonBlank(request.getHeader("X-Server-Id"), clientIp(request)), properties.getServerLimit());
+            return new RateLimitBucket("server", "server:" + clientIp(request), properties.getServerLimit());
         }
         if (path.startsWith("/admin/")) {
-            return new RateLimitBucket("admin", "admin:" + firstNonBlank(request.getHeader("X-Admin-Id"), clientIp(request)), properties.getAdminLimit());
+            return new RateLimitBucket("admin", "admin:" + clientIp(request), properties.getAdminLimit());
         }
         return null;
     }
 
     private String clientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
-    }
-
-    private String firstNonBlank(String value, String fallback) {
-        return value == null || value.isBlank() ? fallback : value.trim().toLowerCase(Locale.ROOT);
+        return clientIpResolver.resolve(request);
     }
 
     private int retryAfterSeconds(WindowCounter counter, long now, long windowMillis) {

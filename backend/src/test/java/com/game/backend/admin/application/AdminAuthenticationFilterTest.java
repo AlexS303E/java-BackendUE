@@ -1,5 +1,7 @@
 package com.game.backend.admin.application;
 
+import com.game.backend.common.network.TrustedClientIpResolver;
+import com.game.backend.common.network.TrustedProxyProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
@@ -62,6 +64,20 @@ class AdminAuthenticationFilterTest {
 
         assertThat(roleResponse.getStatus()).isEqualTo(403);
         assertThat(roleResponse.getContentAsString()).contains("ADMIN_ROLE_FORBIDDEN");
+    }
+
+    @Test
+    void shouldIgnoreForwardedForFromDirectClient() throws Exception {
+        AdminAuthenticationFilter filter = filter(List.of("10.10.0.0/16"), List.of("status"));
+        MockHttpServletRequest request = request("GET", "/admin/status/overview", "192.168.1.10");
+        request.addHeader("X-Admin-Token", "token");
+        request.addHeader("X-Forwarded-For", "10.10.1.20");
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new CountingChain());
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("ADMIN_IP_FORBIDDEN");
     }
 
     @Test
@@ -159,7 +175,7 @@ class AdminAuthenticationFilterTest {
         properties.setToken("token");
         properties.setAllowedCidrs(cidrs);
         properties.setDefaultRoles(roles);
-        return new AdminAuthenticationFilter(properties);
+        return new AdminAuthenticationFilter(properties, new TrustedClientIpResolver(new TrustedProxyProperties()));
     }
 
     private MockHttpServletRequest request(String method, String path, String remoteAddr) {
