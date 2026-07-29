@@ -6,6 +6,8 @@
 
 ## Security
 
+> Update 2026-07-30: JWT key ring rotation is supported through `APP_AUTH_JWT_KEYS_{n}_*` and `APP_AUTH_JWT_ACTIVE_KEY_ID`. Production admin access uses `APP_ADMIN_IDENTITIES_{n}_ID/TOKEN/ROLES`; the deprecated shared `ADMIN_TOKEN` fallback is rejected. Redis-backed rate limiting fails closed in production.
+
 ### JWT
 - [x] **JWT signing keys configured** — `application-prod.yml` requires `JWT_PRIVATE_KEY` and `JWT_PUBLIC_KEY`; startup fail-fast rejects missing keys.
 - [x] **Token expiry configured** — access token defaults to 15 minutes, refresh token defaults to 14 days.
@@ -34,6 +36,8 @@
 ---
 
 ## Database
+
+> Update 2026-07-30: migrations V033–V035 add fenced outbox leases, normalized login uniqueness, and catalog-driven bootstrap defaults. Re-run `FlywayMigrationIntegrationTest` against a clean PostgreSQL before release; Docker was unavailable during the latest local verification.
 
 ### Migrations
 - [x] **All migrations verified** — `FlywayMigrationIntegrationTest` validates every `src/main/resources/db/migration/V*.sql` version through V032.
