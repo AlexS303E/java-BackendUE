@@ -52,18 +52,22 @@ public class AuthService {
      */
     @Transactional
     public RegisteredPlayer register(String loginName, String password) {
+        String normalizedLoginName = LoginNameNormalizer.normalize(loginName);
+        if (normalizedLoginName.length() < 3 || normalizedLoginName.length() > 64) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_LOGIN_NAME", "Login name must contain 3 to 64 characters");
+        }
         UUID playerId = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now();
         String passwordHash = passwordEncoder.encode(password);
 
         try {
-            repository.insertPlayerAccount(playerId, loginName, passwordHash, now);
+            repository.insertPlayerAccount(playerId, normalizedLoginName, passwordHash, now);
         } catch (DuplicateKeyException exception) {
             throw new ApiException(HttpStatus.CONFLICT, "LOGIN_NAME_ALREADY_EXISTS", "Login name is already taken");
         }
 
         playerBootstrapService.bootstrapNewPlayer(playerId, now);
-        return new RegisteredPlayer(playerId, loginName, "active", false);
+        return new RegisteredPlayer(playerId, normalizedLoginName, "active", false);
     }
 
     /**
@@ -71,7 +75,7 @@ public class AuthService {
      */
     @Transactional
     public AuthTokenPair login(String loginName, String password) {
-        Account account = accountByLoginName(loginName);
+        Account account = accountByLoginName(LoginNameNormalizer.normalize(loginName));
         if (account == null) {
             passwordEncoder.matches(password, dummyPasswordHash);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Invalid login name or password");

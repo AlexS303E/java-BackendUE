@@ -57,7 +57,7 @@ public class AuthRepository extends JdbcRepository {
             """
                 SELECT player_id, login_name, password_hash, status
                 FROM player_accounts
-                WHERE login_name = ?
+                WHERE lower(btrim(login_name)) = ?
                 """,
             (rs, rowNum) -> new Account(
                 rs.getObject("player_id", UUID.class),
