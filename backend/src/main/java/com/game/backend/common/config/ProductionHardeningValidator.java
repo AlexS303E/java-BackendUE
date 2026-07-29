@@ -27,6 +27,7 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
     private final int authRateLimit;
     private final int serverRateLimit;
     private final int adminRateLimit;
+    private final boolean rateLimitFailClosedOnRedisError;
 
     public ProductionHardeningValidator(
         Environment environment,
@@ -39,7 +40,8 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         @Value("${app.rate-limit.window:PT1M}") Duration rateLimitWindow,
         @Value("${app.rate-limit.auth-limit:60}") int authRateLimit,
         @Value("${app.rate-limit.server-limit:600}") int serverRateLimit,
-        @Value("${app.rate-limit.admin-limit:120}") int adminRateLimit
+        @Value("${app.rate-limit.admin-limit:120}") int adminRateLimit,
+        @Value("${app.rate-limit.fail-closed-on-redis-error:false}") boolean rateLimitFailClosedOnRedisError
     ) {
         this.environment = environment;
         this.adminToken = adminToken;
@@ -52,6 +54,7 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         this.authRateLimit = authRateLimit;
         this.serverRateLimit = serverRateLimit;
         this.adminRateLimit = adminRateLimit;
+        this.rateLimitFailClosedOnRedisError = rateLimitFailClosedOnRedisError;
     }
 
     @Override
@@ -67,7 +70,8 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
             rateLimitWindow,
             authRateLimit,
             serverRateLimit,
-            adminRateLimit
+            adminRateLimit,
+            rateLimitFailClosedOnRedisError
         );
     }
 
@@ -133,6 +137,36 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         int serverRateLimit,
         int adminRateLimit
     ) {
+        validateForStartup(
+            activeProfiles,
+            adminToken,
+            jwtPrivateKey,
+            jwtPublicKey,
+            corsAllowedOrigins,
+            adminAllowedCidrs,
+            rateLimitEnabled,
+            rateLimitWindow,
+            authRateLimit,
+            serverRateLimit,
+            adminRateLimit,
+            true
+        );
+    }
+
+    public static void validateForStartup(
+        String[] activeProfiles,
+        String adminToken,
+        String jwtPrivateKey,
+        String jwtPublicKey,
+        String corsAllowedOrigins,
+        String adminAllowedCidrs,
+        boolean rateLimitEnabled,
+        Duration rateLimitWindow,
+        int authRateLimit,
+        int serverRateLimit,
+        int adminRateLimit,
+        boolean rateLimitFailClosedOnRedisError
+    ) {
         if (!hasProductionProfile(activeProfiles)) {
             return;
         }
@@ -149,6 +183,7 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         requirePositiveInt("app.rate-limit.auth-limit", authRateLimit);
         requirePositiveInt("app.rate-limit.server-limit", serverRateLimit);
         requirePositiveInt("app.rate-limit.admin-limit", adminRateLimit);
+        requireTrue("app.rate-limit.fail-closed-on-redis-error", rateLimitFailClosedOnRedisError);
     }
 
     private static void requireProductionSecret(String propertyName, String value, Set<String> unsafeValues) {

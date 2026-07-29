@@ -8,11 +8,14 @@ import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,15 +39,33 @@ class RateLimitingFilterTest {
 
     @Test
     void shouldUseTrustedClientIpAsServerBucketKey() throws Exception {
-        RateLimitingFilter filter = filter(true, 10, 1, 10);
+        FakeRateLimitCounter sharedCounter = new FakeRateLimitCounter();
+        RateLimitingFilter filter = filter(true, 10, 1, 10, sharedCounter);
 
         assertThat(doRequest(filter, "/server/runtime-events", "10.0.0.1", "server-a", null).status()).isEqualTo(200);
         assertThat(doRequest(filter, "/server/runtime-events", "10.0.0.1", "server-b", null).status()).isEqualTo(429);
         assertThat(rateLimitRejections("server")).isEqualTo(1.0);
 
-        RateLimitingFilter anotherFilter = filter(true, 10, 1, 10);
-        assertThat(doRequest(anotherFilter, "/server/runtime-events", "10.0.0.1", "server-c", null).status()).isEqualTo(200);
+        RateLimitingFilter anotherFilter = filter(true, 10, 1, 10, sharedCounter);
+        assertThat(doRequest(anotherFilter, "/server/runtime-events", "10.0.0.1", "server-c", null).status()).isEqualTo(429);
         assertThat(doRequest(anotherFilter, "/server/runtime-events", "10.0.0.2", "server-c", null).status()).isEqualTo(200);
+    }
+
+    @Test
+    void shouldUseConfiguredRedisFailurePolicy() throws Exception {
+        RateLimitingFilter failOpen = filter(true, 1, 1, 1, new FailingRateLimitCounter());
+        assertThat(doRequest(failOpen, "/auth/login", "10.0.0.1", null, null).status()).isEqualTo(200);
+
+        RateLimitProperties properties = properties(true, 1, 1, 1);
+        properties.setFailClosedOnRedisError(true);
+        RateLimitingFilter failClosed = new RateLimitingFilter(
+            properties,
+            meterRegistry,
+            new TrustedClientIpResolver(new TrustedProxyProperties()),
+            new FailingRateLimitCounter()
+        );
+        assertThat(doRequest(failClosed, "/auth/login", "10.0.0.1", null, null).status()).isEqualTo(503);
+        assertThat(rateLimitErrors("auth")).isEqualTo(2.0);
     }
 
     @Test
@@ -65,17 +86,43 @@ class RateLimitingFilterTest {
     }
 
     private RateLimitingFilter filter(boolean enabled, int authLimit, int serverLimit, int adminLimit) {
+        return filter(enabled, authLimit, serverLimit, adminLimit, new FakeRateLimitCounter());
+    }
+
+    private RateLimitingFilter filter(
+        boolean enabled,
+        int authLimit,
+        int serverLimit,
+        int adminLimit,
+        RateLimitCounter counter
+    ) {
+        return new RateLimitingFilter(
+            properties(enabled, authLimit, serverLimit, adminLimit),
+            meterRegistry,
+            new TrustedClientIpResolver(new TrustedProxyProperties()),
+            counter
+        );
+    }
+
+    private RateLimitProperties properties(boolean enabled, int authLimit, int serverLimit, int adminLimit) {
         RateLimitProperties properties = new RateLimitProperties();
         properties.setEnabled(enabled);
         properties.setWindow(Duration.ofMinutes(1));
         properties.setAuthLimit(authLimit);
         properties.setServerLimit(serverLimit);
         properties.setAdminLimit(adminLimit);
-        return new RateLimitingFilter(properties, meterRegistry, new TrustedClientIpResolver(new TrustedProxyProperties()));
+        return properties;
     }
 
     private double rateLimitRejections(String bucket) {
         return meterRegistry.get("backend.rate_limit.rejections")
+            .tag("bucket", bucket)
+            .counter()
+            .count();
+    }
+
+    private double rateLimitErrors(String bucket) {
+        return meterRegistry.get("backend.rate_limit.errors")
             .tag("bucket", bucket)
             .counter()
             .count();
@@ -133,6 +180,22 @@ class RateLimitingFilterTest {
 
         private int count() {
             return count.get();
+        }
+    }
+
+    private static final class FakeRateLimitCounter implements RateLimitCounter {
+        private final Map<String, AtomicInteger> values = new ConcurrentHashMap<>();
+
+        @Override
+        public long increment(String key, Duration ttl) {
+            return values.computeIfAbsent(key, ignored -> new AtomicInteger()).incrementAndGet();
+        }
+    }
+
+    private static final class FailingRateLimitCounter implements RateLimitCounter {
+        @Override
+        public long increment(String key, Duration ttl) {
+            throw new RedisConnectionFailureException("Redis unavailable");
         }
     }
 }

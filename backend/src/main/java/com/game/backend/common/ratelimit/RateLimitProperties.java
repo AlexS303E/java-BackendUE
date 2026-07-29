@@ -11,6 +11,7 @@ public class RateLimitProperties {
     private int authLimit = 60;
     private int serverLimit = 600;
     private int adminLimit = 120;
+    private boolean failClosedOnRedisError = false;
 
     public boolean isEnabled() {
         return enabled;
@@ -50,5 +51,13 @@ public class RateLimitProperties {
 
     public void setAdminLimit(int adminLimit) {
         this.adminLimit = adminLimit;
+    }
+
+    public boolean isFailClosedOnRedisError() {
+        return failClosedOnRedisError;
+    }
+
+    public void setFailClosedOnRedisError(boolean failClosedOnRedisError) {
+        this.failClosedOnRedisError = failClosedOnRedisError;
     }
 }

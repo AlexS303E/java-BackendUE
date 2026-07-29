@@ -122,6 +122,23 @@ class ProductionHardeningValidatorTest {
         ))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("app.rate-limit.auth-limit");
+
+        assertThatThrownBy(() -> ProductionHardeningValidator.validateForStartup(
+            new String[]{"prod"},
+            ADMIN_TOKEN,
+            PRIVATE_KEY,
+            PUBLIC_KEY,
+            CORS,
+            ADMIN_CIDRS,
+            true,
+            Duration.ofMinutes(1),
+            60,
+            600,
+            120,
+            false
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("app.rate-limit.fail-closed-on-redis-error");
     }
 
     @Test

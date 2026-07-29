@@ -37,6 +37,7 @@ app:
     auth-limit: ${RATE_LIMIT_AUTH_LIMIT:60}
     server-limit: ${RATE_LIMIT_SERVER_LIMIT:600}
     admin-limit: ${RATE_LIMIT_ADMIN_LIMIT:120}
+    fail-closed-on-redis-error: ${RATE_LIMIT_FAIL_CLOSED_ON_REDIS_ERROR:true}
   admin:
     token: ${ADMIN_TOKEN}
     allowed-cidrs: ${ADMIN_ALLOWED_CIDRS}

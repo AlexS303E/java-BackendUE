@@ -8,45 +8,46 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 public class RateLimitingFilter extends OncePerRequestFilter {
     private static final String RATE_LIMIT_CODE = "RATE_LIMIT_EXCEEDED";
+    private static final String RATE_LIMIT_UNAVAILABLE_CODE = "RATE_LIMIT_UNAVAILABLE";
 
     private final RateLimitProperties properties;
     private final Clock clock;
     private final MeterRegistry meterRegistry;
     private final TrustedClientIpResolver clientIpResolver;
-    private final Map<String, WindowCounter> counters = new ConcurrentHashMap<>();
-    private final AtomicLong lastCleanupAt = new AtomicLong(0);
+    private final RateLimitCounter counter;
 
     @Autowired
     public RateLimitingFilter(
         RateLimitProperties properties,
         MeterRegistry meterRegistry,
-        TrustedClientIpResolver clientIpResolver
+        TrustedClientIpResolver clientIpResolver,
+        RateLimitCounter counter
     ) {
-        this(properties, Clock.systemUTC(), meterRegistry, clientIpResolver);
+        this(properties, Clock.systemUTC(), meterRegistry, clientIpResolver, counter);
     }
 
     RateLimitingFilter(
         RateLimitProperties properties,
         Clock clock,
         MeterRegistry meterRegistry,
-        TrustedClientIpResolver clientIpResolver
+        TrustedClientIpResolver clientIpResolver,
+        RateLimitCounter counter
     ) {
         this.properties = properties;
         this.clock = clock;
         this.meterRegistry = meterRegistry;
         this.clientIpResolver = clientIpResolver;
+        this.counter = counter;
     }
 
     @Override
@@ -63,17 +64,25 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
         long now = clock.millis();
         long windowMillis = Math.max(1000, properties.getWindow().toMillis());
-        cleanupExpiredCounters(now, windowMillis);
-
-        WindowCounter counter = counters.computeIfAbsent(bucket.key(), ignored -> new WindowCounter(now));
-        int count = counter.incrementAndGet(now, windowMillis);
-        if (count <= bucket.limit()) {
-            filterChain.doFilter(request, response);
+        long retryAfterMillis = retryAfterMillis(now, windowMillis);
+        try {
+            long count = counter.increment(bucket.key(now, windowMillis), java.time.Duration.ofMillis(retryAfterMillis));
+            if (count <= bucket.limit()) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+        } catch (DataAccessException e) {
+            recordRateLimitError(bucket.group());
+            if (!properties.isFailClosedOnRedisError()) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+            writeRateLimitUnavailable(response);
             return;
         }
 
         recordRateLimitRejection(bucket.group());
-        writeRateLimited(response, retryAfterSeconds(counter, now, windowMillis));
+        writeRateLimited(response, retryAfterSeconds(retryAfterMillis));
     }
 
     private RateLimitBucket bucketFor(HttpServletRequest request) {
@@ -94,21 +103,13 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         return clientIpResolver.resolve(request);
     }
 
-    private int retryAfterSeconds(WindowCounter counter, long now, long windowMillis) {
-        long windowAge = Math.max(0, now - counter.windowStartMillis());
-        long retryAfterMillis = Math.max(1000, windowMillis - windowAge);
-        return (int) Math.ceil(retryAfterMillis / 1000.0);
+    private long retryAfterMillis(long now, long windowMillis) {
+        long currentWindowStart = Math.floorDiv(now, windowMillis) * windowMillis;
+        return Math.max(1000, currentWindowStart + windowMillis - now);
     }
 
-    private void cleanupExpiredCounters(long now, long windowMillis) {
-        long previousCleanupAt = lastCleanupAt.get();
-        if (now - previousCleanupAt < windowMillis) {
-            return;
-        }
-        if (!lastCleanupAt.compareAndSet(previousCleanupAt, now)) {
-            return;
-        }
-        counters.entrySet().removeIf(entry -> now - entry.getValue().windowStartMillis() > windowMillis * 2);
+    private int retryAfterSeconds(long retryAfterMillis) {
+        return (int) Math.ceil(retryAfterMillis / 1000.0);
     }
 
     private void writeRateLimited(HttpServletResponse response, int retryAfterSeconds) throws IOException {
@@ -121,6 +122,17 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         );
     }
 
+    private void writeRateLimitUnavailable(HttpServletResponse response) throws IOException {
+        response.setStatus(503);
+        response.setHeader("Retry-After", "1");
+        response.setContentType("application/problem+json");
+        response.getWriter().write(
+            "{\"title\":\"" + RATE_LIMIT_UNAVAILABLE_CODE
+                + "\",\"status\":503,\"detail\":\"Rate limiter is unavailable\",\"code\":\""
+                + RATE_LIMIT_UNAVAILABLE_CODE + "\"}"
+        );
+    }
+
     private void recordRateLimitRejection(String bucketGroup) {
         Counter.builder("backend.rate_limit.rejections")
             .description("Rejected requests by fixed-window rate limit bucket group")
@@ -129,28 +141,17 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             .increment();
     }
 
-    private record RateLimitBucket(String group, String key, int limit) {
+    private void recordRateLimitError(String bucketGroup) {
+        Counter.builder("backend.rate_limit.errors")
+            .description("Redis rate-limit counter errors by bucket group")
+            .tag("bucket", bucketGroup)
+            .register(meterRegistry)
+            .increment();
     }
 
-    private static final class WindowCounter {
-        private long windowStartMillis;
-        private int count;
-
-        private WindowCounter(long windowStartMillis) {
-            this.windowStartMillis = windowStartMillis;
-        }
-
-        private synchronized int incrementAndGet(long now, long windowMillis) {
-            if (now - windowStartMillis >= windowMillis) {
-                windowStartMillis = now;
-                count = 0;
-            }
-            count++;
-            return count;
-        }
-
-        private synchronized long windowStartMillis() {
-            return windowStartMillis;
+    private record RateLimitBucket(String group, String keyPrefix, int limit) {
+        private String key(long now, long windowMillis) {
+            return "ue:rate-limit:" + keyPrefix + ":" + Math.floorDiv(now, windowMillis);
         }
     }
 }
