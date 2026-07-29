@@ -28,7 +28,7 @@ class Stage4ReleaseGateTest {
             .contains("tools\\mtls\\run-mtls-smoke.ps1")
             .contains("tools\\load\\run-load-smoke.ps1")
             .contains("--no-daemon bootJar")
-            .contains("-SkipOpenApi:$SkipOpenApi")
+            .contains("$runAllTestsParameters.SkipOpenApi = $true")
             .contains("[switch]$ListSteps")
             .contains("[string]$SummaryPath = \"artifacts/stage4/stage4-gate-summary.json\"")
             .contains("[switch]$NoSummary")

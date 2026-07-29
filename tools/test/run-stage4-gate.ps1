@@ -78,6 +78,16 @@ function Add-GateStep {
     }) | Out-Null
 }
 
+function Mark-UnstartedStepsAsSkipped {
+    param([System.Collections.Generic.List[object]]$Steps)
+
+    foreach ($step in $Steps) {
+        if ($step.status -eq "run" -and [string]::IsNullOrWhiteSpace($step.started_at)) {
+            $step.status = "skip"
+        }
+    }
+}
+
 function Test-ReleaseGateHasSkippedChecks {
     return [bool]($SkipOpenApi -or $SkipBootJar -or $SkipProdSmoke -or $SkipMtlsSmoke -or $SkipLoadSmoke)
 }
@@ -284,7 +294,15 @@ try {
 
         if (-not $SkipLoadSmoke) {
             Invoke-CheckedStep "Stage 4 release gate: load smoke" {
-                & powershell -NoProfile -ExecutionPolicy Bypass -File $loadSmoke
+                $loadSmokeParameters = @{
+                    RepoRoot = $root
+                    JavaHome = $JavaHome
+                    StartBackend = $true
+                }
+                if ($SkipDocker) {
+                    $loadSmokeParameters.SkipDocker = $true
+                }
+                & $loadSmoke @loadSmokeParameters
             } -Step $plannedSteps[$stepIndex]
         }
     }
@@ -301,6 +319,7 @@ try {
     } else {
         $null
     }
+    Mark-UnstartedStepsAsSkipped -Steps $plannedSteps
     Write-GateSummary -Path $SummaryPath -GateMode $Mode -Result "failed" -Steps $plannedSteps -ErrorMessage $_.Exception.Message -DurationMs $gateDurationMs -GateStartedAt $gateStartedAt -GateFinishedAt $gateFinishedAt
     throw
 }
