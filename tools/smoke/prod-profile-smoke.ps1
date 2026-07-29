@@ -123,8 +123,14 @@ try {
         "MANAGEMENT_SERVER_PORT",
         "MANAGEMENT_SERVER_ADDRESS",
         "ADMIN_TOKEN",
+        "APP_ADMIN_IDENTITIES_0_ID",
+        "APP_ADMIN_IDENTITIES_0_TOKEN",
+        "APP_ADMIN_IDENTITIES_0_ROLES",
         "JWT_PRIVATE_KEY",
         "JWT_PUBLIC_KEY",
+        "JWT_ISSUER",
+        "JWT_AUDIENCE",
+        "JWT_KEY_ID",
         "ADMIN_ALLOWED_CIDRS",
         "CORS_ALLOWED_ORIGINS",
         "SERVER_MTLS_ENABLED",
@@ -163,7 +169,10 @@ try {
     $env:SERVER_PORT = [string]$PublicPort
     $env:MANAGEMENT_SERVER_PORT = [string]$ManagementPort
     $env:MANAGEMENT_SERVER_ADDRESS = "127.0.0.1"
-    $env:ADMIN_TOKEN = "prod-smoke-admin-token"
+    Remove-Item Env:ADMIN_TOKEN -ErrorAction SilentlyContinue
+    $env:APP_ADMIN_IDENTITIES_0_ID = "prod-smoke-admin"
+    $env:APP_ADMIN_IDENTITIES_0_TOKEN = "prod-smoke-admin-token"
+    $env:APP_ADMIN_IDENTITIES_0_ROLES = "status,access,catalog,ops,security"
     & openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out $jwtPrivateKey | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw "openssl genpkey failed with exit code $LASTEXITCODE"
@@ -174,6 +183,9 @@ try {
     }
     $env:JWT_PRIVATE_KEY = "file:$jwtPrivateKey"
     $env:JWT_PUBLIC_KEY = "file:$jwtPublicKey"
+    $env:JWT_ISSUER = "https://prod-smoke.example"
+    $env:JWT_AUDIENCE = "prod-smoke-client"
+    $env:JWT_KEY_ID = "prod-smoke-key"
     $env:ADMIN_ALLOWED_CIDRS = "127.0.0.1/32,::1/128"
     $env:CORS_ALLOWED_ORIGINS = $CorsOrigin
     $env:SERVER_MTLS_ENABLED = "true"

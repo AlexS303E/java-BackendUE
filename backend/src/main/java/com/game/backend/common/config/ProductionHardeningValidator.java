@@ -71,7 +71,8 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
             authRateLimit,
             serverRateLimit,
             adminRateLimit,
-            rateLimitFailClosedOnRedisError
+            rateLimitFailClosedOnRedisError,
+            false
         );
     }
 
@@ -167,11 +168,45 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         int adminRateLimit,
         boolean rateLimitFailClosedOnRedisError
     ) {
+        validateForStartup(
+            activeProfiles,
+            adminToken,
+            jwtPrivateKey,
+            jwtPublicKey,
+            corsAllowedOrigins,
+            adminAllowedCidrs,
+            rateLimitEnabled,
+            rateLimitWindow,
+            authRateLimit,
+            serverRateLimit,
+            adminRateLimit,
+            rateLimitFailClosedOnRedisError,
+            true
+        );
+    }
+
+    static void validateForStartup(
+        String[] activeProfiles,
+        String adminToken,
+        String jwtPrivateKey,
+        String jwtPublicKey,
+        String corsAllowedOrigins,
+        String adminAllowedCidrs,
+        boolean rateLimitEnabled,
+        Duration rateLimitWindow,
+        int authRateLimit,
+        int serverRateLimit,
+        int adminRateLimit,
+        boolean rateLimitFailClosedOnRedisError,
+        boolean validateLegacyAdminToken
+    ) {
         if (!hasProductionProfile(activeProfiles)) {
             return;
         }
 
-        requireProductionSecret("app.admin.token", adminToken, UNSAFE_ADMIN_TOKENS);
+        if (validateLegacyAdminToken) {
+            requireProductionSecret("app.admin.token", adminToken, UNSAFE_ADMIN_TOKENS);
+        }
         requireRequired("app.auth.jwt-private-key", jwtPrivateKey);
         requireRequired("app.auth.jwt-public-key", jwtPublicKey);
         rejectInlinePem("app.auth.jwt-private-key", jwtPrivateKey);
