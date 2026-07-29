@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -36,18 +37,40 @@ public class JwtTokenService {
     private final PrivateKey privateKey;
     private final PublicKey publicKey;
     private final Duration accessTokenTtl;
+    private final String issuer;
+    private final String audience;
+    private final String keyId;
 
+    @Autowired
     public JwtTokenService(
         ObjectMapper objectMapper,
         @Value("${app.auth.jwt-private-key:}") String jwtPrivateKey,
         @Value("${app.auth.jwt-public-key:}") String jwtPublicKey,
-        @Value("${app.auth.access-token-ttl:PT15M}") String accessTokenTtl
+        @Value("${app.auth.access-token-ttl:PT15M}") String accessTokenTtl,
+        @Value("${app.auth.jwt-issuer:backend-for-ue-local}") String issuer,
+        @Value("${app.auth.jwt-audience:backend-for-ue-client}") String audience,
+        @Value("${app.auth.jwt-key-id:local-rs256}") String keyId
     ) {
         this.objectMapper = objectMapper;
         KeyPair keyPair = resolveKeyPair(jwtPrivateKey, jwtPublicKey);
         this.privateKey = keyPair.getPrivate();
         this.publicKey = keyPair.getPublic();
         this.accessTokenTtl = Duration.parse(accessTokenTtl);
+        this.issuer = requireClaimValue("app.auth.jwt-issuer", issuer);
+        this.audience = requireClaimValue("app.auth.jwt-audience", audience);
+        this.keyId = requireClaimValue("app.auth.jwt-key-id", keyId);
+    }
+
+    JwtTokenService(ObjectMapper objectMapper, String jwtPrivateKey, String jwtPublicKey, String accessTokenTtl) {
+        this(
+            objectMapper,
+            jwtPrivateKey,
+            jwtPublicKey,
+            accessTokenTtl,
+            "backend-for-ue-local",
+            "backend-for-ue-client",
+            "local-rs256"
+        );
     }
 
     public String issueAccessToken(UUID playerId, String loginName) {
@@ -55,13 +78,19 @@ public class JwtTokenService {
         Instant expiresAt = now.plus(accessTokenTtl);
         Map<String, Object> header = Map.of(
             "alg", "RS256",
-            "typ", "JWT"
+            "typ", "JWT",
+            "kid", keyId
         );
         Map<String, Object> payload = Map.of(
             "sub", playerId.toString(),
             "login_name", loginName,
+            "iss", issuer,
+            "aud", audience,
             "iat", now.getEpochSecond(),
-            "exp", expiresAt.getEpochSecond()
+            "nbf", now.getEpochSecond(),
+            "exp", expiresAt.getEpochSecond(),
+            "jti", UUID.randomUUID().toString(),
+            "auth_version", 1
         );
 
         String headerPart = base64Url(toJson(header));
@@ -81,7 +110,9 @@ public class JwtTokenService {
                 Base64.getUrlDecoder().decode(parts[0]),
                 MAP_TYPE
             );
-            if (!"RS256".equals(header.get("alg"))) {
+            if (!"RS256".equals(header.get("alg"))
+                || !"JWT".equals(header.get("typ"))
+                || !keyId.equals(header.get("kid"))) {
                 return Optional.empty();
             }
         } catch (Exception exception) {
@@ -106,7 +137,13 @@ public class JwtTokenService {
                 MAP_TYPE
             );
             long expiresAt = ((Number) payload.get("exp")).longValue();
-            if (Instant.now().getEpochSecond() >= expiresAt) {
+            long notBefore = ((Number) payload.get("nbf")).longValue();
+            long now = Instant.now().getEpochSecond();
+            if (now < notBefore || now >= expiresAt
+                || !issuer.equals(payload.get("iss"))
+                || !audience.equals(payload.get("aud"))
+                || !(payload.get("jti") instanceof String jti) || jti.isBlank()
+                || !Integer.valueOf(1).equals(((Number) payload.get("auth_version")).intValue())) {
                 return Optional.empty();
             }
             UUID playerId = UUID.fromString((String) payload.get("sub"));
@@ -119,6 +156,13 @@ public class JwtTokenService {
 
     public long accessTokenTtlSeconds() {
         return accessTokenTtl.toSeconds();
+    }
+
+    private String requireClaimValue(String propertyName, String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(propertyName + " must not be blank");
+        }
+        return value.trim();
     }
 
     private String toJson(Object value) {

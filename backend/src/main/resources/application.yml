@@ -49,6 +49,9 @@ app:
   auth:
     jwt-private-key: ${JWT_PRIVATE_KEY:}
     jwt-public-key: ${JWT_PUBLIC_KEY:}
+    jwt-issuer: ${JWT_ISSUER:backend-for-ue-local}
+    jwt-audience: ${JWT_AUDIENCE:backend-for-ue-client}
+    jwt-key-id: ${JWT_KEY_ID:local-rs256}
     access-token-ttl: ${ACCESS_TOKEN_TTL:PT15M}
     refresh-token-ttl: ${REFRESH_TOKEN_TTL:P14D}
   outbox:

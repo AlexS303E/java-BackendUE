@@ -34,6 +34,18 @@ class JwtTokenServiceTest {
             }
         );
         assertThat(header.get("alg")).isEqualTo("RS256");
+        assertThat(header.get("typ")).isEqualTo("JWT");
+        assertThat(header.get("kid")).isEqualTo("local-rs256");
+        Map<String, Object> payload = objectMapper.readValue(
+            Base64.getUrlDecoder().decode(token.split("\\.")[1]),
+            new TypeReference<>() {
+            }
+        );
+        assertThat(payload)
+            .containsEntry("iss", "backend-for-ue-local")
+            .containsEntry("aud", "backend-for-ue-client")
+            .containsEntry("auth_version", 1)
+            .containsKeys("jti", "nbf");
         assertThat(service.validate(token)).contains(new AuthenticatedPlayer(playerId, "player"));
     }
 
@@ -53,6 +65,31 @@ class JwtTokenServiceTest {
         String tampered = segments[0] + "." + segments[1] + "." + replacement + segments[2].substring(1);
 
         assertThat(service.validate(tampered)).isEmpty();
+    }
+
+    @Test
+    void shouldRejectTokenForAnotherIssuerOrAudience() throws Exception {
+        KeyPair keyPair = keyPair();
+        JwtTokenService issuingService = new JwtTokenService(
+            objectMapper,
+            privatePem(keyPair),
+            publicPem(keyPair),
+            "PT15M",
+            "https://issuer.example",
+            "game-client",
+            "key-2026-07"
+        );
+        JwtTokenService validatingService = new JwtTokenService(
+            objectMapper,
+            privatePem(keyPair),
+            publicPem(keyPair),
+            "PT15M",
+            "https://other-issuer.example",
+            "game-client",
+            "key-2026-07"
+        );
+
+        assertThat(validatingService.validate(issuingService.issueAccessToken(UUID.randomUUID(), "player"))).isEmpty();
     }
 
     private KeyPair keyPair() throws Exception {

@@ -45,6 +45,9 @@ app:
   auth:
     jwt-private-key: ${JWT_PRIVATE_KEY}
     jwt-public-key: ${JWT_PUBLIC_KEY}
+    jwt-issuer: ${JWT_ISSUER}
+    jwt-audience: ${JWT_AUDIENCE}
+    jwt-key-id: ${JWT_KEY_ID}
   server-auth:
     mtls:
       enabled: ${SERVER_MTLS_ENABLED:true}
