@@ -197,6 +197,45 @@ class FlywayMigrationIntegrationTest {
                 String.class
         );
         assertThat(v032Script).isEqualTo("V032__outbox_claim_queue_index.sql");
+
+        String v033Script = jdbcTemplate.queryForObject(
+                """
+                    SELECT script
+                    FROM flyway_schema_history
+                    WHERE version = '033'
+                      AND success = true
+                    ORDER BY installed_rank DESC
+                    LIMIT 1
+                    """,
+                String.class
+        );
+        assertThat(v033Script).isEqualTo("V033__outbox_fenced_leases.sql");
+
+        String v034Script = jdbcTemplate.queryForObject(
+                """
+                    SELECT script
+                    FROM flyway_schema_history
+                    WHERE version = '034'
+                      AND success = true
+                    ORDER BY installed_rank DESC
+                    LIMIT 1
+                    """,
+                String.class
+        );
+        assertThat(v034Script).isEqualTo("V034__normalize_player_login_name_uniqueness.sql");
+
+        String v035Script = jdbcTemplate.queryForObject(
+                """
+                    SELECT script
+                    FROM flyway_schema_history
+                    WHERE version = '035'
+                      AND success = true
+                    ORDER BY installed_rank DESC
+                    LIMIT 1
+                    """,
+                String.class
+        );
+        assertThat(v035Script).isEqualTo("V035__catalog_bootstrap_defaults.sql");
     }
 
     @Test
@@ -216,6 +255,8 @@ class FlywayMigrationIntegrationTest {
                 "catalog_id_migration_map",
                 "catalog_items",
                 "catalog_item_fragments",
+                "catalog_bootstrap_weapon_defaults",
+                "catalog_bootstrap_outfit_defaults",
                 "item_team_rules",
                 "item_class_rules",
                 "weapon_module_mounts",
@@ -268,6 +309,7 @@ class FlywayMigrationIntegrationTest {
         assertThat(indexExists("idx_outfit_item_team_rules_lookup")).isTrue();
         assertThat(indexExists("idx_server_identity_certificates_usable")).isTrue();
         assertThat(indexExists("idx_outbox_events_claim_queue")).isTrue();
+        assertThat(indexExists("uq_player_accounts_login_name_normalized")).isTrue();
 
         Map<String, Object> activeCatalogIndex = uniquePartialIndex("uq_catalog_active_new_matches");
         assertThat(activeCatalogIndex.get("is_unique")).isEqualTo(true);
@@ -294,6 +336,7 @@ class FlywayMigrationIntegrationTest {
         assertThat(columnType("catalog_item_fragments", "payload")).isEqualTo("jsonb");
         assertThat(columnType("player_match_profiles", "payload")).isEqualTo("jsonb");
         assertThat(columnType("outbox_events", "payload")).isEqualTo("jsonb");
+        assertThat(columnType("outbox_events", "processing_token")).isEqualTo("uuid");
         assertThat(columnType("server_identities", "allowed_scopes")).isEqualTo("_text");
         assertThat(columnType("server_identity_certificates", "certificate_fingerprint")).isEqualTo("text");
     }
@@ -357,6 +400,20 @@ class FlywayMigrationIntegrationTest {
         assertThat(rowExists("SELECT 1 FROM class_weapon_slot_rules WHERE class_tag = 'class.assault' AND weapon_slot_id = 'grenade' AND is_allowed = true")).isTrue();
         assertThat(rowExists("SELECT 1 FROM outfit_preset_rules WHERE team_tag = 'team.red' AND class_tag = 'class.assault' AND base_outfit_preset_count >= 1")).isTrue();
         assertThat(rowExists("SELECT 1 FROM outfit_preset_rules WHERE team_tag = 'team.blue' AND class_tag = 'class.assault' AND base_outfit_preset_count >= 1")).isTrue();
+        assertThat(rowExists("""
+                SELECT 1
+                FROM catalog_bootstrap_weapon_defaults
+                WHERE catalog_version = 1
+                  AND class_tag = 'class.assault'
+                  AND weapon_id = 'weapon.ak12'
+                """)).isTrue();
+        assertThat(rowExists("""
+                SELECT 1
+                FROM catalog_bootstrap_outfit_defaults
+                WHERE catalog_version = 1
+                  AND team_tag = 'team.red'
+                  AND item_id = 'clothing.team_red.jacket_01'
+                """)).isTrue();
 
         assertThat(rowExists("""
                 SELECT 1
