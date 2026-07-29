@@ -21,6 +21,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,12 +35,11 @@ public class JwtTokenService {
     };
 
     private final ObjectMapper objectMapper;
-    private final PrivateKey privateKey;
-    private final PublicKey publicKey;
+    private final Map<String, KeyPair> keyRing;
     private final Duration accessTokenTtl;
     private final String issuer;
     private final String audience;
-    private final String keyId;
+    private final String activeKeyId;
 
     @Autowired
     public JwtTokenService(
@@ -49,16 +49,16 @@ public class JwtTokenService {
         @Value("${app.auth.access-token-ttl:PT15M}") String accessTokenTtl,
         @Value("${app.auth.jwt-issuer:backend-for-ue-local}") String issuer,
         @Value("${app.auth.jwt-audience:backend-for-ue-client}") String audience,
-        @Value("${app.auth.jwt-key-id:local-rs256}") String keyId
+        @Value("${app.auth.jwt-key-id:local-rs256}") String keyId,
+        JwtKeyRingProperties keyRingProperties
     ) {
         this.objectMapper = objectMapper;
-        KeyPair keyPair = resolveKeyPair(jwtPrivateKey, jwtPublicKey);
-        this.privateKey = keyPair.getPrivate();
-        this.publicKey = keyPair.getPublic();
+        KeyRing resolvedKeyRing = resolveKeyRing(jwtPrivateKey, jwtPublicKey, keyId, keyRingProperties);
+        this.keyRing = resolvedKeyRing.keys();
+        this.activeKeyId = resolvedKeyRing.activeKeyId();
         this.accessTokenTtl = Duration.parse(accessTokenTtl);
         this.issuer = requireClaimValue("app.auth.jwt-issuer", issuer);
         this.audience = requireClaimValue("app.auth.jwt-audience", audience);
-        this.keyId = requireClaimValue("app.auth.jwt-key-id", keyId);
     }
 
     JwtTokenService(ObjectMapper objectMapper, String jwtPrivateKey, String jwtPublicKey, String accessTokenTtl) {
@@ -69,7 +69,29 @@ public class JwtTokenService {
             accessTokenTtl,
             "backend-for-ue-local",
             "backend-for-ue-client",
-            "local-rs256"
+            "local-rs256",
+            new JwtKeyRingProperties()
+        );
+    }
+
+    JwtTokenService(
+        ObjectMapper objectMapper,
+        String jwtPrivateKey,
+        String jwtPublicKey,
+        String accessTokenTtl,
+        String issuer,
+        String audience,
+        String keyId
+    ) {
+        this(
+            objectMapper,
+            jwtPrivateKey,
+            jwtPublicKey,
+            accessTokenTtl,
+            issuer,
+            audience,
+            keyId,
+            new JwtKeyRingProperties()
         );
     }
 
@@ -79,7 +101,7 @@ public class JwtTokenService {
         Map<String, Object> header = Map.of(
             "alg", "RS256",
             "typ", "JWT",
-            "kid", keyId
+            "kid", activeKeyId
         );
         Map<String, Object> payload = Map.of(
             "sub", playerId.toString(),
@@ -96,7 +118,7 @@ public class JwtTokenService {
         String headerPart = base64Url(toJson(header));
         String payloadPart = base64Url(toJson(payload));
         String signingInput = headerPart + "." + payloadPart;
-        return signingInput + "." + base64Url(sign(signingInput));
+        return signingInput + "." + base64Url(sign(signingInput, keyRing.get(activeKeyId).getPrivate()));
     }
 
     public Optional<AuthenticatedPlayer> validate(String token) {
@@ -112,7 +134,8 @@ public class JwtTokenService {
             );
             if (!"RS256".equals(header.get("alg"))
                 || !"JWT".equals(header.get("typ"))
-                || !keyId.equals(header.get("kid"))) {
+                || !(header.get("kid") instanceof String tokenKeyId)
+                || !keyRing.containsKey(tokenKeyId)) {
                 return Optional.empty();
             }
         } catch (Exception exception) {
@@ -127,7 +150,8 @@ public class JwtTokenService {
             return Optional.empty();
         }
 
-        if (!verify(signingInput, actualSignature)) {
+        String tokenKeyId = (String) headerKeyId(token);
+        if (tokenKeyId == null || !verify(signingInput, actualSignature, keyRing.get(tokenKeyId).getPublic())) {
             return Optional.empty();
         }
 
@@ -181,7 +205,15 @@ public class JwtTokenService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(value);
     }
 
-    private byte[] sign(String signingInput) {
+    private Object headerKeyId(String token) {
+        try {
+            return objectMapper.readValue(Base64.getUrlDecoder().decode(token.split("\\.")[0]), MAP_TYPE).get("kid");
+        } catch (Exception exception) {
+            return null;
+        }
+    }
+
+    private byte[] sign(String signingInput, PrivateKey privateKey) {
         try {
             Signature signature = Signature.getInstance("SHA256withRSA");
             signature.initSign(privateKey);
@@ -192,7 +224,7 @@ public class JwtTokenService {
         }
     }
 
-    private boolean verify(String signingInput, byte[] actualSignature) {
+    private boolean verify(String signingInput, byte[] actualSignature, PublicKey publicKey) {
         try {
             Signature signature = Signature.getInstance("SHA256withRSA");
             signature.initVerify(publicKey);
@@ -201,6 +233,37 @@ public class JwtTokenService {
         } catch (Exception exception) {
             return false;
         }
+    }
+
+    private KeyRing resolveKeyRing(
+        String privateKeyPem,
+        String publicKeyPem,
+        String legacyKeyId,
+        JwtKeyRingProperties keyRingProperties
+    ) {
+        if (!keyRingProperties.getJwtKeys().isEmpty()) {
+            Map<String, KeyPair> configuredKeys = new LinkedHashMap<>();
+            for (JwtKeyRingProperties.JwtKey configuredKey : keyRingProperties.getJwtKeys()) {
+                String keyId = requireClaimValue("app.auth.jwt-keys[].id", configuredKey.getId());
+                if (configuredKeys.putIfAbsent(
+                    keyId,
+                    new KeyPair(readPublicKey(configuredKey.getPublicKey()), readPrivateKey(configuredKey.getPrivateKey()))
+                ) != null) {
+                    throw new IllegalStateException("app.auth.jwt-keys contains duplicate id: " + keyId);
+                }
+            }
+            String configuredActiveKeyId = requireClaimValue(
+                "app.auth.jwt-active-key-id",
+                keyRingProperties.getJwtActiveKeyId()
+            );
+            if (!configuredKeys.containsKey(configuredActiveKeyId)) {
+                throw new IllegalStateException("app.auth.jwt-active-key-id must reference configured jwt-keys");
+            }
+            return new KeyRing(Map.copyOf(configuredKeys), configuredActiveKeyId);
+        }
+
+        String keyId = requireClaimValue("app.auth.jwt-key-id", legacyKeyId);
+        return new KeyRing(Map.of(keyId, resolveKeyPair(privateKeyPem, publicKeyPem)), keyId);
     }
 
     private KeyPair resolveKeyPair(String privateKeyPem, String publicKeyPem) {
@@ -252,5 +315,8 @@ public class JwtTokenService {
             return Files.readString(Path.of(value.substring("file:".length())), StandardCharsets.UTF_8);
         }
         return value;
+    }
+
+    private record KeyRing(Map<String, KeyPair> keys, String activeKeyId) {
     }
 }

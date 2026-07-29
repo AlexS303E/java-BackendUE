@@ -62,3 +62,5 @@ powershell -ExecutionPolicy Bypass -File tools\test\run-all-tests.ps1
 ```
 
 Production admin access uses independently configured identities instead of a shared token. Configure them with indexed environment variables, for example `APP_ADMIN_IDENTITIES_0_ID`, `APP_ADMIN_IDENTITIES_0_TOKEN`, and `APP_ADMIN_IDENTITIES_0_ROLES`.
+
+JWT key rotation is configured with `APP_AUTH_JWT_KEYS_0_ID`, `APP_AUTH_JWT_KEYS_0_PRIVATE_KEY`, `APP_AUTH_JWT_KEYS_0_PUBLIC_KEY` and `APP_AUTH_JWT_ACTIVE_KEY_ID`. Keep the previous public key in the list until every access token signed by it has expired.

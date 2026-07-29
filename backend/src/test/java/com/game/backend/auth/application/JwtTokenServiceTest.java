@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -90,6 +91,49 @@ class JwtTokenServiceTest {
         );
 
         assertThat(validatingService.validate(issuingService.issueAccessToken(UUID.randomUUID(), "player"))).isEmpty();
+    }
+
+    @Test
+    void shouldValidateTokenIssuedByPreviousKeyDuringRotation() throws Exception {
+        KeyPair previousKey = keyPair();
+        KeyPair activeKey = keyPair();
+        JwtKeyRingProperties previousActive = keyRing("previous", previousKey, activeKey);
+        JwtKeyRingProperties nextActive = keyRing("active", previousKey, activeKey);
+
+        JwtTokenService oldIssuer = new JwtTokenService(
+            objectMapper, "", "", "PT15M", "issuer", "audience", "legacy", previousActive
+        );
+        JwtTokenService rotatedService = new JwtTokenService(
+            objectMapper, "", "", "PT15M", "issuer", "audience", "legacy", nextActive
+        );
+
+        String previousToken = oldIssuer.issueAccessToken(UUID.randomUUID(), "player");
+        assertThat(rotatedService.validate(previousToken)).isPresent();
+        String activeToken = rotatedService.issueAccessToken(UUID.randomUUID(), "player");
+        Map<String, Object> activeHeader = objectMapper.readValue(
+            Base64.getUrlDecoder().decode(activeToken.split("\\.")[0]),
+            new TypeReference<>() {
+            }
+        );
+        assertThat(activeHeader).containsEntry("kid", "active");
+    }
+
+    private JwtKeyRingProperties keyRing(String activeKeyId, KeyPair previousKey, KeyPair activeKey) {
+        JwtKeyRingProperties properties = new JwtKeyRingProperties();
+        properties.setJwtActiveKeyId(activeKeyId);
+        properties.setJwtKeys(List.of(
+            key("previous", previousKey),
+            key("active", activeKey)
+        ));
+        return properties;
+    }
+
+    private JwtKeyRingProperties.JwtKey key(String id, KeyPair keyPair) {
+        JwtKeyRingProperties.JwtKey key = new JwtKeyRingProperties.JwtKey();
+        key.setId(id);
+        key.setPrivateKey(privatePem(keyPair));
+        key.setPublicKey(publicPem(keyPair));
+        return key;
     }
 
     private KeyPair keyPair() throws Exception {
