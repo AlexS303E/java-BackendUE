@@ -5,6 +5,10 @@ spring:
 app:
   admin:
     token: ${ADMIN_TOKEN:dev-admin-token}
+    identities:
+      - id: dev-admin
+        token: ${ADMIN_TOKEN:dev-admin-token}
+        roles: status,access,catalog,ops,security
 
 logging:
   level:

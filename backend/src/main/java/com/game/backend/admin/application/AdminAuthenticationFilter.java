@@ -50,12 +50,13 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String token = request.getHeader(ADMIN_TOKEN_HEADER);
-        if (properties.getToken() == null || properties.getToken().isBlank() || token == null || !properties.getToken().equals(token)) {
+        AuthenticatedAdmin authenticatedAdmin = authenticate(token);
+        if (authenticatedAdmin == null) {
             writeProblem(response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHENTICATED", "Admin token is required");
             return;
         }
 
-        Set<String> roles = rolesFor();
+        Set<String> roles = authenticatedAdmin.roles();
         String requiredRole = requiredRole(request);
         if (requiredRole == null) {
             writeProblem(response, HttpServletResponse.SC_FORBIDDEN, "ADMIN_ROUTE_FORBIDDEN", "Admin route is not assigned to a role");
@@ -70,7 +71,7 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        AdminIdentity identity = new AdminIdentity(actorIdFor(token), roles);
+        AdminIdentity identity = new AdminIdentity(authenticatedAdmin.actorId(), roles);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
             identity,
             "admin",
@@ -82,8 +83,34 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private Set<String> rolesFor() {
-        return properties.getDefaultRoles().stream()
+    private AuthenticatedAdmin authenticate(String token) {
+        if (token == null || token.isBlank()) {
+            return null;
+        }
+        if (!properties.getIdentities().isEmpty()) {
+            return properties.getIdentities().stream()
+                .filter(identity -> tokensEqual(identity.getToken(), token))
+                .findFirst()
+                .map(identity -> new AuthenticatedAdmin(identity.getId(), rolesFor(identity.getRoles())))
+                .orElse(null);
+        }
+        if (!tokensEqual(properties.getToken(), token)) {
+            return null;
+        }
+        return new AuthenticatedAdmin(actorIdFor(token), rolesFor(properties.getDefaultRoles()));
+    }
+
+    private boolean tokensEqual(String expectedToken, String actualToken) {
+        return expectedToken != null
+            && !expectedToken.isBlank()
+            && MessageDigest.isEqual(
+                expectedToken.getBytes(StandardCharsets.UTF_8),
+                actualToken.getBytes(StandardCharsets.UTF_8)
+            );
+    }
+
+    private Set<String> rolesFor(java.util.Collection<String> configuredRoles) {
+        return configuredRoles.stream()
             .map(this::normalizeRole)
             .filter(role -> !role.isBlank())
             .collect(Collectors.toUnmodifiableSet());
@@ -136,6 +163,9 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 must be available for admin credential identity", exception);
         }
+    }
+
+    private record AuthenticatedAdmin(String actorId, Set<String> roles) {
     }
 
     private boolean ipMatches(String clientIp, String rule) {

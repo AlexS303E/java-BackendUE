@@ -60,3 +60,5 @@ powershell -ExecutionPolicy Bypass -File .\tools\smoke\vertical-smoke.ps1
 
 powershell -ExecutionPolicy Bypass -File tools\test\run-all-tests.ps1
 ```
+
+Production admin access uses independently configured identities instead of a shared token. Configure them with indexed environment variables, for example `APP_ADMIN_IDENTITIES_0_ID`, `APP_ADMIN_IDENTITIES_0_TOKEN`, and `APP_ADMIN_IDENTITIES_0_ROLES`.

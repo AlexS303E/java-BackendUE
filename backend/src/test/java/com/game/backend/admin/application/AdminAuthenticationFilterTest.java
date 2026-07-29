@@ -102,6 +102,33 @@ class AdminAuthenticationFilterTest {
     }
 
     @Test
+    void shouldUseConfiguredIdentityAndRolesInsteadOfSharedTokenDefaults() throws Exception {
+        AdminSecurityProperties properties = new AdminSecurityProperties();
+        AdminSecurityProperties.AdminCredential credential = new AdminSecurityProperties.AdminCredential();
+        credential.setId("catalog-operator");
+        credential.setToken("catalog-token");
+        credential.setRoles(List.of("catalog"));
+        properties.setIdentities(List.of(credential));
+        AdminAuthenticationFilter filter = new AdminAuthenticationFilter(
+            properties,
+            new TrustedClientIpResolver(new TrustedProxyProperties())
+        );
+        MockHttpServletRequest request = request("POST", "/admin/catalog/publish", "127.0.0.1");
+        request.addHeader("X-Admin-Token", "catalog-token");
+        request.addHeader("X-Admin-Confirm", "true");
+
+        try {
+            filter.doFilter(request, new MockHttpServletResponse(), new CountingChain());
+
+            AdminIdentity identity = (AdminIdentity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            assertThat(identity.actorId()).isEqualTo("catalog-operator");
+            assertThat(identity.roles()).containsExactly("catalog");
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
     void shouldRequireConfirmationForAdminWriteActions() throws Exception {
         AdminAuthenticationFilter filter = filter(List.of(), List.of("ops"));
         MockHttpServletRequest request = request("POST", "/admin/control/outbox/retry-failed", "127.0.0.1");
