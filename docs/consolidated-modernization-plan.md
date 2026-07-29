@@ -18,11 +18,11 @@
 - [x] Outbox использует fenced lease с owner/token и отвергает завершение устаревшим worker.
 - [x] Запуск требует явный профиль `local` или `prod`; local secret не является базовым default.
 - [x] Audit actor больше не берётся из `X-Admin-Id`; production требует независимые admin credentials и роли.
-- [x] JWT RS256 проверяет `iss`, `aud`, `kid`, `jti`, `nbf` и `auth_version`; login нормализуется до поиска.
+- [x] JWT RS256 проверяет `iss`, `aud`, `kid`, `jti`, `nbf` и `auth_version`, поддерживает key ring/ротацию; login нормализуется до поиска.
 - [x] Bootstrap entitlement ledger вставляется set-based SQL.
 - [x] Management interface в production по умолчанию связан с loopback; добавлен GitHub Actions gate с PostgreSQL, Redis, Gradle, Flyway, bootJar и OpenAPI.
 
-Остаётся до production DoD: настроить реальный внешний OIDC либо secret-managed source для admin credentials и JWT key rotation, включить off-host immutable backup/PITR, а также выполнить multi-replica, Redis outage и restore drill в CI/стенде.
+Остаётся до production DoD: настроить реальный внешний OIDC либо secret-managed source для admin credentials и JWT key ring, включить off-host immutable backup/PITR, а также выполнить multi-replica, Redis outage и restore drill в CI/стенде.
 
 - Проверено: штатный Gradle-набор не проходит: 214 тестов, 2 ошибки в
   `QueryIndexCoverageIntegrationTest`. Проверка жёстко привязана к конкретному
