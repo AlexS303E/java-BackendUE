@@ -27,6 +27,25 @@ public class AuthRepository extends JdbcRepository {
     ) {
     }
 
+    public record WeaponBootstrapDefault(
+        String classTag,
+        int presetSlot,
+        String weaponSlotId,
+        String weaponId,
+        String mountId,
+        String moduleId
+    ) {
+    }
+
+    public record OutfitBootstrapDefault(
+        String teamTag,
+        String classTag,
+        int presetSlot,
+        String clothingSlotId,
+        String itemId
+    ) {
+    }
+
     public AuthRepository(JdbcTemplate jdbcTemplate) {
         super(jdbcTemplate);
     }
@@ -173,6 +192,45 @@ public class AuthRepository extends JdbcRepository {
                 """,
             Long.class,
             realmId
+        );
+    }
+
+    public List<WeaponBootstrapDefault> findWeaponBootstrapDefaults(long catalogVersion) {
+        return query(
+            """
+                SELECT class_tag, preset_slot, weapon_slot_id, weapon_id, mount_id, module_id
+                FROM catalog_bootstrap_weapon_defaults
+                WHERE catalog_version = ?
+                ORDER BY class_tag, preset_slot
+                """,
+            (rs, rowNum) -> new WeaponBootstrapDefault(
+                rs.getString("class_tag"),
+                rs.getInt("preset_slot"),
+                rs.getString("weapon_slot_id"),
+                rs.getString("weapon_id"),
+                rs.getString("mount_id"),
+                rs.getString("module_id")
+            ),
+            catalogVersion
+        );
+    }
+
+    public List<OutfitBootstrapDefault> findOutfitBootstrapDefaults(long catalogVersion) {
+        return query(
+            """
+                SELECT team_tag, class_tag, outfit_preset_slot, clothing_slot_id, item_id
+                FROM catalog_bootstrap_outfit_defaults
+                WHERE catalog_version = ?
+                ORDER BY team_tag, class_tag, outfit_preset_slot, clothing_slot_id
+                """,
+            (rs, rowNum) -> new OutfitBootstrapDefault(
+                rs.getString("team_tag"),
+                rs.getString("class_tag"),
+                rs.getInt("outfit_preset_slot"),
+                rs.getString("clothing_slot_id"),
+                rs.getString("item_id")
+            ),
+            catalogVersion
         );
     }
 
@@ -448,6 +506,7 @@ public class AuthRepository extends JdbcRepository {
         String classTag,
         int outfitPresetSlot,
         long catalogVersion,
+        String clothingSlotId,
         String itemId
     ) {
         update(
@@ -461,13 +520,14 @@ public class AuthRepository extends JdbcRepository {
                   clothing_slot_id,
                   item_id
                 )
-                VALUES (?, ?, ?, ?, ?, 'torso', ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
             playerId,
             teamTag,
             classTag,
             outfitPresetSlot,
             catalogVersion,
+            clothingSlotId,
             itemId
         );
     }

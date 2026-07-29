@@ -1,6 +1,8 @@
 package com.game.backend.auth.application;
 
 import com.game.backend.auth.repository.AuthRepository;
+import com.game.backend.auth.repository.AuthRepository.OutfitBootstrapDefault;
+import com.game.backend.auth.repository.AuthRepository.WeaponBootstrapDefault;
 
 import com.game.backend.common.api.ApiException;
 import org.springframework.http.HttpStatus;
@@ -8,6 +10,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -16,13 +20,6 @@ import java.util.UUID;
 @Service
 public class PlayerBootstrapService {
     private static final String DEFAULT_REALM_ID = "global";
-    private static final String DEFAULT_CLASS_TAG = "class.assault";
-    private static final int DEFAULT_PRESET_SLOT = 1;
-    private static final int DEFAULT_OUTFIT_PRESET_SLOT = 1;
-    private static final String DEFAULT_WEAPON_SLOT_ID = "primary";
-    private static final String DEFAULT_WEAPON_ID = "weapon.ak12";
-    private static final String DEFAULT_MOUNT_ID = "weapon.ak12.mount.scope.01";
-    private static final String DEFAULT_MODULE_ID = "module.scope.red_dot_01";
 
     private final AuthRepository repository;
 
@@ -63,71 +60,74 @@ public class PlayerBootstrapService {
      * Создает дефолтный weapon preset для class.assault.
      */
     private void bootstrapWeaponPreset(UUID playerId, long catalogVersion, OffsetDateTime now) {
-        repository.insertDefaultWeaponPreset(playerId, DEFAULT_CLASS_TAG, DEFAULT_PRESET_SLOT, catalogVersion, now);
-
-        repository.insertDefaultWeaponPresetSlots(
-            playerId,
-            DEFAULT_CLASS_TAG,
-            DEFAULT_PRESET_SLOT,
-            catalogVersion,
-            DEFAULT_WEAPON_SLOT_ID,
-            DEFAULT_WEAPON_ID
-        );
-
-        repository.insertDefaultWeaponConfig(
-            playerId,
-            DEFAULT_CLASS_TAG,
-            DEFAULT_PRESET_SLOT,
-            catalogVersion,
-            DEFAULT_WEAPON_SLOT_ID,
-            DEFAULT_WEAPON_ID,
-            now
-        );
-
-        repository.insertDefaultWeaponConfigModule(
-            playerId,
-            DEFAULT_CLASS_TAG,
-            DEFAULT_PRESET_SLOT,
-            catalogVersion,
-            DEFAULT_WEAPON_SLOT_ID,
-            DEFAULT_WEAPON_ID,
-            DEFAULT_MOUNT_ID,
-            DEFAULT_MODULE_ID
-        );
+        List<WeaponBootstrapDefault> defaults = repository.findWeaponBootstrapDefaults(catalogVersion);
+        if (defaults.isEmpty()) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "DEFAULT_WEAPON_PRESET_NOT_CONFIGURED", "No weapon bootstrap defaults configured");
+        }
+        for (WeaponBootstrapDefault defaultPreset : defaults) {
+            repository.insertDefaultWeaponPreset(playerId, defaultPreset.classTag(), defaultPreset.presetSlot(), catalogVersion, now);
+            repository.insertDefaultWeaponPresetSlots(
+                playerId,
+                defaultPreset.classTag(),
+                defaultPreset.presetSlot(),
+                catalogVersion,
+                defaultPreset.weaponSlotId(),
+                defaultPreset.weaponId()
+            );
+            repository.insertDefaultWeaponConfig(
+                playerId,
+                defaultPreset.classTag(),
+                defaultPreset.presetSlot(),
+                catalogVersion,
+                defaultPreset.weaponSlotId(),
+                defaultPreset.weaponId(),
+                now
+            );
+            if (defaultPreset.mountId() != null && defaultPreset.moduleId() != null) {
+                repository.insertDefaultWeaponConfigModule(
+                    playerId,
+                    defaultPreset.classTag(),
+                    defaultPreset.presetSlot(),
+                    catalogVersion,
+                    defaultPreset.weaponSlotId(),
+                    defaultPreset.weaponId(),
+                    defaultPreset.mountId(),
+                    defaultPreset.moduleId()
+                );
+            }
+        }
     }
 
     /**
      * Создает стартовые outfit presets для доступных команд.
      */
     private void bootstrapOutfitPresets(UUID playerId, long catalogVersion, OffsetDateTime now) {
-        List<String> teamTags = repository.findOutfitPresetTeamTags(DEFAULT_CLASS_TAG);
-
-        for (String teamTag : teamTags) {
-            repository.insertDefaultOutfitPreset(
-                playerId,
-                teamTag,
-                DEFAULT_CLASS_TAG,
-                DEFAULT_OUTFIT_PRESET_SLOT,
-                catalogVersion,
-                now
-            );
-
+        List<OutfitBootstrapDefault> defaults = repository.findOutfitBootstrapDefaults(catalogVersion);
+        if (defaults.isEmpty()) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "DEFAULT_OUTFIT_NOT_CONFIGURED", "No outfit bootstrap defaults configured");
+        }
+        Set<String> createdPresets = new HashSet<>();
+        for (OutfitBootstrapDefault defaultPreset : defaults) {
+            String presetKey = defaultPreset.teamTag() + "\u0000" + defaultPreset.classTag() + "\u0000" + defaultPreset.presetSlot();
+            if (createdPresets.add(presetKey)) {
+                repository.insertDefaultOutfitPreset(
+                    playerId,
+                    defaultPreset.teamTag(),
+                    defaultPreset.classTag(),
+                    defaultPreset.presetSlot(),
+                    catalogVersion,
+                    now
+                );
+            }
             repository.insertDefaultOutfitPresetItem(
                 playerId,
-                teamTag,
-                DEFAULT_CLASS_TAG,
-                DEFAULT_OUTFIT_PRESET_SLOT,
+                defaultPreset.teamTag(),
+                defaultPreset.classTag(),
+                defaultPreset.presetSlot(),
                 catalogVersion,
-                defaultJacketForTeam(teamTag)
+                defaultPreset.clothingSlotId(),
+                defaultPreset.itemId()
             );
         }
-    }
-
-    private String defaultJacketForTeam(String teamTag) {
-        return switch (teamTag) {
-            case "team.red" -> "clothing.team_red.jacket_01";
-            case "team.blue" -> "clothing.team_blue.jacket_01";
-            default -> throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "DEFAULT_OUTFIT_NOT_CONFIGURED", "No default outfit configured for " + teamTag);
-        };
     }
 }
