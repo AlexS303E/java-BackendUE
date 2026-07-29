@@ -3,6 +3,7 @@ package com.game.backend;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest(properties = {
@@ -12,6 +13,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
         + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
         + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"
 })
+@ActiveProfiles("local")
 class BackendApplicationTests {
     @MockitoBean
     private JdbcTemplate jdbcTemplate;

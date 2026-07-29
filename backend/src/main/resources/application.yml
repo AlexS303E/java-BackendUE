@@ -43,7 +43,7 @@ management:
 
 app:
   admin:
-    token: ${ADMIN_TOKEN:dev-admin-token}
+    token: ${ADMIN_TOKEN:}
     allowed-cidrs: ${ADMIN_ALLOWED_CIDRS:}
     default-roles: ${ADMIN_DEFAULT_ROLES:status,access,catalog,ops,security}
   auth:

@@ -22,7 +22,7 @@ Prerequisites:
 ```powershell
 docker compose up -d
 cd backend
-.\gradlew.bat bootRun
+.\gradlew.bat bootRun --args="--spring.profiles.active=local"
 ```
 
 The first implementation target should be the vertical flow:

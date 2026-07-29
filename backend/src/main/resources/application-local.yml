@@ -2,6 +2,10 @@ spring:
   flyway:
     clean-disabled: false
 
+app:
+  admin:
+    token: ${ADMIN_TOKEN:dev-admin-token}
+
 logging:
   level:
     com.game.backend: DEBUG

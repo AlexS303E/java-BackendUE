@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -21,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
         + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"
 })
+@ActiveProfiles("local")
 class OperationalTimeoutConfigurationTest {
     @Autowired
     private Environment environment;
@@ -52,7 +54,7 @@ class OperationalTimeoutConfigurationTest {
         String productionConfig = Files.readString(Path.of("src/main/resources/application-prod.yml"));
         assertThat(productionConfig)
             .contains("port: ${MANAGEMENT_SERVER_PORT:8081}")
-            .contains("address: ${MANAGEMENT_SERVER_ADDRESS:0.0.0.0}")
+            .contains("address: ${MANAGEMENT_SERVER_ADDRESS:127.0.0.1}")
             .contains("keep-alive-timeout: ${HTTP_KEEP_ALIVE_TIMEOUT:30s}")
             .contains("max-keep-alive-requests: ${HTTP_MAX_KEEP_ALIVE_REQUESTS:100}")
             .contains("include: health,info")

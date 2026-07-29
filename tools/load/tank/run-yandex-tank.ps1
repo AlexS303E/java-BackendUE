@@ -319,6 +319,7 @@ try {
         $startInfo.EnvironmentVariables["SERVER_MTLS_ENABLED"] = "false"
         $startInfo.EnvironmentVariables["SERVER_MTLS_ALLOW_HEADER_FINGERPRINT_FALLBACK"] = "true"
         $startInfo.EnvironmentVariables["OUTBOX_WORKER_ENABLED"] = "true"
+        $startInfo.EnvironmentVariables["SPRING_PROFILES_ACTIVE"] = "local"
 
         $backendProcess = New-Object System.Diagnostics.Process
         $backendProcess.StartInfo = $startInfo
