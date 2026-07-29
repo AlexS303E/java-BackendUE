@@ -233,11 +233,17 @@ if ($ListSteps) {
 
 try {
     Invoke-CheckedStep "Stage 4 fast gate: Gradle tests and OpenAPI contract verification" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $runAllTests `
-            -RepoRoot $root `
-            -JavaHome $JavaHome `
-            -SkipDocker:$SkipDocker `
-            -SkipOpenApi:$SkipOpenApi
+        $runAllTestsParameters = @{
+            RepoRoot = $root
+            JavaHome = $JavaHome
+        }
+        if ($SkipDocker) {
+            $runAllTestsParameters.SkipDocker = $true
+        }
+        if ($SkipOpenApi) {
+            $runAllTestsParameters.SkipOpenApi = $true
+        }
+        & $runAllTests @runAllTestsParameters
     } -Step $plannedSteps[0]
 
     if ($Mode -eq "Release") {
@@ -256,14 +262,22 @@ try {
 
         if (-not $SkipProdSmoke) {
             Invoke-CheckedStep "Stage 4 release gate: production profile smoke" {
-                & powershell -NoProfile -ExecutionPolicy Bypass -File $prodSmoke -RepoRoot $root -SkipDocker:$SkipDocker
+                $prodSmokeParameters = @{ RepoRoot = $root }
+                if ($SkipDocker) {
+                    $prodSmokeParameters.SkipDocker = $true
+                }
+                & $prodSmoke @prodSmokeParameters
             } -Step $plannedSteps[$stepIndex]
         }
         $stepIndex++
 
         if (-not $SkipMtlsSmoke) {
             Invoke-CheckedStep "Stage 4 release gate: mTLS smoke" {
-                & powershell -NoProfile -ExecutionPolicy Bypass -File $mtlsSmoke -RepoRoot $root -SkipDocker:$SkipDocker
+                $mtlsSmokeParameters = @{ RepoRoot = $root }
+                if ($SkipDocker) {
+                    $mtlsSmokeParameters.SkipDocker = $true
+                }
+                & $mtlsSmoke @mtlsSmokeParameters
             } -Step $plannedSteps[$stepIndex]
         }
         $stepIndex++
