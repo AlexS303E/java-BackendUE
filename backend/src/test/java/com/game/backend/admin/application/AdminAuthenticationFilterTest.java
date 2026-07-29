@@ -8,6 +8,8 @@ import jakarta.servlet.ServletResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -78,6 +80,25 @@ class AdminAuthenticationFilterTest {
 
         assertThat(response.getStatus()).isEqualTo(403);
         assertThat(response.getContentAsString()).contains("ADMIN_IP_FORBIDDEN");
+    }
+
+    @Test
+    void shouldDeriveAuditActorFromVerifiedTokenInsteadOfClientHeader() throws Exception {
+        AdminAuthenticationFilter filter = filter(List.of(), List.of("status"));
+        MockHttpServletRequest request = request("GET", "/admin/status/overview", "127.0.0.1");
+        request.addHeader("X-Admin-Token", "token");
+        request.addHeader("X-Admin-Id", "forged-super-admin");
+
+        try {
+            filter.doFilter(request, new MockHttpServletResponse(), new CountingChain());
+
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            assertThat(authentication.getPrincipal()).isInstanceOf(AdminIdentity.class);
+            AdminIdentity identity = (AdminIdentity) authentication.getPrincipal();
+            assertThat(identity.actorId()).startsWith("admin-token:").isNotEqualTo("forged-super-admin");
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test

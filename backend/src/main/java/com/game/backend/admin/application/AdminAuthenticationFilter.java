@@ -12,6 +12,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -19,9 +23,7 @@ import java.util.stream.Collectors;
 @Component
 public class AdminAuthenticationFilter extends OncePerRequestFilter {
     private static final String ADMIN_TOKEN_HEADER = "X-Admin-Token";
-    private static final String ADMIN_ID_HEADER = "X-Admin-Id";
     private static final String ADMIN_CONFIRM_HEADER = "X-Admin-Confirm";
-    private static final String DEFAULT_ADMIN_ID = "dev-admin";
 
     private final AdminSecurityProperties properties;
     private final TrustedClientIpResolver clientIpResolver;
@@ -53,11 +55,6 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String actorId = request.getHeader(ADMIN_ID_HEADER);
-        if (actorId == null || actorId.isBlank()) {
-            actorId = DEFAULT_ADMIN_ID;
-        }
-
         Set<String> roles = rolesFor();
         String requiredRole = requiredRole(request);
         if (requiredRole == null) {
@@ -73,7 +70,7 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        AdminIdentity identity = new AdminIdentity(actorId.trim(), roles);
+        AdminIdentity identity = new AdminIdentity(actorIdFor(token), roles);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
             identity,
             "admin",
@@ -129,6 +126,16 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
         }
         String clientIp = clientIpResolver.resolve(request);
         return properties.getAllowedCidrs().stream().anyMatch(rule -> ipMatches(clientIp, rule));
+    }
+
+    private String actorIdFor(String token) {
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
+            return "admin-token:"
+                + Base64.getUrlEncoder().withoutPadding().encodeToString(java.util.Arrays.copyOf(hash, 12));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 must be available for admin credential identity", exception);
+        }
     }
 
     private boolean ipMatches(String clientIp, String rule) {
