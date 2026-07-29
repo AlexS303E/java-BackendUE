@@ -34,6 +34,7 @@ class RateLimitingFilterTest {
         assertThat(limited.status()).isEqualTo(429);
         assertThat(limited.retryAfter()).isNotBlank();
         assertThat(limited.body()).contains("RATE_LIMIT_EXCEEDED");
+        assertThat(rateLimitAllowed("auth")).isEqualTo(2.0);
         assertThat(rateLimitRejections("auth")).isEqualTo(1.0);
     }
 
@@ -116,6 +117,13 @@ class RateLimitingFilterTest {
 
     private double rateLimitRejections(String bucket) {
         return meterRegistry.get("backend.rate_limit.rejections")
+            .tag("bucket", bucket)
+            .counter()
+            .count();
+    }
+
+    private double rateLimitAllowed(String bucket) {
+        return meterRegistry.get("backend.rate_limit.allowed")
             .tag("bucket", bucket)
             .counter()
             .count();

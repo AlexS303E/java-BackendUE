@@ -68,6 +68,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         try {
             long count = counter.increment(bucket.key(now, windowMillis), java.time.Duration.ofMillis(retryAfterMillis));
             if (count <= bucket.limit()) {
+                recordRateLimitAllowed(bucket.group());
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -136,6 +137,14 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private void recordRateLimitRejection(String bucketGroup) {
         Counter.builder("backend.rate_limit.rejections")
             .description("Rejected requests by fixed-window rate limit bucket group")
+            .tag("bucket", bucketGroup)
+            .register(meterRegistry)
+            .increment();
+    }
+
+    private void recordRateLimitAllowed(String bucketGroup) {
+        Counter.builder("backend.rate_limit.allowed")
+            .description("Allowed requests by distributed rate limit bucket group")
             .tag("bucket", bucketGroup)
             .register(meterRegistry)
             .increment();
