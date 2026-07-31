@@ -9,6 +9,22 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Assert-PostgresIdentifier {
+    param([string]$Name, [string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value) -or $Value -notmatch '^[A-Za-z_][A-Za-z0-9_]{0,62}$') {
+        throw "$Name must be a PostgreSQL identifier (letters, digits, and underscores only)."
+    }
+}
+
+function Assert-ComposeServiceName {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value) -or $Value -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$') {
+        throw "Service must be a Docker Compose service name."
+    }
+}
+
 function Resolve-RepoRoot {
     param([string]$ProvidedRepoRoot)
     if (-not [string]::IsNullOrWhiteSpace($ProvidedRepoRoot)) {
@@ -17,11 +33,15 @@ function Resolve-RepoRoot {
     return (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).Path
 }
 
-$root = Resolve-RepoRoot -ProvidedRepoRoot $RepoRoot
-$resolvedBackup = (Resolve-Path -LiteralPath $BackupPath).Path
 if ([string]::IsNullOrWhiteSpace($VerifyDatabase)) {
     $VerifyDatabase = "ue_backend_restore_verify_" + ([Guid]::NewGuid().ToString("N").Substring(0, 8))
 }
+
+$root = Resolve-RepoRoot -ProvidedRepoRoot $RepoRoot
+Assert-ComposeServiceName -Value $Service
+Assert-PostgresIdentifier -Name "User" -Value $User
+Assert-PostgresIdentifier -Name "VerifyDatabase" -Value $VerifyDatabase
+$resolvedBackup = (Resolve-Path -LiteralPath $BackupPath).Path
 
 $containerPath = "/tmp/" + [IO.Path]::GetFileName($resolvedBackup)
 

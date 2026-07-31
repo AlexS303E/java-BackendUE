@@ -17,6 +17,8 @@
 - [x] Rate limit перенесён в Redis с атомарным TTL-счётчиком, метриками allowed/blocked/error и fail-closed политикой в production.
 - [x] Некорректный ответ Redis Lua-счётчика (`null`) классифицируется как data-access
   failure и подчиняется той же fail-open/fail-closed политике.
+- [x] Local backup/restore scripts validate PostgreSQL and Docker Compose identifiers
+  before using them in shell or SQL commands; negative parameter tests cover injection-like input.
 - [x] Outbox использует fenced lease с owner/token и отвергает завершение устаревшим worker.
 - [x] Запуск требует явный профиль `local` или `prod`; local secret не является базовым default.
 - [x] Audit actor больше не берётся из `X-Admin-Id`; production требует независимые admin credentials и роли.

@@ -9,6 +9,22 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Assert-PostgresIdentifier {
+    param([string]$Name, [string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value) -or $Value -notmatch '^[A-Za-z_][A-Za-z0-9_]{0,62}$') {
+        throw "$Name must be a PostgreSQL identifier (letters, digits, and underscores only)."
+    }
+}
+
+function Assert-ComposeServiceName {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value) -or $Value -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$') {
+        throw "Service must be a Docker Compose service name."
+    }
+}
+
 function Resolve-RepoRoot {
     param([string]$ProvidedRepoRoot)
     if (-not [string]::IsNullOrWhiteSpace($ProvidedRepoRoot)) {
@@ -18,6 +34,9 @@ function Resolve-RepoRoot {
 }
 
 $root = Resolve-RepoRoot -ProvidedRepoRoot $RepoRoot
+Assert-ComposeServiceName -Value $Service
+Assert-PostgresIdentifier -Name "Database" -Value $Database
+Assert-PostgresIdentifier -Name "User" -Value $User
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
     $OutputDir = Join-Path $root "backups\postgres"
 }

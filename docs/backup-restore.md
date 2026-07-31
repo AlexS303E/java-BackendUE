@@ -17,6 +17,8 @@ powershell -ExecutionPolicy Bypass -File tools\backup\verify-postgres-backup.ps1
 ```
 
 The verification script restores into a temporary database, checks Flyway history, and drops the temporary database.
+Database, PostgreSQL user, and Docker Compose service parameters are validated as
+identifiers before they are passed to Docker or SQL commands.
 
 ## Baseline Targets
 
