@@ -2,6 +2,7 @@ package com.game.backend.common.ratelimit;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -30,7 +31,7 @@ public class RedisRateLimitCounter implements RateLimitCounter {
             Long.toString(Math.max(1000, ttl.toMillis()))
         );
         if (count == null) {
-            throw new IllegalStateException("Redis rate-limit script returned no counter value");
+            throw new DataAccessResourceFailureException("Redis rate-limit script returned no counter value");
         }
         return count;
     }

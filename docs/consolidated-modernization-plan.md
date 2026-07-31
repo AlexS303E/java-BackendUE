@@ -15,6 +15,8 @@
 - [x] Сделан устойчивым query-plan gate: тест не привязан к единственному допустимому имени индекса или `Index Only Scan`.
 - [x] Заголовки `X-Forwarded-For` используются только за доверенным proxy CIDR.
 - [x] Rate limit перенесён в Redis с атомарным TTL-счётчиком, метриками allowed/blocked/error и fail-closed политикой в production.
+- [x] Некорректный ответ Redis Lua-счётчика (`null`) классифицируется как data-access
+  failure и подчиняется той же fail-open/fail-closed политике.
 - [x] Outbox использует fenced lease с owner/token и отвергает завершение устаревшим worker.
 - [x] Запуск требует явный профиль `local` или `prod`; local secret не является базовым default.
 - [x] Audit actor больше не берётся из `X-Admin-Id`; production требует независимые admin credentials и роли.
