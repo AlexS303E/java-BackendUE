@@ -239,3 +239,10 @@ Stage 4 is complete. The release gate entrypoint, summary artifact, schema valid
 This is release evidence for the implemented application changes, not confirmation of
 external production controls such as managed secrets, OIDC, immutable backups/PITR,
 or multi-replica recovery drills.
+
+## Supply-chain hygiene update — 2026-08-01
+
+`tools/security/scan-secrets.ps1` checks tracked source and configuration files for
+private-key, AWS access-key, GitHub-token, and Slack-token signatures. Its negative
+test validates both a safe fixture and a blocked token fixture. The scanner runs in
+the local Fast gate and in GitHub Actions before the Gradle build.

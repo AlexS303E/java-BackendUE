@@ -50,6 +50,12 @@ jobs:
           java-version: '21'
           cache: gradle
 
+      - name: Scan tracked source and configuration for secrets
+        shell: pwsh
+        run: |
+          ./tools/security/scan-secrets.ps1 -RepoRoot .
+          ./tools/security/test-secret-scan.ps1 -RepoRoot .
+
       - name: Run Gradle tests and Flyway migrations
         working-directory: backend
         run: ./gradlew --no-daemon test

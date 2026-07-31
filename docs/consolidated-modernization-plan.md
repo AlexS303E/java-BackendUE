@@ -21,6 +21,9 @@
 - [x] JWT RS256 проверяет `iss`, `aud`, `kid`, `jti`, `nbf` и `auth_version`, поддерживает key ring/ротацию; login нормализуется до поиска.
 - [x] Bootstrap entitlement ledger вставляется set-based SQL.
 - [x] Management interface в production по умолчанию связан с loopback; добавлен GitHub Actions gate с PostgreSQL, Redis, Gradle, Flyway, bootJar и OpenAPI.
+- [x] CI и локальный Fast gate сканируют отслеживаемые исходники и конфигурацию на
+  сигнатуры private key, AWS access key, GitHub и Slack tokens; сканер имеет
+  негативную проверку.
 
 Остаётся до production DoD: настроить реальный внешний OIDC либо secret-managed source для admin credentials и JWT key ring, включить off-host immutable backup/PITR, а также выполнить multi-replica, Redis outage и restore drill в CI/стенде.
 

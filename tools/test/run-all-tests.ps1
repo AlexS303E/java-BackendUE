@@ -64,12 +64,25 @@ $root = Resolve-RepoRoot -ExplicitRepoRoot $RepoRoot
 $backendDir = Join-Path $root "backend"
 $gradleWrapper = Join-Path $backendDir "gradlew.bat"
 $openApiScript = Join-Path $root "tools\openapi\verify-openapi-stage3.ps1"
+$secretScanner = Join-Path $root "tools\security\scan-secrets.ps1"
+$secretScannerTests = Join-Path $root "tools\security\test-secret-scan.ps1"
 
 if (-not (Test-Path -LiteralPath $gradleWrapper)) {
     throw "Gradle wrapper was not found: $gradleWrapper"
 }
 
+foreach ($script in @($secretScanner, $secretScannerTests)) {
+    if (-not (Test-Path -LiteralPath $script)) {
+        throw "Secret scanning script was not found: $script"
+    }
+}
+
 Use-JavaHome -RequestedJavaHome $JavaHome
+
+Invoke-CheckedStep "Scan tracked source and configuration for secrets" {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $secretScanner -RepoRoot $root
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $secretScannerTests -RepoRoot $root
+}
 
 if (-not $SkipDocker) {
     Invoke-CheckedStep "Start docker test dependencies" {
