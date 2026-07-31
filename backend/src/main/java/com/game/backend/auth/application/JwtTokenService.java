@@ -170,8 +170,11 @@ public class JwtTokenService {
                 || !Integer.valueOf(1).equals(((Number) payload.get("auth_version")).intValue())) {
                 return Optional.empty();
             }
-            UUID playerId = UUID.fromString((String) payload.get("sub"));
-            String loginName = (String) payload.get("login_name");
+            if (!(payload.get("sub") instanceof String subject) || subject.isBlank()
+                || !(payload.get("login_name") instanceof String loginName) || loginName.isBlank()) {
+                return Optional.empty();
+            }
+            UUID playerId = UUID.fromString(subject);
             return Optional.of(new AuthenticatedPlayer(playerId, loginName));
         } catch (Exception exception) {
             return Optional.empty();

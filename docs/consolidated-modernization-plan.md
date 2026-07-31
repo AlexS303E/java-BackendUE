@@ -24,6 +24,8 @@
 - [x] Запуск требует явный профиль `local` или `prod`; local secret не является базовым default.
 - [x] Audit actor больше не берётся из `X-Admin-Id`; production требует независимые admin credentials и роли.
 - [x] JWT RS256 проверяет `iss`, `aud`, `kid`, `jti`, `nbf` и `auth_version`, поддерживает key ring/ротацию; login нормализуется до поиска.
+- [x] JWT validation rejects signed tokens with missing or blank player identity claims,
+  including `login_name`.
 - [x] Bootstrap entitlement ledger вставляется set-based SQL.
 - [x] Management interface в production по умолчанию связан с loopback; добавлен GitHub Actions gate с PostgreSQL, Redis, Gradle, Flyway, bootJar и OpenAPI.
 - [x] CI и локальный Fast gate сканируют отслеживаемые исходники и конфигурацию на

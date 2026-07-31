@@ -4,8 +4,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Signature;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +97,27 @@ class JwtTokenServiceTest {
     }
 
     @Test
+    void shouldRejectSignedTokenWithoutUsablePlayerIdentityClaims() throws Exception {
+        KeyPair keyPair = keyPair();
+        JwtTokenService service = new JwtTokenService(
+            objectMapper, privatePem(keyPair), publicPem(keyPair), "PT15M", "issuer", "audience", "key-2026-07"
+        );
+        long now = Instant.now().getEpochSecond();
+        String token = signedToken(keyPair, Map.of(
+            "sub", UUID.randomUUID().toString(),
+            "iss", "issuer",
+            "aud", "audience",
+            "iat", now,
+            "nbf", now,
+            "exp", now + 60,
+            "jti", UUID.randomUUID().toString(),
+            "auth_version", 1
+        ));
+
+        assertThat(service.validate(token)).isEmpty();
+    }
+
+    @Test
     void shouldValidateTokenIssuedByPreviousKeyDuringRotation() throws Exception {
         KeyPair previousKey = keyPair();
         KeyPair activeKey = keyPair();
@@ -140,6 +164,18 @@ class JwtTokenServiceTest {
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(2048);
         return generator.generateKeyPair();
+    }
+
+    private String signedToken(KeyPair keyPair, Map<String, Object> payload) throws Exception {
+        String header = Base64.getUrlEncoder().withoutPadding().encodeToString(
+            objectMapper.writeValueAsBytes(Map.of("alg", "RS256", "typ", "JWT", "kid", "key-2026-07"))
+        );
+        String body = Base64.getUrlEncoder().withoutPadding().encodeToString(objectMapper.writeValueAsBytes(payload));
+        String signingInput = header + "." + body;
+        Signature signature = Signature.getInstance("SHA256withRSA");
+        signature.initSign(keyPair.getPrivate());
+        signature.update(signingInput.getBytes(StandardCharsets.UTF_8));
+        return signingInput + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(signature.sign());
     }
 
     private String privatePem(KeyPair keyPair) {
