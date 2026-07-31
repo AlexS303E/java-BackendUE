@@ -246,3 +246,9 @@ or multi-replica recovery drills.
 private-key, AWS access-key, GitHub-token, and Slack-token signatures. Its negative
 test validates both a safe fixture and a blocked token fixture. The scanner runs in
 the local Fast gate and in GitHub Actions before the Gradle build.
+
+## Dependency reproducibility update — 2026-08-01
+
+Gradle dependency locking is enabled for every backend configuration. The committed
+lock state makes transitive runtime and test dependency changes explicit; dependency
+updates must be regenerated with `gradlew --write-locks` and reviewed.
