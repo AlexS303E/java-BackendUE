@@ -30,6 +30,8 @@
   запускает test и bootJar с `--dependency-verification=strict`.
 - [x] CI создаёт и сохраняет CycloneDX SBOM из полного транзитивного графа
   зависимостей как release-артефакт.
+- [x] Dependabot еженедельно создаёт reviewable обновления для Gradle-зависимостей
+  и GitHub Actions; обновления по-прежнему проходят обычный CI gate.
 
 Остаётся до production DoD: настроить реальный внешний OIDC либо secret-managed source для admin credentials и JWT key ring, включить off-host immutable backup/PITR, а также выполнить multi-replica, Redis outage и restore drill в CI/стенде.
 

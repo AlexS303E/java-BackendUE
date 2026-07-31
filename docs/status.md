@@ -259,3 +259,6 @@ and the deployable JAR.
 
 GitHub Actions also generates a CycloneDX JSON SBOM from the resolved dependency
 graph and retains it as a CI artifact for 30 days.
+
+Dependabot checks Gradle dependencies and GitHub Actions weekly. It opens reviewable
+update pull requests; it does not bypass the dependency locks or the CI gate.
