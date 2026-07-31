@@ -204,9 +204,9 @@ security-тесты при изменении границы доверия, и 
 - [x] Flyway migrations V033--V035 and their application integration are covered by
   the integration suite executed by that gate.
 
-- [ ] Все P0-пункты завершены, а release gate зелёный.
-- [ ] Forwarded headers, rate limit и admin identity используют подтверждённые данные.
-- [ ] Outbox защищён fenced lease и проверен конкурирующими workers.
+- [x] Все P0-пункты в границах приложения завершены, а release gate зелёный.
+- [x] Forwarded headers, rate limit и admin identity используют подтверждённые данные.
+- [x] Outbox защищён fenced lease и проверен конкурирующими workers.
 - [ ] Management endpoints не доступны из публичной сети.
 - [ ] JWT rotation, backup restore и multi-replica degradation сценарии проверены.
 - [ ] CI блокирует merge при падении migration, contract или security тестов.

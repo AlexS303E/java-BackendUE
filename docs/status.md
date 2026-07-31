@@ -196,9 +196,9 @@ Backend **не является source of truth** для:
 
 | Issue | Description | Priority |
 |---|---|---|
-| PlayerBootstrapService hardcoded | Default loadout baked into Java (class.assault, weapon.ak12, team.red/blue jacket). Needs `default_loadout_rules` / `starter_items` / `default_outfit_by_team_class` tables. | Medium |
+| Bootstrap catalog governance | Starter presets are now catalog seed data. Production still needs an owned process for reviewing, versioning, and rolling back changes to those defaults. | Medium |
 | match registration coupled with build | `POST /server/match-profile/build` creates match assignment implicitly. Production should separate: `POST /server/matches/register` then `POST /server/match-profile/build`. | Low |
-| Production security | `app.admin.token` plain header, JWT_SECRET dev default, dev mTLS certs in repo, /actuator/metrics accessible to any authenticated user, no rate limiting on /auth/* /server/* /admin/*. Needs dedicated security milestone before external testing. | High |
+| External production controls | The application now has independent admin identities, JWT key rotation, trusted proxies, rate limits, and loopback management defaults. External OIDC or managed secrets, immutable off-host backup/PITR, and multi-replica recovery evidence remain required before external production traffic. | High |
 
 ## Critical Side Effects
 
