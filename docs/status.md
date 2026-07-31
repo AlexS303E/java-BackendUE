@@ -252,3 +252,7 @@ the local Fast gate and in GitHub Actions before the Gradle build.
 Gradle dependency locking is enabled for every backend configuration. The committed
 lock state makes transitive runtime and test dependency changes explicit; dependency
 updates must be regenerated with `gradlew --write-locks` and reviewed.
+
+`backend/gradle/verification-metadata.xml` stores SHA-256 checksums for resolved
+artifacts. GitHub Actions uses Gradle strict dependency verification for both tests
+and the deployable JAR.

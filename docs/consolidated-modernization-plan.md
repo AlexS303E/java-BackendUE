@@ -26,6 +26,8 @@
   негативную проверку.
 - [x] Gradle dependency locking фиксирует полный граф runtime и test-зависимостей;
   обновление зависимостей требует явного запуска с `--write-locks`.
+- [x] Gradle verification metadata содержит SHA-256 используемых артефактов, а CI
+  запускает test и bootJar с `--dependency-verification=strict`.
 
 Остаётся до production DoD: настроить реальный внешний OIDC либо secret-managed source для admin credentials и JWT key ring, включить off-host immutable backup/PITR, а также выполнить multi-replica, Redis outage и restore drill в CI/стенде.
 
