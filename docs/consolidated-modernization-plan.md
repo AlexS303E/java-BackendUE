@@ -28,6 +28,8 @@
   обновление зависимостей требует явного запуска с `--write-locks`.
 - [x] Gradle verification metadata содержит SHA-256 используемых артефактов, а CI
   запускает test и bootJar с `--dependency-verification=strict`.
+- [x] CI создаёт и сохраняет CycloneDX SBOM из полного транзитивного графа
+  зависимостей как release-артефакт.
 
 Остаётся до production DoD: настроить реальный внешний OIDC либо secret-managed source для admin credentials и JWT key ring, включить off-host immutable backup/PITR, а также выполнить multi-replica, Redis outage и restore drill в CI/стенде.
 

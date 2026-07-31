@@ -256,3 +256,6 @@ updates must be regenerated with `gradlew --write-locks` and reviewed.
 `backend/gradle/verification-metadata.xml` stores SHA-256 checksums for resolved
 artifacts. GitHub Actions uses Gradle strict dependency verification for both tests
 and the deployable JAR.
+
+GitHub Actions also generates a CycloneDX JSON SBOM from the resolved dependency
+graph and retains it as a CI artifact for 30 days.
