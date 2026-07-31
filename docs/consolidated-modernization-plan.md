@@ -182,6 +182,15 @@ security-тесты при изменении границы доверия, и 
 
 ## Production Definition of Done
 
+### Verified release evidence (2026-08-01)
+
+- [x] `tools/test/run-stage4-gate.ps1 -Mode Release` passed on
+  `315adab306e21959ff608a24681855930763e82b` with a clean worktree: all 5 steps
+  executed, including Gradle/Flyway, OpenAPI, `bootJar`, production-profile, mTLS,
+  and k6 load smoke checks (845 requests, 0% failures, 100% checks).
+- [x] Flyway migrations V033--V035 and their application integration are covered by
+  the integration suite executed by that gate.
+
 - [ ] Все P0-пункты завершены, а release gate зелёный.
 - [ ] Forwarded headers, rate limit и admin identity используют подтверждённые данные.
 - [ ] Outbox защищён fenced lease и проверен конкурирующими workers.

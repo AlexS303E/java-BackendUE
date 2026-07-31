@@ -222,3 +222,20 @@ Re-run the following when making changes:
 ## Stage 4 Closure
 
 Stage 4 is complete. The release gate entrypoint, summary artifact, schema validator, negative validator smoke, status instructions, and readiness checklist are synchronized around `artifacts/stage4/stage4-gate-summary.json`.
+
+## Release evidence update — 2026-08-01
+
+`tools/test/run-stage4-gate.ps1 -Mode Release` completed successfully on revision
+`315adab306e21959ff608a24681855930763e82b` with a clean worktree.
+
+| Check | Result |
+|---|---|
+| Stage 4 release gate | passed, 5 of 5 steps executed |
+| Gradle/Flyway integration tests | passed against PostgreSQL and Redis |
+| OpenAPI and `bootJar` checks | passed |
+| Production-profile and mTLS smokes | passed |
+| k6 load smoke | passed: 845 requests, 0% failures, 100% checks |
+
+This is release evidence for the implemented application changes, not confirmation of
+external production controls such as managed secrets, OIDC, immutable backups/PITR,
+or multi-replica recovery drills.
