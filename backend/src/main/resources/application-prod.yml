@@ -43,11 +43,11 @@ app:
     allowed-cidrs: ${ADMIN_ALLOWED_CIDRS}
     default-roles: ${ADMIN_DEFAULT_ROLES:status}
   auth:
-    jwt-private-key: ${JWT_PRIVATE_KEY}
-    jwt-public-key: ${JWT_PUBLIC_KEY}
+    jwt-private-key: ${JWT_PRIVATE_KEY:}
+    jwt-public-key: ${JWT_PUBLIC_KEY:}
     jwt-issuer: ${JWT_ISSUER}
     jwt-audience: ${JWT_AUDIENCE}
-    jwt-key-id: ${JWT_KEY_ID}
+    jwt-key-id: ${JWT_KEY_ID:}
   server-auth:
     mtls:
       enabled: ${SERVER_MTLS_ENABLED:true}

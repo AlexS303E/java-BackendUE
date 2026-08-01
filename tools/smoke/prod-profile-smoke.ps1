@@ -131,6 +131,10 @@ try {
         "JWT_ISSUER",
         "JWT_AUDIENCE",
         "JWT_KEY_ID",
+        "APP_AUTH_JWT_KEYS_0_ID",
+        "APP_AUTH_JWT_KEYS_0_PRIVATE_KEY",
+        "APP_AUTH_JWT_KEYS_0_PUBLIC_KEY",
+        "APP_AUTH_JWT_ACTIVE_KEY_ID",
         "ADMIN_ALLOWED_CIDRS",
         "CORS_ALLOWED_ORIGINS",
         "SERVER_MTLS_ENABLED",
@@ -181,11 +185,15 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "openssl rsa -pubout failed with exit code $LASTEXITCODE"
     }
-    $env:JWT_PRIVATE_KEY = "file:$jwtPrivateKey"
-    $env:JWT_PUBLIC_KEY = "file:$jwtPublicKey"
+    Remove-Item Env:JWT_PRIVATE_KEY -ErrorAction SilentlyContinue
+    Remove-Item Env:JWT_PUBLIC_KEY -ErrorAction SilentlyContinue
+    Remove-Item Env:JWT_KEY_ID -ErrorAction SilentlyContinue
+    $env:APP_AUTH_JWT_KEYS_0_ID = "prod-smoke-key"
+    $env:APP_AUTH_JWT_KEYS_0_PRIVATE_KEY = "file:$jwtPrivateKey"
+    $env:APP_AUTH_JWT_KEYS_0_PUBLIC_KEY = "file:$jwtPublicKey"
+    $env:APP_AUTH_JWT_ACTIVE_KEY_ID = "prod-smoke-key"
     $env:JWT_ISSUER = "https://prod-smoke.example"
     $env:JWT_AUDIENCE = "prod-smoke-client"
-    $env:JWT_KEY_ID = "prod-smoke-key"
     $env:ADMIN_ALLOWED_CIDRS = "127.0.0.1/32,::1/128"
     $env:CORS_ALLOWED_ORIGINS = $CorsOrigin
     $env:SERVER_MTLS_ENABLED = "true"

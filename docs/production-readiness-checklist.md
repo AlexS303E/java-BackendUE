@@ -9,7 +9,7 @@
 > Update 2026-07-30: JWT key ring rotation is supported through `APP_AUTH_JWT_KEYS_{n}_*` and `APP_AUTH_JWT_ACTIVE_KEY_ID`. Production admin access uses `APP_ADMIN_IDENTITIES_{n}_ID/TOKEN/ROLES`; the deprecated shared `ADMIN_TOKEN` fallback is rejected. Redis-backed rate limiting fails closed in production.
 
 ### JWT
-- [x] **JWT signing keys configured** — `application-prod.yml` requires `JWT_PRIVATE_KEY` and `JWT_PUBLIC_KEY`; startup fail-fast rejects missing keys.
+- [x] **JWT signing keys configured** — production accepts either `JWT_PRIVATE_KEY`/`JWT_PUBLIC_KEY` or a complete `APP_AUTH_JWT_KEYS_{n}_*` ring with `APP_AUTH_JWT_ACTIVE_KEY_ID`; startup rejects missing, duplicate, or inline key material. The production profile smoke uses the ring-only path.
 - [x] **Token expiry configured** — access token defaults to 15 minutes, refresh token defaults to 14 days.
 - [x] **Algorithm** — access tokens use RS256; prod startup requires configured RSA private/public keys.
 

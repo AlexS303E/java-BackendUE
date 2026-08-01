@@ -1,5 +1,6 @@
 package com.game.backend.common.config;
 
+import com.game.backend.auth.application.JwtKeyRingProperties;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
@@ -7,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -20,6 +22,7 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
     private final String adminToken;
     private final String jwtPrivateKey;
     private final String jwtPublicKey;
+    private final JwtKeyRingProperties jwtKeyRingProperties;
     private final String corsAllowedOrigins;
     private final String adminAllowedCidrs;
     private final boolean rateLimitEnabled;
@@ -34,6 +37,7 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         @Value("${app.admin.token:}") String adminToken,
         @Value("${app.auth.jwt-private-key:}") String jwtPrivateKey,
         @Value("${app.auth.jwt-public-key:}") String jwtPublicKey,
+        JwtKeyRingProperties jwtKeyRingProperties,
         @Value("${app.cors.allowed-origins:}") String corsAllowedOrigins,
         @Value("${app.admin.allowed-cidrs:}") String adminAllowedCidrs,
         @Value("${app.rate-limit.enabled:false}") boolean rateLimitEnabled,
@@ -47,6 +51,7 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         this.adminToken = adminToken;
         this.jwtPrivateKey = jwtPrivateKey;
         this.jwtPublicKey = jwtPublicKey;
+        this.jwtKeyRingProperties = jwtKeyRingProperties;
         this.corsAllowedOrigins = corsAllowedOrigins;
         this.adminAllowedCidrs = adminAllowedCidrs;
         this.rateLimitEnabled = rateLimitEnabled;
@@ -64,6 +69,7 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
             adminToken,
             jwtPrivateKey,
             jwtPublicKey,
+            jwtKeyRingProperties,
             corsAllowedOrigins,
             adminAllowedCidrs,
             rateLimitEnabled,
@@ -200,6 +206,40 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         boolean rateLimitFailClosedOnRedisError,
         boolean validateLegacyAdminToken
     ) {
+        validateForStartup(
+            activeProfiles,
+            adminToken,
+            jwtPrivateKey,
+            jwtPublicKey,
+            new JwtKeyRingProperties(),
+            corsAllowedOrigins,
+            adminAllowedCidrs,
+            rateLimitEnabled,
+            rateLimitWindow,
+            authRateLimit,
+            serverRateLimit,
+            adminRateLimit,
+            rateLimitFailClosedOnRedisError,
+            validateLegacyAdminToken
+        );
+    }
+
+    static void validateForStartup(
+        String[] activeProfiles,
+        String adminToken,
+        String jwtPrivateKey,
+        String jwtPublicKey,
+        JwtKeyRingProperties keyRingProperties,
+        String corsAllowedOrigins,
+        String adminAllowedCidrs,
+        boolean rateLimitEnabled,
+        Duration rateLimitWindow,
+        int authRateLimit,
+        int serverRateLimit,
+        int adminRateLimit,
+        boolean rateLimitFailClosedOnRedisError,
+        boolean validateLegacyAdminToken
+    ) {
         if (!hasProductionProfile(activeProfiles)) {
             return;
         }
@@ -207,10 +247,7 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         if (validateLegacyAdminToken) {
             requireProductionSecret("app.admin.token", adminToken, UNSAFE_ADMIN_TOKENS);
         }
-        requireRequired("app.auth.jwt-private-key", jwtPrivateKey);
-        requireRequired("app.auth.jwt-public-key", jwtPublicKey);
-        rejectInlinePem("app.auth.jwt-private-key", jwtPrivateKey);
-        rejectInlinePem("app.auth.jwt-public-key", jwtPublicKey);
+        validateJwtKeyMaterial(jwtPrivateKey, jwtPublicKey, keyRingProperties);
         requireRequired("app.cors.allowed-origins", corsAllowedOrigins);
         requireRequired("app.admin.allowed-cidrs", adminAllowedCidrs);
         requireTrue("app.rate-limit.enabled", rateLimitEnabled);
@@ -219,6 +256,36 @@ public class ProductionHardeningValidator implements SmartInitializingSingleton 
         requirePositiveInt("app.rate-limit.server-limit", serverRateLimit);
         requirePositiveInt("app.rate-limit.admin-limit", adminRateLimit);
         requireTrue("app.rate-limit.fail-closed-on-redis-error", rateLimitFailClosedOnRedisError);
+    }
+
+    static void validateJwtKeyMaterial(
+        String jwtPrivateKey,
+        String jwtPublicKey,
+        JwtKeyRingProperties keyRingProperties
+    ) {
+        if (keyRingProperties == null || keyRingProperties.getJwtKeys().isEmpty()) {
+            requireRequired("app.auth.jwt-private-key", jwtPrivateKey);
+            requireRequired("app.auth.jwt-public-key", jwtPublicKey);
+            rejectInlinePem("app.auth.jwt-private-key", jwtPrivateKey);
+            rejectInlinePem("app.auth.jwt-public-key", jwtPublicKey);
+            return;
+        }
+
+        requireRequired("app.auth.jwt-active-key-id", keyRingProperties.getJwtActiveKeyId());
+        Set<String> keyIds = new HashSet<>();
+        for (JwtKeyRingProperties.JwtKey key : keyRingProperties.getJwtKeys()) {
+            requireRequired("app.auth.jwt-keys[].id", key.getId());
+            if (!keyIds.add(key.getId().trim())) {
+                throw new IllegalStateException("Production profile forbids duplicate app.auth.jwt-keys[].id");
+            }
+            requireRequired("app.auth.jwt-keys[].private-key", key.getPrivateKey());
+            requireRequired("app.auth.jwt-keys[].public-key", key.getPublicKey());
+            rejectInlinePem("app.auth.jwt-keys[].private-key", key.getPrivateKey());
+            rejectInlinePem("app.auth.jwt-keys[].public-key", key.getPublicKey());
+        }
+        if (!keyIds.contains(keyRingProperties.getJwtActiveKeyId().trim())) {
+            throw new IllegalStateException("app.auth.jwt-active-key-id must reference configured jwt-keys");
+        }
     }
 
     private static void requireProductionSecret(String propertyName, String value, Set<String> unsafeValues) {

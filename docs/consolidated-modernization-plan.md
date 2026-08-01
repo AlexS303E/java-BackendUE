@@ -26,6 +26,8 @@
 - [x] JWT RS256 проверяет `iss`, `aud`, `kid`, `jti`, `nbf` и `auth_version`, поддерживает key ring/ротацию; login нормализуется до поиска.
 - [x] JWT validation rejects signed tokens with missing or blank player identity claims,
   including `login_name`.
+- [x] Production accepts a complete external JWT key ring without legacy key-pair
+  placeholders, while rejecting incomplete, duplicate, or inline ring material.
 - [x] Bootstrap entitlement ledger вставляется set-based SQL.
 - [x] Management interface в production по умолчанию связан с loopback; добавлен GitHub Actions gate с PostgreSQL, Redis, Gradle, Flyway, bootJar и OpenAPI.
 - [x] CI и локальный Fast gate сканируют отслеживаемые исходники и конфигурацию на
