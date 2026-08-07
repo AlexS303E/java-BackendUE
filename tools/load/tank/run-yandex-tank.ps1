@@ -455,6 +455,9 @@ try {
             Remove-Item -LiteralPath $sensitivePath -Force
         }
     }
+    if (Test-Path -LiteralPath $logsDir) {
+        Remove-Item -LiteralPath $logsDir -Recurse -Force
+    }
     if ($backendProcess -ne $null -and -not $backendProcess.HasExited -and -not $KeepBackendRunning) {
         Write-Step "Stop backend"
         try {

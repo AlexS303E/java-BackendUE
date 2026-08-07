@@ -16,6 +16,7 @@ $content = Get-Content -LiteralPath $scriptPath -Raw
 foreach ($requiredFragment in @(
     'artifacts\load\tank\',
     'Remove-Item -LiteralPath $sensitivePath -Force',
+    'Remove-Item -LiteralPath $logsDir -Recurse -Force',
     '${artifactRunDir}:/var/loadtest'
 )) {
     if (-not $content.Contains($requiredFragment)) {

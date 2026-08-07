@@ -36,4 +36,5 @@ The Tank scripts remain available for RPS shaping experiments. Promoting Tank ba
 
 Tank request ammo contains temporary test credentials and access tokens. It is generated under
 an ignored `artifacts/load/tank/<run-id>` directory and removed on completion together with the
-generated Tank configuration. Only aggregate diagnostic results may be retained for review.
+generated Tank configuration and backend logs. Only aggregate diagnostic results may be retained
+for review.
