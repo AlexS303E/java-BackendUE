@@ -46,3 +46,5 @@ tools/mtls/work/
 tools/smoke/logs/
 tools/load/k6/results/
 tools/load/tank/*.log
+tools/load/tank/generated/
+tools/load/tank/results/

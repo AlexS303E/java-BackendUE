@@ -31,3 +31,9 @@ The Tank scripts remain available for RPS shaping experiments. Promoting Tank ba
 - pinned Tank image and configuration;
 - no Docker Desktop host bridge;
 - the same endpoint SLOs as the authoritative k6 profile.
+
+## Artifact hygiene
+
+Tank request ammo contains temporary test credentials and access tokens. It is generated under
+an ignored `artifacts/load/tank/<run-id>` directory and removed on completion together with the
+generated Tank configuration. Only aggregate diagnostic results may be retained for review.

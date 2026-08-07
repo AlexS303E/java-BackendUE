@@ -67,12 +67,13 @@ $openApiScript = Join-Path $root "tools\openapi\verify-openapi-stage3.ps1"
 $secretScanner = Join-Path $root "tools\security\scan-secrets.ps1"
 $secretScannerTests = Join-Path $root "tools\security\test-secret-scan.ps1"
 $backupParameterTests = Join-Path $root "tools\backup\test-backup-parameter-validation.ps1"
+$tankArtifactHygieneTests = Join-Path $root "tools\load\tank\test-yandex-tank-artifact-hygiene.ps1"
 
 if (-not (Test-Path -LiteralPath $gradleWrapper)) {
     throw "Gradle wrapper was not found: $gradleWrapper"
 }
 
-foreach ($script in @($secretScanner, $secretScannerTests, $backupParameterTests)) {
+foreach ($script in @($secretScanner, $secretScannerTests, $backupParameterTests, $tankArtifactHygieneTests)) {
     if (-not (Test-Path -LiteralPath $script)) {
         throw "Secret scanning script was not found: $script"
     }
@@ -87,6 +88,10 @@ Invoke-CheckedStep "Scan tracked source and configuration for secrets" {
 
 Invoke-CheckedStep "Validate backup and restore command parameters" {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $backupParameterTests -RepoRoot $root
+}
+
+Invoke-CheckedStep "Validate load-test artifact hygiene" {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $tankArtifactHygieneTests -RepoRoot $root
 }
 
 if (-not $SkipDocker) {

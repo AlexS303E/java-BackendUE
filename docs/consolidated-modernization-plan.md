@@ -20,6 +20,8 @@
 - [x] Local backup/restore scripts validate PostgreSQL and Docker Compose identifiers
   before using them in shell or SQL commands; negative parameter tests cover injection-like input
   and run in the local Fast gate and CI.
+- [x] Yandex.Tank ammo containing temporary credentials and bearer tokens is written only
+  under ignored artifacts and deleted after execution; CI guards that artifact-hygiene contract.
 - [x] Outbox использует fenced lease с owner/token и отвергает завершение устаревшим worker.
 - [x] Запуск требует явный профиль `local` или `prod`; local secret не является базовым default.
 - [x] Audit actor больше не берётся из `X-Admin-Id`; production требует независимые admin credentials и роли.

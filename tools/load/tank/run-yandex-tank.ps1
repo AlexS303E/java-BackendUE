@@ -266,11 +266,14 @@ function Analyze-Phout {
 $repoRoot = Get-RepoRoot
 $backendDir = Join-Path $repoRoot "backend"
 $tankDir = Join-Path $repoRoot "tools\load\tank"
-$generatedDir = Join-Path $tankDir "generated"
-$resultsDir = Join-Path $tankDir "results"
+$artifactRunDir = Join-Path $repoRoot ("artifacts\load\tank\" + [Guid]::NewGuid().ToString("N"))
+$generatedDir = Join-Path $artifactRunDir "generated"
+$resultsDir = Join-Path $artifactRunDir "results"
 $logsDir = Join-Path $resultsDir "backend-logs"
 $publicBaseUrl = "http://localhost:$PublicPort"
 $backendProcess = $null
+$ammoPath = $null
+$loadYamlPath = $null
 
 try {
     Write-Step "Validate prerequisites"
@@ -426,7 +429,7 @@ try {
         [void]$dockerArgs.Add("host")
     }
     [void]$dockerArgs.Add("-v")
-    [void]$dockerArgs.Add("${tankDir}:/var/loadtest")
+    [void]$dockerArgs.Add("${artifactRunDir}:/var/loadtest")
     [void]$dockerArgs.Add("-w")
     [void]$dockerArgs.Add("/var/loadtest")
     [void]$dockerArgs.Add($TankImage)
@@ -447,6 +450,11 @@ try {
     Write-Step "Load test result"
     Write-Ok "Yandex.Tank load checks passed. Results: $resultsDir"
 } finally {
+    foreach ($sensitivePath in @($ammoPath, $loadYamlPath)) {
+        if (-not [string]::IsNullOrWhiteSpace($sensitivePath) -and (Test-Path -LiteralPath $sensitivePath)) {
+            Remove-Item -LiteralPath $sensitivePath -Force
+        }
+    }
     if ($backendProcess -ne $null -and -not $backendProcess.HasExited -and -not $KeepBackendRunning) {
         Write-Step "Stop backend"
         try {
