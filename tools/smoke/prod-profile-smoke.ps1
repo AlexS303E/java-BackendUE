@@ -6,6 +6,7 @@ param(
     [int]$StartupTimeoutSeconds = 120,
     [string]$CorsOrigin = "https://game.example",
     [switch]$SkipDocker,
+    [switch]$VerifyRedisOutage,
     [switch]$KeepBackendRunning
 )
 
@@ -49,6 +50,19 @@ function Stop-ProcessTree {
     }
 }
 
+function Wait-RedisReady {
+    param([int]$TimeoutSeconds = 60)
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        & docker compose exec -T redis redis-cli ping | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            return
+        }
+        Start-Sleep -Seconds 2
+    }
+    throw "Redis did not become ready within $TimeoutSeconds seconds."
+}
+
 $root = Resolve-RepoRoot -ProvidedRepoRoot $RepoRoot
 $backendDir = Join-Path $root "backend"
 $gradleWrapper = Join-Path $backendDir "gradlew.bat"
@@ -66,6 +80,7 @@ $logDir = Join-Path $root "tools\smoke\logs"
 $stdout = Join-Path $logDir "backend-prod-smoke.out.log"
 $stderr = Join-Path $logDir "backend-prod-smoke.err.log"
 $backendProcess = $null
+$redisRestartRequired = $false
 
 if (-not (Test-Path -LiteralPath $gradleWrapper)) {
     throw "Gradle wrapper not found: $gradleWrapper"
@@ -265,6 +280,43 @@ try {
         throw "Expected CORS allow origin '$CorsOrigin'. Headers: $($corsAllowed.Headers | Out-String)"
     }
 
+    $redisOutageStatus = $null
+    if ($VerifyRedisOutage) {
+        & docker compose stop redis | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "docker compose stop redis failed with exit code $LASTEXITCODE"
+        }
+        $redisRestartRequired = $true
+        try {
+            try {
+                Invoke-WebRequest `
+                    -Method Post `
+                    -Uri "http://localhost:$PublicPort/auth/login" `
+                    -ContentType "application/json" `
+                    -Body '{"login":"redis-outage-smoke","password":"irrelevant"}' `
+                    -UseBasicParsing `
+                    -TimeoutSec 10 | Out-Null
+                $redisOutageStatus = 200
+            } catch {
+                if ($null -ne $_.Exception.Response) {
+                    $redisOutageStatus = [int]$_.Exception.Response.StatusCode
+                } else {
+                    throw
+                }
+            }
+            if ($redisOutageStatus -ne 503) {
+                throw "Expected /auth/login to fail closed with 503 during Redis outage, got $redisOutageStatus."
+            }
+        } finally {
+            & docker compose start redis | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "docker compose start redis failed with exit code $LASTEXITCODE"
+            }
+            $redisRestartRequired = $false
+            Wait-RedisReady
+        }
+    }
+
     [PSCustomObject]@{
         status = "PROD_PROFILE_SMOKE_OK"
         public_port = $PublicPort
@@ -273,10 +325,14 @@ try {
         cors_origin = $CorsOrigin
         metrics_status = $metricsStatus
         public_health_status = $publicHealthStatus
+        redis_outage_status = $redisOutageStatus
         java_tool_options = $env:JAVA_TOOL_OPTIONS
         jar = $jar.FullName
     }
 } finally {
+    if ($redisRestartRequired) {
+        & docker compose start redis | Out-Null
+    }
     if (-not $KeepBackendRunning) {
         Stop-ProcessTree -Process $backendProcess
     }

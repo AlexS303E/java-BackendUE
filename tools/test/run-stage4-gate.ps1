@@ -276,7 +276,7 @@ try {
 
         if (-not $SkipProdSmoke) {
             Invoke-CheckedStep "Stage 4 release gate: production profile smoke" {
-                $prodSmokeParameters = @{ RepoRoot = $root }
+                $prodSmokeParameters = @{ RepoRoot = $root; VerifyRedisOutage = $true }
                 if ($SkipDocker) {
                     $prodSmokeParameters.SkipDocker = $true
                 }
