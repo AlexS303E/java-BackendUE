@@ -40,6 +40,7 @@ Assert-Condition ($null -ne $summary.steps -and $summary.steps.Count -gt 0) "ste
 Assert-Condition ($summary.total_steps -eq $summary.steps.Count) "total_steps must match steps count"
 Assert-Condition ($summary.run_steps -ge 0) "run_steps must be non-negative"
 Assert-Condition ($summary.skipped_steps -ge 0) "skipped_steps must be non-negative"
+Assert-Condition ($null -ne $summary.skip_backup_restore_drill -and $summary.skip_backup_restore_drill.GetType().Name -eq "Boolean") "skip_backup_restore_drill must be boolean"
 Assert-Condition (($summary.run_steps + $summary.skipped_steps) -eq $summary.total_steps) "run_steps and skipped_steps must add up to total_steps"
 $actualRunSteps = @($summary.steps | Where-Object { $_.status -eq "run" }).Count
 $actualSkippedSteps = @($summary.steps | Where-Object { $_.status -eq "skip" }).Count

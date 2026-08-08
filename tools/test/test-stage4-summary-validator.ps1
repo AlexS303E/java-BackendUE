@@ -45,6 +45,7 @@ function Write-TestSummary {
         skip_prod_smoke = $false
         skip_mtls_smoke = $false
         skip_load_smoke = $false
+        skip_backup_restore_drill = $false
         skip_reason = ""
         error_message = ""
         steps = @(
@@ -113,6 +114,11 @@ try {
         -CaseName "bad-counter" `
         -Overrides @{ run_steps = 0 } `
         -ExpectedMessage "run_steps and skipped_steps must add up to total_steps"
+
+    Assert-ValidatorFails `
+        -CaseName "bad-backup-drill-skip" `
+        -Overrides @{ skip_backup_restore_drill = "false" } `
+        -ExpectedMessage "skip_backup_restore_drill must be boolean"
 
     Assert-ValidatorFails `
         -CaseName "bad-timing-order" `

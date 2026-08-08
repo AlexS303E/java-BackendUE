@@ -81,6 +81,7 @@ class Stage4ReleaseGateTest {
             .contains("gate_finished_at must be greater than or equal to gate_started_at")
             .contains("total_steps must match steps count")
             .contains("run_steps and skipped_steps must add up to total_steps")
+            .contains("skip_backup_restore_drill must be boolean")
             .contains("run_steps must match run step count")
             .contains("skipped_steps must match skipped step count")
             .contains("@(\"Fast\", \"Release\")")
@@ -100,6 +101,7 @@ class Stage4ReleaseGateTest {
             .contains("Assert-ValidatorFails")
             .contains("Unexpected schema_name")
             .contains("run_steps and skipped_steps must add up to total_steps")
+            .contains("skip_backup_restore_drill must be boolean")
             .contains("gate_finished_at must be greater than or equal to gate_started_at")
             .contains("Stage 4 summary validator negative tests passed.");
     }
