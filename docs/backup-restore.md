@@ -20,6 +20,12 @@ The verification script restores into a temporary database, checks Flyway histor
 Database, PostgreSQL user, and Docker Compose service parameters are validated as
 identifiers before they are passed to Docker or SQL commands.
 
+For a disposable end-to-end drill that removes its dump after verification, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\backup\run-backup-restore-drill.ps1
+```
+
 ## Baseline Targets
 
 - RPO: 24 hours for the MVP baseline.

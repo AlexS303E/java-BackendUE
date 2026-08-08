@@ -49,7 +49,7 @@ $hostPath = Join-Path $outputPath $fileName
 
 Push-Location $root
 try {
-    $containerId = (& docker compose ps -q $Service).Trim()
+    $containerId = ((& docker compose ps -q $Service) | Out-String).Trim()
     if ([string]::IsNullOrWhiteSpace($containerId)) {
         throw "Docker compose service '$Service' is not running."
     }

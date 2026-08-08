@@ -9,6 +9,7 @@ param(
     [switch]$SkipProdSmoke,
     [switch]$SkipMtlsSmoke,
     [switch]$SkipLoadSmoke,
+    [switch]$SkipBackupRestoreDrill,
     [switch]$ListSteps,
     [string]$SummaryPath = "artifacts/stage4/stage4-gate-summary.json",
     [switch]$NoSummary,
@@ -89,7 +90,7 @@ function Mark-UnstartedStepsAsSkipped {
 }
 
 function Test-ReleaseGateHasSkippedChecks {
-    return [bool]($SkipOpenApi -or $SkipBootJar -or $SkipProdSmoke -or $SkipMtlsSmoke -or $SkipLoadSmoke)
+    return [bool]($SkipOpenApi -or $SkipBootJar -or $SkipProdSmoke -or $SkipMtlsSmoke -or $SkipLoadSmoke -or $SkipBackupRestoreDrill)
 }
 
 function Resolve-RepoRevision {
@@ -187,6 +188,7 @@ function Write-GateSummary {
         skip_prod_smoke = [bool]$SkipProdSmoke
         skip_mtls_smoke = [bool]$SkipMtlsSmoke
         skip_load_smoke = [bool]$SkipLoadSmoke
+        skip_backup_restore_drill = [bool]$SkipBackupRestoreDrill
         skip_reason = $SkipReason
         error_message = $ErrorMessage
         steps = $Steps
@@ -202,10 +204,11 @@ $summaryValidator = Join-Path $root "tools\test\validate-stage4-summary.ps1"
 $prodSmoke = Join-Path $root "tools\smoke\prod-profile-smoke.ps1"
 $mtlsSmoke = Join-Path $root "tools\mtls\run-mtls-smoke.ps1"
 $loadSmoke = Join-Path $root "tools\load\run-load-smoke.ps1"
+$backupRestoreDrill = Join-Path $root "tools\backup\run-backup-restore-drill.ps1"
 $backendDir = Join-Path $root "backend"
 $gradleWrapper = Join-Path $backendDir "gradlew.bat"
 
-foreach ($script in @($runAllTests, $summaryValidator, $prodSmoke, $mtlsSmoke, $loadSmoke)) {
+foreach ($script in @($runAllTests, $summaryValidator, $prodSmoke, $mtlsSmoke, $loadSmoke, $backupRestoreDrill)) {
     if (-not (Test-Path -LiteralPath $script)) {
         throw "Required Stage 4 gate script was not found: $script"
     }
@@ -229,6 +232,7 @@ if ($Mode -eq "Release") {
     Add-GateStep $plannedSteps "release gate: production profile smoke" (-not $SkipProdSmoke)
     Add-GateStep $plannedSteps "release gate: mTLS smoke" (-not $SkipMtlsSmoke)
     Add-GateStep $plannedSteps "release gate: load smoke" (-not $SkipLoadSmoke)
+    Add-GateStep $plannedSteps "release gate: backup and restore drill" (-not $SkipBackupRestoreDrill)
 }
 
 if ($ListSteps) {
@@ -303,6 +307,17 @@ try {
                     $loadSmokeParameters.SkipDocker = $true
                 }
                 & $loadSmoke @loadSmokeParameters
+            } -Step $plannedSteps[$stepIndex]
+        }
+        $stepIndex++
+
+        if (-not $SkipBackupRestoreDrill) {
+            Invoke-CheckedStep "Stage 4 release gate: backup and restore drill" {
+                $backupDrillParameters = @{ RepoRoot = $root }
+                if ($SkipDocker) {
+                    $backupDrillParameters.SkipDocker = $true
+                }
+                & $backupRestoreDrill @backupDrillParameters
             } -Step $plannedSteps[$stepIndex]
         }
     }

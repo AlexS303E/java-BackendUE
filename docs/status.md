@@ -223,6 +223,10 @@ Re-run the following when making changes:
 
 Stage 4 is complete. The release gate entrypoint, summary artifact, schema validator, negative validator smoke, status instructions, and readiness checklist are synchronized around `artifacts/stage4/stage4-gate-summary.json`.
 
+Release mode also runs `tools/backup/run-backup-restore-drill.ps1`: it waits for
+PostgreSQL, creates a disposable custom-format dump, restores it into an isolated
+database, checks Flyway history, and deletes its temporary dump.
+
 ## Release evidence update — 2026-08-01
 
 `tools/test/run-stage4-gate.ps1 -Mode Release` completed successfully on revision
