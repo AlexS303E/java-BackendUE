@@ -100,6 +100,8 @@ $truststore = Join-Path $certDir "backend-truststore.p12"
 $jwtPrivateKey = Join-Path $certDir "jwt-private.pem"
 $jwtPublicKey = Join-Path $certDir "jwt-public.pem"
 $adminTokenFile = Join-Path $certDir "admin-token.txt"
+$keyStorePasswordFile = Join-Path $certDir "keystore-password.txt"
+$trustStorePasswordFile = Join-Path $certDir "truststore-password.txt"
 $logDir = Join-Path $root "tools\smoke\logs"
 $stdout = Join-Path $logDir "backend-prod-smoke.out.log"
 $stderr = Join-Path $logDir "backend-prod-smoke.err.log"
@@ -219,6 +221,8 @@ try {
     Remove-Item Env:ADMIN_TOKEN -ErrorAction SilentlyContinue
     $env:APP_ADMIN_IDENTITIES_0_ID = "prod-smoke-admin"
     Set-Content -LiteralPath $adminTokenFile -Value "prod-smoke-admin-token" -NoNewline -Encoding UTF8
+    Set-Content -LiteralPath $keyStorePasswordFile -Value $password -NoNewline -Encoding UTF8
+    Set-Content -LiteralPath $trustStorePasswordFile -Value $password -NoNewline -Encoding UTF8
     $env:APP_ADMIN_IDENTITIES_0_TOKEN = "file:$adminTokenFile"
     $env:APP_ADMIN_IDENTITIES_0_ROLES = "status,access,catalog,ops,security"
     & openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out $jwtPrivateKey | Out-Null
@@ -245,9 +249,9 @@ try {
     $env:SERVER_MTLS_REQUIRE_PRIVATE_PORT = "true"
     $env:SERVER_MTLS_ALLOW_HEADER_FINGERPRINT_FALLBACK = "false"
     $env:SERVER_MTLS_KEY_STORE = "file:$backendP12"
-    $env:SERVER_MTLS_KEY_STORE_PASSWORD = $password
+    $env:SERVER_MTLS_KEY_STORE_PASSWORD = "file:$keyStorePasswordFile"
     $env:SERVER_MTLS_TRUST_STORE = "file:$truststore"
-    $env:SERVER_MTLS_TRUST_STORE_PASSWORD = $password
+    $env:SERVER_MTLS_TRUST_STORE_PASSWORD = "file:$trustStorePasswordFile"
     $env:OUTBOX_WORKER_ENABLED = "false"
     $env:RATE_LIMIT_ENABLED = "true"
     $env:TRUSTED_PROXY_CIDRS = "127.0.0.1/32,::1/128"
@@ -422,5 +426,6 @@ try {
         }
     }
     Remove-Item -LiteralPath $adminTokenFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $keyStorePasswordFile, $trustStorePasswordFile -Force -ErrorAction SilentlyContinue
     Pop-Location
 }

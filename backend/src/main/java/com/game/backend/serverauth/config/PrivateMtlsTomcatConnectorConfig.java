@@ -1,5 +1,6 @@
 package com.game.backend.serverauth.config;
 
+import com.game.backend.common.config.ExternalSecretMaterialResolver;
 import org.apache.catalina.connector.Connector;
 import org.apache.coyote.http11.Http11NioProtocol;
 import org.apache.tomcat.util.net.SSLHostConfig;
@@ -44,9 +45,17 @@ public class PrivateMtlsTomcatConnectorConfig {
 
     private Connector privateMtlsConnector() {
         requireText(properties.getKeyStore(), "app.server-auth.mtls.key-store is required when mTLS is enabled");
-        requireText(properties.getKeyStorePassword(), "app.server-auth.mtls.key-store-password is required when mTLS is enabled");
         requireText(properties.getTrustStore(), "app.server-auth.mtls.trust-store is required when mTLS is enabled");
-        requireText(properties.getTrustStorePassword(), "app.server-auth.mtls.trust-store-password is required when mTLS is enabled");
+        String keyStorePassword = ExternalSecretMaterialResolver.resolve(
+                "app.server-auth.mtls.key-store-password",
+                properties.getKeyStorePassword()
+        );
+        String trustStorePassword = ExternalSecretMaterialResolver.resolve(
+                "app.server-auth.mtls.trust-store-password",
+                properties.getTrustStorePassword()
+        );
+        requireText(keyStorePassword, "app.server-auth.mtls.key-store-password is required when mTLS is enabled");
+        requireText(trustStorePassword, "app.server-auth.mtls.trust-store-password is required when mTLS is enabled");
 
         Connector connector = new Connector("org.apache.coyote.http11.Http11NioProtocol");
         connector.setPort(properties.getPort());
@@ -74,7 +83,7 @@ public class PrivateMtlsTomcatConnectorConfig {
         }
 
         sslHostConfig.setTruststoreFile(resolveToFilePath(properties.getTrustStore()));
-        sslHostConfig.setTruststorePassword(properties.getTrustStorePassword());
+        sslHostConfig.setTruststorePassword(trustStorePassword);
         sslHostConfig.setTruststoreType(properties.getTrustStoreType());
 
         SSLHostConfigCertificate certificate = new SSLHostConfigCertificate(
@@ -82,7 +91,7 @@ public class PrivateMtlsTomcatConnectorConfig {
                 SSLHostConfigCertificate.Type.UNDEFINED
         );
         certificate.setCertificateKeystoreFile(resolveToFilePath(properties.getKeyStore()));
-        certificate.setCertificateKeystorePassword(properties.getKeyStorePassword());
+        certificate.setCertificateKeystorePassword(keyStorePassword);
         certificate.setCertificateKeystoreType(properties.getKeyStoreType());
         if (StringUtils.hasText(properties.getKeyAlias())) {
             certificate.setCertificateKeyAlias(properties.getKeyAlias());

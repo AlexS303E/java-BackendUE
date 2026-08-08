@@ -19,14 +19,18 @@ class PrivateMtlsTomcatConnectorConfigTest {
     void shouldApplyPrivateConnectorKeepAliveSettings() throws Exception {
         Path keyStore = Files.createTempFile("backend-mtls-keystore", ".p12");
         Path trustStore = Files.createTempFile("backend-mtls-truststore", ".p12");
+        Path keyStorePassword = Files.createTempFile("backend-mtls-keystore-password", ".txt");
+        Path trustStorePassword = Files.createTempFile("backend-mtls-truststore-password", ".txt");
+        Files.writeString(keyStorePassword, "changeit\n");
+        Files.writeString(trustStorePassword, "changeit\n");
 
         ServerMtlsProperties properties = new ServerMtlsProperties();
         properties.setEnabled(true);
         properties.setPort(19443);
         properties.setKeyStore(keyStore.toUri().toString());
-        properties.setKeyStorePassword("changeit");
+        properties.setKeyStorePassword("file:" + keyStorePassword);
         properties.setTrustStore(trustStore.toUri().toString());
-        properties.setTrustStorePassword("changeit");
+        properties.setTrustStorePassword("file:" + trustStorePassword);
         properties.setConnectionTimeout(Duration.ofSeconds(5));
         properties.setKeepAliveTimeout(Duration.ofSeconds(30));
         properties.setMaxKeepAliveRequests(100);

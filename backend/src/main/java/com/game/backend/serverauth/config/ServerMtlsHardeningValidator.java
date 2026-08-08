@@ -43,6 +43,14 @@ public class ServerMtlsHardeningValidator implements SmartInitializingSingleton 
         if (properties.isAllowHeaderFingerprintFallback()) {
             throw new IllegalStateException("Production profile forbids app.server-auth.mtls.allow-header-fingerprint-fallback=true");
         }
+        requireFileSecret("app.server-auth.mtls.key-store-password", properties.getKeyStorePassword());
+        requireFileSecret("app.server-auth.mtls.trust-store-password", properties.getTrustStorePassword());
+    }
+
+    private static void requireFileSecret(String propertyName, String value) {
+        if (value == null || !value.trim().startsWith("file:")) {
+            throw new IllegalStateException("Production profile requires " + propertyName + " to use file: external secret material");
+        }
     }
 
     private static boolean hasProductionProfile(String[] activeProfiles) {

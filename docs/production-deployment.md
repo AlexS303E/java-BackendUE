@@ -44,12 +44,12 @@ Required runtime inputs:
 
 ```dotenv
 SERVER_MTLS_KEY_STORE=<secret-mounted backend PKCS12/JKS path or URI>
-SERVER_MTLS_KEY_STORE_PASSWORD=<secret value>
+SERVER_MTLS_KEY_STORE_PASSWORD=file:/run/secrets/backend-keystore-password
 SERVER_MTLS_TRUST_STORE=<secret-mounted truststore path or URI>
-SERVER_MTLS_TRUST_STORE_PASSWORD=<secret value>
+SERVER_MTLS_TRUST_STORE_PASSWORD=file:/run/secrets/backend-truststore-password
 ```
 
-Admin credentials must also be mounted as files in production, for example:
+Production requires mTLS password and admin credential material to be mounted as files, for example:
 
 ```dotenv
 APP_ADMIN_IDENTITIES_0_ID=operations

@@ -40,8 +40,14 @@ class ServerMtlsHardeningValidatorTest {
         ServerMtlsProperties fallbackAllowed = productionSafeBase();
         fallbackAllowed.setAllowHeaderFingerprintFallback(true);
         assertThatThrownBy(() -> ServerMtlsHardeningValidator.validateForStartup(new String[]{"prod"}, fallbackAllowed))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("allow-header-fingerprint-fallback=true");
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("allow-header-fingerprint-fallback=true");
+
+        ServerMtlsProperties literalPassword = productionSafeBase();
+        literalPassword.setKeyStorePassword("changeit");
+        assertThatThrownBy(() -> ServerMtlsHardeningValidator.validateForStartup(new String[]{"prod"}, literalPassword))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("key-store-password to use file: external secret material");
     }
 
     @Test
@@ -66,6 +72,8 @@ class ServerMtlsHardeningValidatorTest {
         properties.setConnectionTimeout(Duration.ofSeconds(5));
         properties.setKeepAliveTimeout(Duration.ofSeconds(30));
         properties.setMaxKeepAliveRequests(100);
+        properties.setKeyStorePassword("file:/run/secrets/backend-keystore-password");
+        properties.setTrustStorePassword("file:/run/secrets/backend-truststore-password");
         return properties;
     }
 }
