@@ -18,6 +18,10 @@ management:
         include: health,info
 
 spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
   lifecycle:
     timeout-per-shutdown-phase: ${SHUTDOWN_PHASE_TIMEOUT:30s}
 

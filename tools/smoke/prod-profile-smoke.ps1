@@ -161,6 +161,9 @@ try {
     $envKeys = @(
         "SPRING_PROFILES_ACTIVE",
         "SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS",
+        "DB_URL",
+        "DB_USER",
+        "DB_PASSWORD",
         "JAVA_TOOL_OPTIONS",
         "SERVER_PORT",
         "MANAGEMENT_SERVER_PORT",
@@ -199,6 +202,9 @@ try {
 
     $env:SPRING_PROFILES_ACTIVE = "prod"
     $env:SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS = "*:missing"
+    $env:DB_URL = "jdbc:postgresql://localhost:5432/ue_backend"
+    $env:DB_USER = "ue_backend"
+    $env:DB_PASSWORD = "ue_backend"
     $resourceValues = @{}
     foreach ($line in Get-Content -LiteralPath $resourceEnvelope) {
         if (-not [string]::IsNullOrWhiteSpace($line) -and -not $line.TrimStart().StartsWith("#")) {

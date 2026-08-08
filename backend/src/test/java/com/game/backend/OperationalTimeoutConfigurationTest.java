@@ -53,6 +53,9 @@ class OperationalTimeoutConfigurationTest {
 
         String productionConfig = Files.readString(Path.of("src/main/resources/application-prod.yml"));
         assertThat(productionConfig)
+            .contains("url: ${DB_URL}")
+            .contains("username: ${DB_USER}")
+            .contains("password: ${DB_PASSWORD}")
             .contains("port: ${MANAGEMENT_SERVER_PORT:8081}")
             .contains("address: ${MANAGEMENT_SERVER_ADDRESS:127.0.0.1}")
             .contains("keep-alive-timeout: ${HTTP_KEEP_ALIVE_TIMEOUT:30s}")
