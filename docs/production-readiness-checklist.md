@@ -13,7 +13,7 @@
 - [x] **Admin secret mounts** — production requires `APP_ADMIN_IDENTITIES_{n}_TOKEN=file:/...`; file material is read once at startup and unavailable or empty files fail startup. Literal tokens remain local-profile only.
 - [x] **mTLS password mounts** — production requires `SERVER_MTLS_KEY_STORE_PASSWORD=file:/...` and `SERVER_MTLS_TRUST_STORE_PASSWORD=file:/...`; both are read once at startup and fail closed if unavailable or empty.
 - [x] **mTLS key material mounts** — production requires `SERVER_MTLS_KEY_STORE=file:/...` and `SERVER_MTLS_TRUST_STORE=file:/...`; classpath or inline deployment material is rejected.
-- [x] **Datasource credentials** — production has no inherited local database defaults and requires explicit `DB_URL`, `DB_USER`, and secret-manager-injected `DB_PASSWORD`.
+- [x] **Datasource credentials** — production has no inherited local database defaults and requires explicit `DB_URL`, `DB_USER`, and secret-manager-injected `DB_PASSWORD`; the password supports `file:/...` secret mounts before datasource startup.
 - [x] **Token expiry configured** — access token defaults to 15 minutes, refresh token defaults to 14 days.
 - [x] **Algorithm** — access tokens use RS256; prod startup requires configured RSA private/public keys.
 

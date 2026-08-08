@@ -100,6 +100,7 @@ $truststore = Join-Path $certDir "backend-truststore.p12"
 $jwtPrivateKey = Join-Path $certDir "jwt-private.pem"
 $jwtPublicKey = Join-Path $certDir "jwt-public.pem"
 $adminTokenFile = Join-Path $certDir "admin-token.txt"
+$databasePasswordFile = Join-Path $certDir "database-password.txt"
 $keyStorePasswordFile = Join-Path $certDir "keystore-password.txt"
 $trustStorePasswordFile = Join-Path $certDir "truststore-password.txt"
 $logDir = Join-Path $root "tools\smoke\logs"
@@ -204,7 +205,8 @@ try {
     $env:SPRING_FLYWAY_IGNORE_MIGRATION_PATTERNS = "*:missing"
     $env:DB_URL = "jdbc:postgresql://localhost:5432/ue_backend"
     $env:DB_USER = "ue_backend"
-    $env:DB_PASSWORD = "ue_backend"
+    Set-Content -LiteralPath $databasePasswordFile -Value "ue_backend" -NoNewline -Encoding UTF8
+    $env:DB_PASSWORD = "file:$databasePasswordFile"
     $resourceValues = @{}
     foreach ($line in Get-Content -LiteralPath $resourceEnvelope) {
         if (-not [string]::IsNullOrWhiteSpace($line) -and -not $line.TrimStart().StartsWith("#")) {
@@ -432,6 +434,7 @@ try {
         }
     }
     Remove-Item -LiteralPath $adminTokenFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $databasePasswordFile -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $keyStorePasswordFile, $trustStorePasswordFile -Force -ErrorAction SilentlyContinue
     Pop-Location
 }

@@ -45,7 +45,7 @@ Required runtime inputs:
 ```dotenv
 DB_URL=jdbc:postgresql://postgres.internal:5432/ue_backend
 DB_USER=ue_backend_runtime
-DB_PASSWORD=<secret-manager-injected database password>
+DB_PASSWORD=file:/run/secrets/database-password
 SERVER_MTLS_KEY_STORE=file:/run/secrets/backend-keystore.p12
 SERVER_MTLS_KEY_STORE_PASSWORD=file:/run/secrets/backend-keystore-password
 SERVER_MTLS_TRUST_STORE=file:/run/secrets/backend-truststore.p12
@@ -53,8 +53,9 @@ SERVER_MTLS_TRUST_STORE_PASSWORD=file:/run/secrets/backend-truststore-password
 ```
 
 The production profile has no datasource defaults: all three `DB_*` values are
-required at startup. Inject `DB_PASSWORD` through the deployment secret manager;
-do not rely on the local Docker credential.
+required at startup. `DB_PASSWORD` accepts a literal deployment-injected value or
+`file:/...` secret mount; prefer the mounted file through the deployment secret manager.
+Do not rely on the local Docker credential.
 
 Production requires mTLS key material, mTLS passwords, and admin credential material to be mounted as files, for example:
 
