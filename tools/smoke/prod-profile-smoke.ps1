@@ -7,6 +7,7 @@ param(
     [string]$CorsOrigin = "https://game.example",
     [switch]$SkipDocker,
     [switch]$VerifyRedisOutage,
+    [switch]$VerifyMultiReplicaRateLimit,
     [switch]$KeepBackendRunning
 )
 
@@ -50,6 +51,29 @@ function Stop-ProcessTree {
     }
 }
 
+function Invoke-HttpStatus {
+    param(
+        [string]$Uri,
+        [hashtable]$Headers = @{}
+    )
+    try {
+        Invoke-WebRequest `
+            -Method Post `
+            -Uri $Uri `
+            -ContentType "application/json" `
+            -Headers $Headers `
+            -Body '{"login":"rate-limit-smoke","password":"irrelevant"}' `
+            -UseBasicParsing `
+            -TimeoutSec 10 | Out-Null
+        return 200
+    } catch {
+        if ($null -ne $_.Exception.Response) {
+            return [int]$_.Exception.Response.StatusCode
+        }
+        throw
+    }
+}
+
 function Wait-RedisReady {
     param([int]$TimeoutSeconds = 60)
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -80,6 +104,7 @@ $logDir = Join-Path $root "tools\smoke\logs"
 $stdout = Join-Path $logDir "backend-prod-smoke.out.log"
 $stderr = Join-Path $logDir "backend-prod-smoke.err.log"
 $backendProcess = $null
+$replicaProcess = $null
 $redisRestartRequired = $false
 
 if (-not (Test-Path -LiteralPath $gradleWrapper)) {
@@ -162,7 +187,9 @@ try {
         "SERVER_MTLS_TRUST_STORE",
         "SERVER_MTLS_TRUST_STORE_PASSWORD",
         "OUTBOX_WORKER_ENABLED",
-        "RATE_LIMIT_ENABLED"
+        "RATE_LIMIT_ENABLED",
+        "RATE_LIMIT_AUTH_LIMIT",
+        "TRUSTED_PROXY_CIDRS"
     )
     foreach ($key in $envKeys) {
         $previousEnv[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
@@ -223,6 +250,10 @@ try {
     $env:SERVER_MTLS_TRUST_STORE_PASSWORD = $password
     $env:OUTBOX_WORKER_ENABLED = "false"
     $env:RATE_LIMIT_ENABLED = "true"
+    $env:TRUSTED_PROXY_CIDRS = "127.0.0.1/32,::1/128"
+    if ($VerifyMultiReplicaRateLimit) {
+        $env:RATE_LIMIT_AUTH_LIMIT = "1"
+    }
 
     $javaExe = if ([string]::IsNullOrWhiteSpace($env:JAVA_HOME)) { "java" } else { Join-Path $env:JAVA_HOME "bin\java.exe" }
     $backendProcess = Start-Process `
@@ -317,6 +348,46 @@ try {
         }
     }
 
+    $multiReplicaSecondStatus = $null
+    if ($VerifyMultiReplicaRateLimit) {
+        $replicaPublicPort = $PublicPort + 10
+        $replicaManagementPort = $ManagementPort + 10
+        $replicaPrivateMtlsPort = $PrivateMtlsPort + 10
+        $replicaStdout = Join-Path $logDir "backend-prod-smoke-replica.out.log"
+        $replicaStderr = Join-Path $logDir "backend-prod-smoke-replica.err.log"
+        Remove-Item $replicaStdout, $replicaStderr -Force -ErrorAction SilentlyContinue
+        $env:SERVER_PORT = [string]$replicaPublicPort
+        $env:MANAGEMENT_SERVER_PORT = [string]$replicaManagementPort
+        $env:SERVER_MTLS_PORT = [string]$replicaPrivateMtlsPort
+        $env:RATE_LIMIT_AUTH_LIMIT = "1"
+        $replicaProcess = Start-Process `
+            -FilePath $javaExe `
+            -ArgumentList @("-jar", $jar.FullName) `
+            -WorkingDirectory $backendDir `
+            -RedirectStandardOutput $replicaStdout `
+            -RedirectStandardError $replicaStderr `
+            -WindowStyle Hidden `
+            -PassThru
+        Wait-HttpOk -Url "http://localhost:$replicaManagementPort/actuator/health/readiness" -TimeoutSeconds $StartupTimeoutSeconds
+
+        $env:SERVER_PORT = [string]$PublicPort
+        $env:MANAGEMENT_SERVER_PORT = [string]$ManagementPort
+        $env:SERVER_MTLS_PORT = [string]$PrivateMtlsPort
+        $env:RATE_LIMIT_AUTH_LIMIT = "1"
+        $clientIp = "198.51.100.$(Get-Random -Minimum 1 -Maximum 255)"
+        $forwardedHeaders = @{ "X-Forwarded-For" = $clientIp }
+        $firstReplicaStatus = Invoke-HttpStatus -Uri "http://localhost:$PublicPort/auth/login" -Headers $forwardedHeaders
+        if ($firstReplicaStatus -eq 429) {
+            throw "Expected first replica request to be below rate limit, got 429."
+        }
+        $multiReplicaSecondStatus = Invoke-HttpStatus `
+            -Uri "http://localhost:$replicaPublicPort/auth/login" `
+            -Headers $forwardedHeaders
+        if ($multiReplicaSecondStatus -ne 429) {
+            throw "Expected second replica request to share Redis rate limit and return 429, got $multiReplicaSecondStatus."
+        }
+    }
+
     [PSCustomObject]@{
         status = "PROD_PROFILE_SMOKE_OK"
         public_port = $PublicPort
@@ -326,12 +397,16 @@ try {
         metrics_status = $metricsStatus
         public_health_status = $publicHealthStatus
         redis_outage_status = $redisOutageStatus
+        multi_replica_second_status = $multiReplicaSecondStatus
         java_tool_options = $env:JAVA_TOOL_OPTIONS
         jar = $jar.FullName
     }
 } finally {
     if ($redisRestartRequired) {
         & docker compose start redis | Out-Null
+    }
+    if (-not $KeepBackendRunning) {
+        Stop-ProcessTree -Process $replicaProcess
     }
     if (-not $KeepBackendRunning) {
         Stop-ProcessTree -Process $backendProcess

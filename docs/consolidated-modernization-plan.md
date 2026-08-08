@@ -219,6 +219,6 @@ security-тесты при изменении границы доверия, и 
 - [x] Outbox защищён fenced lease и проверен конкурирующими workers.
 - [x] Management connector в production привязан только к loopback; Actuator отсутствует на public connector.
 - [x] JWT rotation и disposable backup/restore drill проверены; restore шаг входит в Release gate.
-- [ ] Multi-replica degradation остаётся проверить в representative CI/стенде; Redis outage проверяется production smoke с fail-closed ожиданием.
+- [x] Production smoke проверяет Redis outage с fail-closed ожиданием и общий Redis rate limit между двумя replicas.
 - [ ] CI блокирует merge при падении migration, contract или security тестов.
 - [ ] Нагрузочные артефакты не содержат секретов либо персональных идентификаторов.
