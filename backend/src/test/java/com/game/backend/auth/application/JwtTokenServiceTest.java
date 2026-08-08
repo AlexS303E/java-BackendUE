@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Signature;
@@ -140,6 +142,30 @@ class JwtTokenServiceTest {
             }
         );
         assertThat(activeHeader).containsEntry("kid", "active");
+    }
+
+    @Test
+    void shouldReadJwtKeyPairFromSecretFiles() throws Exception {
+        KeyPair keyPair = keyPair();
+        Path privateKeyFile = Files.createTempFile("jwt-private-", ".pem");
+        Path publicKeyFile = Files.createTempFile("jwt-public-", ".pem");
+        Files.writeString(privateKeyFile, privatePem(keyPair));
+        Files.writeString(publicKeyFile, publicPem(keyPair));
+
+        try {
+            JwtTokenService service = new JwtTokenService(
+                objectMapper,
+                "file:" + privateKeyFile,
+                "file:" + publicKeyFile,
+                "PT15M"
+            );
+
+            String token = service.issueAccessToken(UUID.randomUUID(), "player");
+            assertThat(service.validate(token)).isPresent();
+        } finally {
+            Files.deleteIfExists(privateKeyFile);
+            Files.deleteIfExists(publicKeyFile);
+        }
     }
 
     private JwtKeyRingProperties keyRing(String activeKeyId, KeyPair previousKey, KeyPair activeKey) {

@@ -3,13 +3,12 @@ package com.game.backend.auth.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.game.backend.common.config.ExternalSecretMaterialResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -288,7 +287,7 @@ public class JwtTokenService {
 
     private PrivateKey readPrivateKey(String value) {
         try {
-            byte[] keyBytes = decodePem(value, "PRIVATE KEY");
+            byte[] keyBytes = decodePem(value, "PRIVATE KEY", "app.auth.jwt-private-key");
             return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to read app.auth.jwt-private-key as PKCS#8 RSA private key", exception);
@@ -297,27 +296,20 @@ public class JwtTokenService {
 
     private PublicKey readPublicKey(String value) {
         try {
-            byte[] keyBytes = decodePem(value, "PUBLIC KEY");
+            byte[] keyBytes = decodePem(value, "PUBLIC KEY", "app.auth.jwt-public-key");
             return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to read app.auth.jwt-public-key as X.509 RSA public key", exception);
         }
     }
 
-    private byte[] decodePem(String value, String label) throws Exception {
-        String pem = resolvePemValue(value).replace("\\n", "\n").trim();
+    private byte[] decodePem(String value, String label, String propertyName) throws Exception {
+        String pem = ExternalSecretMaterialResolver.resolve(propertyName, value).replace("\\n", "\n").trim();
         String normalized = pem
             .replace("-----BEGIN " + label + "-----", "")
             .replace("-----END " + label + "-----", "")
             .replaceAll("\\s", "");
         return Base64.getDecoder().decode(normalized);
-    }
-
-    private String resolvePemValue(String value) throws Exception {
-        if (value.startsWith("file:")) {
-            return Files.readString(Path.of(value.substring("file:".length())), StandardCharsets.UTF_8);
-        }
-        return value;
     }
 
     private record KeyRing(Map<String, KeyPair> keys, String activeKeyId) {
