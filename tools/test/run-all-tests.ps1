@@ -50,9 +50,14 @@ function Use-JavaHome {
         return
     }
 
-    $javaExe = Join-Path $resolvedJavaHome "bin\java.exe"
+    $javaExecutableName = if ([System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT) {
+        "java.exe"
+    } else {
+        "java"
+    }
+    $javaExe = Join-Path $resolvedJavaHome (Join-Path "bin" $javaExecutableName)
     if (-not (Test-Path -LiteralPath $javaExe)) {
-        throw "JAVA_HOME does not contain bin\java.exe: $resolvedJavaHome"
+        throw "JAVA_HOME does not contain bin\${javaExecutableName}: $resolvedJavaHome"
     }
 
     $env:JAVA_HOME = $resolvedJavaHome
@@ -60,9 +65,28 @@ function Use-JavaHome {
     Write-Host "Using JAVA_HOME=$resolvedJavaHome"
 }
 
+function Resolve-PowerShellExecutable {
+    if ($null -ne (Get-Command pwsh -ErrorAction SilentlyContinue)) {
+        return "pwsh"
+    }
+    return "powershell"
+}
+
+function Resolve-GradleWrapper {
+    param([string]$BackendDirectory)
+
+    $wrapperName = if ([System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT) {
+        "gradlew.bat"
+    } else {
+        "gradlew"
+    }
+    return (Join-Path $BackendDirectory $wrapperName)
+}
+
 $root = Resolve-RepoRoot -ExplicitRepoRoot $RepoRoot
 $backendDir = Join-Path $root "backend"
-$gradleWrapper = Join-Path $backendDir "gradlew.bat"
+$gradleWrapper = Resolve-GradleWrapper -BackendDirectory $backendDir
+$powerShellExecutable = Resolve-PowerShellExecutable
 $openApiScript = Join-Path $root "tools\openapi\verify-openapi-stage3.ps1"
 $secretScanner = Join-Path $root "tools\security\scan-secrets.ps1"
 $secretScannerTests = Join-Path $root "tools\security\test-secret-scan.ps1"
@@ -82,16 +106,16 @@ foreach ($script in @($secretScanner, $secretScannerTests, $backupParameterTests
 Use-JavaHome -RequestedJavaHome $JavaHome
 
 Invoke-CheckedStep "Scan tracked source and configuration for secrets" {
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $secretScanner -RepoRoot $root
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $secretScannerTests -RepoRoot $root
+    & $powerShellExecutable -NoProfile -ExecutionPolicy Bypass -File $secretScanner -RepoRoot $root
+    & $powerShellExecutable -NoProfile -ExecutionPolicy Bypass -File $secretScannerTests -RepoRoot $root
 }
 
 Invoke-CheckedStep "Validate backup and restore command parameters" {
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $backupParameterTests -RepoRoot $root
+    & $powerShellExecutable -NoProfile -ExecutionPolicy Bypass -File $backupParameterTests -RepoRoot $root
 }
 
 Invoke-CheckedStep "Validate load-test artifact hygiene" {
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $tankArtifactHygieneTests -RepoRoot $root
+    & $powerShellExecutable -NoProfile -ExecutionPolicy Bypass -File $tankArtifactHygieneTests -RepoRoot $root
 }
 
 if (-not $SkipDocker) {
@@ -120,7 +144,7 @@ if (-not $SkipOpenApi) {
     }
 
     Invoke-CheckedStep "Verify OpenAPI contract" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $openApiScript -RepoRoot $root
+        & $powerShellExecutable -NoProfile -ExecutionPolicy Bypass -File $openApiScript -RepoRoot $root
     }
 }
 

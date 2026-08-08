@@ -32,7 +32,7 @@
 - [x] Production accepts a complete external JWT key ring without legacy key-pair
   placeholders, while rejecting incomplete, duplicate, or inline ring material.
 - [x] Bootstrap entitlement ledger вставляется set-based SQL.
-- [x] Management interface в production по умолчанию связан с loopback; добавлен GitHub Actions gate с PostgreSQL, Redis, Gradle, Flyway, bootJar и OpenAPI.
+- [x] Management interface в production по умолчанию связан с loopback; GitHub Actions запускает тот же кроссплатформенный Stage 4 Fast gate, что и локальная проверка.
 - [x] CI и локальный Fast gate сканируют отслеживаемые исходники и конфигурацию на
   сигнатуры private key, AWS access key, GitHub и Slack tokens; сканер имеет
   негативную проверку.

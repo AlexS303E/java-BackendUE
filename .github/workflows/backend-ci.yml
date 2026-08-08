@@ -50,23 +50,9 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Scan tracked source and configuration for secrets
+      - name: Run Stage 4 Fast gate
         shell: pwsh
-        run: |
-          ./tools/security/scan-secrets.ps1 -RepoRoot .
-          ./tools/security/test-secret-scan.ps1 -RepoRoot .
-
-      - name: Validate backup and restore command parameters
-        shell: pwsh
-        run: ./tools/backup/test-backup-parameter-validation.ps1 -RepoRoot .
-
-      - name: Validate load-test artifact hygiene
-        shell: pwsh
-        run: ./tools/load/tank/test-yandex-tank-artifact-hygiene.ps1 -RepoRoot .
-
-      - name: Run Gradle tests and Flyway migrations
-        working-directory: backend
-        run: ./gradlew --no-daemon --dependency-verification=strict test
+        run: ./tools/test/run-stage4-gate.ps1 -Mode Fast -SkipDocker
 
       - name: Build deployable JAR
         working-directory: backend
@@ -83,7 +69,3 @@ jobs:
           path: backend/build/reports/cyclonedx/bom.json
           if-no-files-found: error
           retention-days: 30
-
-      - name: Verify OpenAPI contracts
-        shell: pwsh
-        run: ./tools/openapi/verify-openapi-stage3.ps1 -RepoRoot .

@@ -28,6 +28,24 @@ function Resolve-RepoRoot {
     return (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).Path
 }
 
+function Resolve-PowerShellExecutable {
+    if ($null -ne (Get-Command pwsh -ErrorAction SilentlyContinue)) {
+        return "pwsh"
+    }
+    return "powershell"
+}
+
+function Resolve-GradleWrapper {
+    param([string]$BackendDirectory)
+
+    $wrapperName = if ([System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT) {
+        "gradlew.bat"
+    } else {
+        "gradlew"
+    }
+    return (Join-Path $BackendDirectory $wrapperName)
+}
+
 function Invoke-CheckedStep {
     param(
         [string]$Name,
@@ -195,7 +213,7 @@ function Write-GateSummary {
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $resolvedPath -Encoding UTF8
 
     Write-Host "Stage 4 gate summary written to $resolvedPath"
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $summaryValidator -SummaryPath $resolvedPath
+    & $powerShellExecutable -NoProfile -ExecutionPolicy Bypass -File $summaryValidator -SummaryPath $resolvedPath
 }
 
 $root = Resolve-RepoRoot -ProvidedRepoRoot $RepoRoot
@@ -206,7 +224,8 @@ $mtlsSmoke = Join-Path $root "tools\mtls\run-mtls-smoke.ps1"
 $loadSmoke = Join-Path $root "tools\load\run-load-smoke.ps1"
 $backupRestoreDrill = Join-Path $root "tools\backup\run-backup-restore-drill.ps1"
 $backendDir = Join-Path $root "backend"
-$gradleWrapper = Join-Path $backendDir "gradlew.bat"
+$gradleWrapper = Resolve-GradleWrapper -BackendDirectory $backendDir
+$powerShellExecutable = Resolve-PowerShellExecutable
 
 foreach ($script in @($runAllTests, $summaryValidator, $prodSmoke, $mtlsSmoke, $loadSmoke, $backupRestoreDrill)) {
     if (-not (Test-Path -LiteralPath $script)) {
