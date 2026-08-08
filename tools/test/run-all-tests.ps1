@@ -108,7 +108,7 @@ if (-not $SkipDocker) {
 Invoke-CheckedStep "Run backend Gradle tests" {
     Push-Location $backendDir
     try {
-        & $gradleWrapper --no-daemon test
+        & $gradleWrapper --no-daemon --dependency-verification=strict test
     } finally {
         Pop-Location
     }
