@@ -150,7 +150,7 @@
 - [x] **Stage 4 release gate** — `tools/test/run-stage4-gate.ps1` is the release verification entrypoint; it writes `artifacts/stage4/stage4-gate-summary.json`, self-validates it with `tools/test/validate-stage4-summary.ps1`, and the validator has negative coverage through `tools/test/test-stage4-summary-validator.ps1`.
 - [x] **Java version** — Gradle toolchain is pinned to Java 21 (LTS); covered by `OperationalTimeoutConfigurationTest`.
 - [x] **Graceful shutdown** — `application-prod.yml` sets `server.shutdown=graceful` and configurable `spring.lifecycle.timeout-per-shutdown-phase`.
-- [x] **Health check port** — prod uses dedicated `MANAGEMENT_SERVER_PORT` (default 8081); fail-fast validation prevents collision with public and mTLS ports, and prod smoke verifies Actuator is absent from the public connector.
+- [x] **Health check port** — prod uses dedicated `MANAGEMENT_SERVER_PORT` (default 8081), bound only to loopback; fail-fast validation prevents collision with public and mTLS ports, and prod smoke verifies Actuator is absent from the public connector.
 
 ### Infrastructure
 - [x] **CPU/Memory sizing** — Stage 1 backend envelope is 2/4 vCPU request/limit and 1536/2048 MiB memory with a 60% heap cap; preflight, prod smoke, and re-sizing triggers are documented and covered by `ResourceEnvelopeTest`.

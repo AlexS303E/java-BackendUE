@@ -217,7 +217,7 @@ security-тесты при изменении границы доверия, и 
 - [x] Все P0-пункты в границах приложения завершены, а release gate зелёный.
 - [x] Forwarded headers, rate limit и admin identity используют подтверждённые данные.
 - [x] Outbox защищён fenced lease и проверен конкурирующими workers.
-- [ ] Management endpoints не доступны из публичной сети.
+- [x] Management connector в production привязан только к loopback; Actuator отсутствует на public connector.
 - [x] JWT rotation и disposable backup/restore drill проверены; restore шаг входит в Release gate.
 - [ ] Multi-replica degradation и Redis outage проверены в representative CI/стенде.
 - [ ] CI блокирует merge при падении migration, contract или security тестов.

@@ -7,12 +7,13 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Set;
+import java.util.Locale;
 
 @Component
 public class ManagementPortHardeningValidator implements SmartInitializingSingleton {
     private static final Set<String> PRODUCTION_PROFILES = Set.of("prod", "production");
+    private static final Set<String> LOOPBACK_ADDRESSES = Set.of("127.0.0.1", "::1", "localhost");
 
     private final Environment environment;
     private final int publicPort;
@@ -76,9 +77,8 @@ public class ManagementPortHardeningValidator implements SmartInitializingSingle
             );
         }
         if (managementAddress == null || managementAddress.isBlank()
-            || "0.0.0.0".equals(managementAddress.trim())
-            || "::".equals(managementAddress.trim())) {
-            throw new IllegalStateException("Production management.server.address must not bind all interfaces");
+            || !LOOPBACK_ADDRESSES.contains(managementAddress.trim().toLowerCase(Locale.ROOT))) {
+            throw new IllegalStateException("Production management.server.address must bind loopback only");
         }
     }
 

@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ManagementPortHardeningValidatorTest {
     @Test
-    void shouldRejectMissingOrSharedProductionManagementPort() {
+    void shouldRejectMissingSharedOrNonLoopbackProductionManagementPort() {
         assertThatThrownBy(() -> ManagementPortHardeningValidator.validateForStartup(
             new String[]{"prod"},
             8080,
@@ -40,7 +40,13 @@ class ManagementPortHardeningValidatorTest {
             new String[]{"prod"}, 8080, 8081, 9443, "0.0.0.0"
         ))
             .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("must not bind all interfaces");
+            .hasMessageContaining("must bind loopback only");
+
+        assertThatThrownBy(() -> ManagementPortHardeningValidator.validateForStartup(
+            new String[]{"prod"}, 8080, 8081, 9443, "10.42.0.15"
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("must bind loopback only");
     }
 
     @Test
@@ -50,6 +56,10 @@ class ManagementPortHardeningValidatorTest {
             8080,
             8081,
             9443
+        )).doesNotThrowAnyException();
+
+        assertThatCode(() -> ManagementPortHardeningValidator.validateForStartup(
+            new String[]{"prod"}, 8080, 8081, 9443, "::1"
         )).doesNotThrowAnyException();
 
         assertThatCode(() -> ManagementPortHardeningValidator.validateForStartup(

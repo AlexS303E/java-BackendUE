@@ -5,7 +5,7 @@
 Production uses three separate connector surfaces:
 
 - Public HTTP connector: `server.port`, default `8080`. Serves player, catalog, auth, and admin HTTP routes according to the normal Spring Security rules.
-- Management connector: `management.server.port`, default `8081`. Serves Actuator health, readiness, liveness, and info endpoints.
+- Management connector: `management.server.port`, default `8081`, bound to loopback only (`127.0.0.1` or `::1`). Serves Actuator health, readiness, liveness, and info endpoints. A node-local collector or sidecar must perform any required scrape or probe.
 - Dedicated Server private mTLS connector: `app.server-auth.mtls.port`, default `9443`. Serves `/server/*` only and requires client certificates.
 
 `server.port`, `management.server.port`, and `app.server-auth.mtls.port` must be distinct. The private mTLS connector must be reachable only from the internal Dedicated Server network or from an approved internal load balancer segment. It must not be exposed as a public internet listener.
