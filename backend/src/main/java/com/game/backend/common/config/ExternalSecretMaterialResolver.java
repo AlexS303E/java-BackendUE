@@ -22,7 +22,11 @@ public final class ExternalSecretMaterialResolver {
             throw new IllegalStateException("External secret material path is empty for " + propertyName);
         }
         try {
-            String secretMaterial = Files.readString(Path.of(pathValue), StandardCharsets.UTF_8).trim();
+            String secretMaterial = Files.readString(Path.of(pathValue), StandardCharsets.UTF_8);
+            if (secretMaterial.startsWith("\uFEFF")) {
+                secretMaterial = secretMaterial.substring(1);
+            }
+            secretMaterial = secretMaterial.trim();
             if (secretMaterial.isEmpty()) {
                 throw new IllegalStateException("External secret material is empty for " + propertyName);
             }

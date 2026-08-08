@@ -43,7 +43,9 @@ public class ServerMtlsHardeningValidator implements SmartInitializingSingleton 
         if (properties.isAllowHeaderFingerprintFallback()) {
             throw new IllegalStateException("Production profile forbids app.server-auth.mtls.allow-header-fingerprint-fallback=true");
         }
+        requireFileSecret("app.server-auth.mtls.key-store", properties.getKeyStore());
         requireFileSecret("app.server-auth.mtls.key-store-password", properties.getKeyStorePassword());
+        requireFileSecret("app.server-auth.mtls.trust-store", properties.getTrustStore());
         requireFileSecret("app.server-auth.mtls.trust-store-password", properties.getTrustStorePassword());
     }
 

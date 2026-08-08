@@ -48,6 +48,12 @@ class ServerMtlsHardeningValidatorTest {
         assertThatThrownBy(() -> ServerMtlsHardeningValidator.validateForStartup(new String[]{"prod"}, literalPassword))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("key-store-password to use file: external secret material");
+
+        ServerMtlsProperties classpathKeyStore = productionSafeBase();
+        classpathKeyStore.setKeyStore("classpath:backend.p12");
+        assertThatThrownBy(() -> ServerMtlsHardeningValidator.validateForStartup(new String[]{"prod"}, classpathKeyStore))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("key-store to use file: external secret material");
     }
 
     @Test
@@ -72,7 +78,9 @@ class ServerMtlsHardeningValidatorTest {
         properties.setConnectionTimeout(Duration.ofSeconds(5));
         properties.setKeepAliveTimeout(Duration.ofSeconds(30));
         properties.setMaxKeepAliveRequests(100);
+        properties.setKeyStore("file:/run/secrets/backend-keystore.p12");
         properties.setKeyStorePassword("file:/run/secrets/backend-keystore-password");
+        properties.setTrustStore("file:/run/secrets/backend-truststore.p12");
         properties.setTrustStorePassword("file:/run/secrets/backend-truststore-password");
         return properties;
     }

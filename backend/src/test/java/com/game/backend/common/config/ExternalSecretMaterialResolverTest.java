@@ -2,6 +2,7 @@ package com.game.backend.common.config;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -14,6 +15,19 @@ class ExternalSecretMaterialResolverTest {
     void shouldReadAndTrimSecretFromFile() throws Exception {
         Path secretFile = Files.createTempFile("external-secret-", ".txt");
         Files.writeString(secretFile, "secret-value\n");
+
+        try {
+            assertThat(ExternalSecretMaterialResolver.resolve("app.admin.token", "file:" + secretFile))
+                    .isEqualTo("secret-value");
+        } finally {
+            Files.deleteIfExists(secretFile);
+        }
+    }
+
+    @Test
+    void shouldIgnoreUtf8ByteOrderMarkInSecretFile() throws Exception {
+        Path secretFile = Files.createTempFile("external-secret-", ".txt");
+        Files.write(secretFile, "\uFEFFsecret-value\n".getBytes(StandardCharsets.UTF_8));
 
         try {
             assertThat(ExternalSecretMaterialResolver.resolve("app.admin.token", "file:" + secretFile))
