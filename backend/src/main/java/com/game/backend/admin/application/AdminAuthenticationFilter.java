@@ -1,5 +1,6 @@
 package com.game.backend.admin.application;
 
+import com.game.backend.common.config.ExternalSecretMaterialResolver;
 import com.game.backend.common.network.TrustedClientIpResolver;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -17,6 +18,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Locale;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -27,10 +29,20 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
 
     private final AdminSecurityProperties properties;
     private final TrustedClientIpResolver clientIpResolver;
+    private final String legacyToken;
+    private final List<ConfiguredAdminIdentity> identities;
 
     public AdminAuthenticationFilter(AdminSecurityProperties properties, TrustedClientIpResolver clientIpResolver) {
         this.properties = properties;
         this.clientIpResolver = clientIpResolver;
+        this.legacyToken = ExternalSecretMaterialResolver.resolve("app.admin.token", properties.getToken());
+        this.identities = properties.getIdentities().stream()
+            .map(identity -> new ConfiguredAdminIdentity(
+                identity.getId(),
+                ExternalSecretMaterialResolver.resolve("app.admin.identities[].token", identity.getToken()),
+                identity.getRoles()
+            ))
+            .toList();
     }
 
     @Override
@@ -87,14 +99,14 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
         if (token == null || token.isBlank()) {
             return null;
         }
-        if (!properties.getIdentities().isEmpty()) {
-            return properties.getIdentities().stream()
-                .filter(identity -> tokensEqual(identity.getToken(), token))
+        if (!identities.isEmpty()) {
+            return identities.stream()
+                .filter(identity -> tokensEqual(identity.token(), token))
                 .findFirst()
-                .map(identity -> new AuthenticatedAdmin(identity.getId(), rolesFor(identity.getRoles())))
+                .map(identity -> new AuthenticatedAdmin(identity.id(), rolesFor(identity.roles())))
                 .orElse(null);
         }
-        if (!tokensEqual(properties.getToken(), token)) {
+        if (!tokensEqual(legacyToken, token)) {
             return null;
         }
         return new AuthenticatedAdmin(actorIdFor(token), rolesFor(properties.getDefaultRoles()));
@@ -166,6 +178,9 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private record AuthenticatedAdmin(String actorId, Set<String> roles) {
+    }
+
+    private record ConfiguredAdminIdentity(String id, String token, java.util.Collection<String> roles) {
     }
 
     private boolean ipMatches(String clientIp, String rule) {

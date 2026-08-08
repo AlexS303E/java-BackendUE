@@ -129,6 +129,35 @@ class AdminAuthenticationFilterTest {
     }
 
     @Test
+    void shouldReadConfiguredIdentityTokenFromSecretFileAtStartup() throws Exception {
+        Path secretFile = Files.createTempFile("admin-token-", ".txt");
+        Files.writeString(secretFile, "catalog-file-token\n");
+        try {
+            AdminSecurityProperties properties = new AdminSecurityProperties();
+            AdminSecurityProperties.AdminCredential credential = new AdminSecurityProperties.AdminCredential();
+            credential.setId("catalog-operator");
+            credential.setToken("file:" + secretFile);
+            credential.setRoles(List.of("catalog"));
+            properties.setIdentities(List.of(credential));
+            AdminAuthenticationFilter filter = new AdminAuthenticationFilter(
+                properties,
+                new TrustedClientIpResolver(new TrustedProxyProperties())
+            );
+            MockHttpServletRequest request = request("POST", "/admin/catalog/publish", "127.0.0.1");
+            request.addHeader("X-Admin-Token", "catalog-file-token");
+            request.addHeader("X-Admin-Confirm", "true");
+
+            filter.doFilter(request, new MockHttpServletResponse(), new CountingChain());
+
+            assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal())
+                .isEqualTo(new AdminIdentity("catalog-operator", Set.of("catalog")));
+        } finally {
+            SecurityContextHolder.clearContext();
+            Files.deleteIfExists(secretFile);
+        }
+    }
+
+    @Test
     void shouldRequireConfirmationForAdminWriteActions() throws Exception {
         AdminAuthenticationFilter filter = filter(List.of(), List.of("ops"));
         MockHttpServletRequest request = request("POST", "/admin/control/outbox/retry-failed", "127.0.0.1");

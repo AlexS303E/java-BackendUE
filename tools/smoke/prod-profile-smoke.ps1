@@ -61,6 +61,7 @@ $backendP12 = Join-Path $certDir "backend.p12"
 $truststore = Join-Path $certDir "backend-truststore.p12"
 $jwtPrivateKey = Join-Path $certDir "jwt-private.pem"
 $jwtPublicKey = Join-Path $certDir "jwt-public.pem"
+$adminTokenFile = Join-Path $certDir "admin-token.txt"
 $logDir = Join-Path $root "tools\smoke\logs"
 $stdout = Join-Path $logDir "backend-prod-smoke.out.log"
 $stderr = Join-Path $logDir "backend-prod-smoke.err.log"
@@ -175,7 +176,8 @@ try {
     $env:MANAGEMENT_SERVER_ADDRESS = "127.0.0.1"
     Remove-Item Env:ADMIN_TOKEN -ErrorAction SilentlyContinue
     $env:APP_ADMIN_IDENTITIES_0_ID = "prod-smoke-admin"
-    $env:APP_ADMIN_IDENTITIES_0_TOKEN = "prod-smoke-admin-token"
+    Set-Content -LiteralPath $adminTokenFile -Value "prod-smoke-admin-token" -NoNewline -Encoding UTF8
+    $env:APP_ADMIN_IDENTITIES_0_TOKEN = "file:$adminTokenFile"
     $env:APP_ADMIN_IDENTITIES_0_ROLES = "status,access,catalog,ops,security"
     & openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out $jwtPrivateKey | Out-Null
     if ($LASTEXITCODE -ne 0) {
@@ -288,5 +290,6 @@ try {
             }
         }
     }
+    Remove-Item -LiteralPath $adminTokenFile -Force -ErrorAction SilentlyContinue
     Pop-Location
 }

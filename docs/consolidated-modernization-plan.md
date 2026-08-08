@@ -45,7 +45,7 @@
 - [x] Dependabot еженедельно создаёт reviewable обновления для Gradle-зависимостей
   и GitHub Actions; обновления по-прежнему проходят обычный CI gate.
 
-Остаётся до production DoD: настроить реальный внешний OIDC либо secret-managed source для admin credentials и JWT key ring, включить off-host immutable backup/PITR, а также выполнить multi-replica и Redis outage сценарии в CI/стенде.
+Остаётся до production DoD: настроить реальный внешний OIDC либо управляемую подачу секретов для admin credentials и JWT key ring, включить off-host immutable backup/PITR, а также выполнить multi-replica и Redis outage сценарии в CI/стенде.
 
 - Проверено: штатный Gradle-набор не проходит: 214 тестов, 2 ошибки в
   `QueryIndexCoverageIntegrationTest`. Проверка жёстко привязана к конкретному
