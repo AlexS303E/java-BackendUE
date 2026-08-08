@@ -39,7 +39,7 @@ app:
     admin-limit: ${RATE_LIMIT_ADMIN_LIMIT:120}
     fail-closed-on-redis-error: ${RATE_LIMIT_FAIL_CLOSED_ON_REDIS_ERROR:true}
   admin:
-    token: ${ADMIN_TOKEN:}
+    token: ""
     allowed-cidrs: ${ADMIN_ALLOWED_CIDRS}
     default-roles: ${ADMIN_DEFAULT_ROLES:status}
   auth:

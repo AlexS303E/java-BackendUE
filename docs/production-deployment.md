@@ -57,6 +57,9 @@ APP_ADMIN_IDENTITIES_0_TOKEN=file:/run/secrets/admin-operations-token
 APP_ADMIN_IDENTITIES_0_ROLES=status,ops
 ```
 
+`ADMIN_TOKEN` is not read by the production profile. Do not use it as a fallback;
+each administrator must have an independent `APP_ADMIN_IDENTITIES_{n}_*` credential.
+
 Operational requirements:
 
 - Do not bake private keys, PKCS12 files, JKS files, generated development certificates, or truststores into the application image or JAR.

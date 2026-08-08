@@ -17,7 +17,7 @@
 - [x] **Algorithm** — access tokens use RS256; prod startup requires configured RSA private/public keys.
 
 ### Admin API
-- [x] **Admin token not dev** — `application-prod.yml` requires `ADMIN_TOKEN`; startup fail-fast rejects blank/dev values.
+- [x] **Shared admin token removed** — `application-prod.yml` no longer reads `ADMIN_TOKEN`; production requires independent `APP_ADMIN_IDENTITIES_{n}_*` credentials with file-mounted tokens.
 - [x] **Admin audit trail** — admin write-actions record `admin_audit_events` with result, request hash, target, reason, and operation metadata; covered by `AdminParityIntegrationTest`.
 - [x] **RBAC/IP allowlist** — admin filter enforces route-specific role buckets, production defaults to read-only `status`, and prod requires `ADMIN_ALLOWED_CIDRS`.
 

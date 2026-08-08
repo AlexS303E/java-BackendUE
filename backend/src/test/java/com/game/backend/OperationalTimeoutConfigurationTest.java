@@ -58,7 +58,8 @@ class OperationalTimeoutConfigurationTest {
             .contains("keep-alive-timeout: ${HTTP_KEEP_ALIVE_TIMEOUT:30s}")
             .contains("max-keep-alive-requests: ${HTTP_MAX_KEEP_ALIVE_REQUESTS:100}")
             .contains("include: health,info")
-            .doesNotContain("include: health,info,metrics,prometheus");
+            .doesNotContain("include: health,info,metrics,prometheus")
+            .doesNotContain("${ADMIN_TOKEN");
     }
 
     @Test
