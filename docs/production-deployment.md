@@ -49,6 +49,14 @@ SERVER_MTLS_TRUST_STORE=<secret-mounted truststore path or URI>
 SERVER_MTLS_TRUST_STORE_PASSWORD=<secret value>
 ```
 
+Admin credentials must also be mounted as files in production, for example:
+
+```dotenv
+APP_ADMIN_IDENTITIES_0_ID=operations
+APP_ADMIN_IDENTITIES_0_TOKEN=file:/run/secrets/admin-operations-token
+APP_ADMIN_IDENTITIES_0_ROLES=status,ops
+```
+
 Operational requirements:
 
 - Do not bake private keys, PKCS12 files, JKS files, generated development certificates, or truststores into the application image or JAR.

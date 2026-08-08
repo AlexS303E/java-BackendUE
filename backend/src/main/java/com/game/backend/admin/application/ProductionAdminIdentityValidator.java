@@ -45,6 +45,9 @@ public class ProductionAdminIdentityValidator implements SmartInitializingSingle
             if (identity.getToken() == null || identity.getToken().isBlank()) {
                 throw new IllegalStateException("Production admin identity requires token");
             }
+            if (!identity.getToken().trim().startsWith("file:")) {
+                throw new IllegalStateException("Production admin identity token must use file: external secret material");
+            }
             if (identity.getRoles().isEmpty()) {
                 throw new IllegalStateException("Production admin identity requires at least one role");
             }

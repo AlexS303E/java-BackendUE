@@ -10,7 +10,7 @@
 
 ### JWT
 - [x] **JWT signing keys configured** — production accepts either `JWT_PRIVATE_KEY`/`JWT_PUBLIC_KEY` or a complete `APP_AUTH_JWT_KEYS_{n}_*` ring with `APP_AUTH_JWT_ACTIVE_KEY_ID`; startup rejects missing, duplicate, or inline key material. The production profile smoke uses the ring-only path.
-- [x] **Admin secret mounts** — `APP_ADMIN_IDENTITIES_{n}_TOKEN` accepts either a literal token or `file:/...`; file material is read once at startup and unavailable files fail startup.
+- [x] **Admin secret mounts** — production requires `APP_ADMIN_IDENTITIES_{n}_TOKEN=file:/...`; file material is read once at startup and unavailable or empty files fail startup. Literal tokens remain local-profile only.
 - [x] **Token expiry configured** — access token defaults to 15 minutes, refresh token defaults to 14 days.
 - [x] **Algorithm** — access tokens use RS256; prod startup requires configured RSA private/public keys.
 

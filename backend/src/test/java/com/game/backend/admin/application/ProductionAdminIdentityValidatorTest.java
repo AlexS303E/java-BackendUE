@@ -24,7 +24,7 @@ class ProductionAdminIdentityValidatorTest {
     }
 
     @Test
-    void shouldAllowIndependentProductionIdentity() {
+    void shouldRequireExternalSecretMaterialForProductionIdentity() {
         AdminSecurityProperties properties = new AdminSecurityProperties();
         AdminSecurityProperties.AdminCredential credential = new AdminSecurityProperties.AdminCredential();
         credential.setId("ops-alex");
@@ -32,6 +32,11 @@ class ProductionAdminIdentityValidatorTest {
         credential.setRoles(List.of("ops"));
         properties.setIdentities(List.of(credential));
 
+        assertThatThrownBy(() -> ProductionAdminIdentityValidator.validateForStartup(new String[]{"prod"}, properties))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("file: external secret material");
+
+        credential.setToken("file:/run/secrets/admin-ops-alex-token");
         assertThatCode(() -> ProductionAdminIdentityValidator.validateForStartup(new String[]{"prod"}, properties))
             .doesNotThrowAnyException();
     }
