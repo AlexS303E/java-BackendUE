@@ -42,6 +42,18 @@ Assert-ComposeServiceName -Value $Service
 Assert-PostgresIdentifier -Name "User" -Value $User
 Assert-PostgresIdentifier -Name "VerifyDatabase" -Value $VerifyDatabase
 $resolvedBackup = (Resolve-Path -LiteralPath $BackupPath).Path
+$checksumPath = "$resolvedBackup.sha256"
+if (-not (Test-Path -LiteralPath $checksumPath)) {
+    throw "Backup checksum manifest was not found: $checksumPath"
+}
+$expectedChecksum = (Get-Content -LiteralPath $checksumPath -Raw).Trim()
+if ($expectedChecksum -notmatch '^[A-Fa-f0-9]{64}$') {
+    throw "Backup checksum manifest must contain a SHA-256 value: $checksumPath"
+}
+$actualChecksum = (Get-FileHash -LiteralPath $resolvedBackup -Algorithm SHA256).Hash
+if (-not $actualChecksum.Equals($expectedChecksum, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Backup checksum verification failed: $resolvedBackup"
+}
 
 $containerPath = "/tmp/" + [IO.Path]::GetFileName($resolvedBackup)
 
@@ -80,6 +92,7 @@ try {
     [PSCustomObject]@{
         status = "RESTORE_VERIFY_OK"
         backup = $resolvedBackup
+        sha256 = $actualChecksum
         verify_database = $VerifyDatabase
         latest_flyway_version = $version
     }

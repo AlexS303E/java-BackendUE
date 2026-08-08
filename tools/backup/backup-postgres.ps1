@@ -46,6 +46,7 @@ $timestamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
 $fileName = "$Database-$timestamp.dump"
 $containerPath = "/tmp/$fileName"
 $hostPath = Join-Path $outputPath $fileName
+$checksumPath = "$hostPath.sha256"
 
 Push-Location $root
 try {
@@ -64,18 +65,26 @@ try {
         throw "docker cp failed with exit code $LASTEXITCODE"
     }
 
+    $checksum = (Get-FileHash -LiteralPath $hostPath -Algorithm SHA256).Hash
+    Set-Content -LiteralPath $checksumPath -Value $checksum -NoNewline -Encoding ascii
+
     & docker compose exec -T $Service rm -f $containerPath | Out-Null
 
     if ($RetentionDays -gt 0) {
         Get-ChildItem -Path $outputPath -Filter "$Database-*.dump" -File |
             Where-Object { $_.LastWriteTimeUtc -lt (Get-Date).ToUniversalTime().AddDays(-$RetentionDays) } |
-            Remove-Item -Force
+            ForEach-Object {
+                Remove-Item -LiteralPath $_.FullName -Force
+                Remove-Item -LiteralPath ($_.FullName + ".sha256") -Force -ErrorAction SilentlyContinue
+            }
     }
 
     [PSCustomObject]@{
         status = "BACKUP_OK"
         database = $Database
         path = $hostPath
+        sha256_path = $checksumPath
+        sha256 = $checksum
         bytes = (Get-Item -LiteralPath $hostPath).Length
         retention_days = $RetentionDays
     }

@@ -8,7 +8,9 @@ Production baseline uses PostgreSQL custom-format dumps for daily backups, WAL a
 powershell -ExecutionPolicy Bypass -File tools\backup\backup-postgres.ps1 -RetentionDays 14
 ```
 
-The script writes `backups/postgres/ue_backend-<timestamp>.dump`, then removes local dumps older than the retention window.
+The script writes `backups/postgres/ue_backend-<timestamp>.dump` and its adjacent
+`*.dump.sha256` SHA-256 manifest, then removes local dumps and their manifests older
+than the retention window. Copy both files together to external storage.
 
 ## Restore Drill
 
@@ -16,7 +18,7 @@ The script writes `backups/postgres/ue_backend-<timestamp>.dump`, then removes l
 powershell -ExecutionPolicy Bypass -File tools\backup\verify-postgres-backup.ps1 -BackupPath backups\postgres\ue_backend-YYYYMMDDTHHMMSSZ.dump
 ```
 
-The verification script restores into a temporary database, checks Flyway history, and drops the temporary database.
+The verification script validates the mandatory SHA-256 manifest before restoring into a temporary database, checks Flyway history, and drops the temporary database.
 Database, PostgreSQL user, and Docker Compose service parameters are validated as
 identifiers before they are passed to Docker or SQL commands.
 

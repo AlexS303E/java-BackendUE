@@ -43,4 +43,17 @@ Assert-Rejected -Name "compose service injection" -ExpectedMessage "Service must
     & powershell -NoProfile -ExecutionPolicy Bypass -File $backupScript -RepoRoot $RepoRoot -Service "postgres;rm"
 }
 
+$checksumTestDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ("backup-checksum-test-" + [Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $checksumTestDirectory | Out-Null
+$tamperedBackup = Join-Path $checksumTestDirectory "ue_backend-test.dump"
+try {
+    Set-Content -LiteralPath $tamperedBackup -Value "tampered backup" -NoNewline -Encoding ascii
+    Set-Content -LiteralPath ($tamperedBackup + ".sha256") -Value ("0" * 64) -NoNewline -Encoding ascii
+    Assert-Rejected -Name "tampered backup checksum" -ExpectedMessage "Backup checksum verification failed" -Action {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $restoreScript -RepoRoot $RepoRoot -BackupPath $tamperedBackup
+    }
+} finally {
+    Remove-Item -LiteralPath $checksumTestDirectory -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 Write-Host "Backup parameter validation tests passed." -ForegroundColor Green
