@@ -1,6 +1,7 @@
 # This is a Gradle generated file for dependency locking.
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
+# To regenerate this file, run: ./gradlew :dependencies --write-locks
 ch.qos.logback:logback-classic:1.5.12=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 ch.qos.logback:logback-core:1.5.12=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.fasterxml.jackson.core:jackson-annotations:2.18.2=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
@@ -116,4 +117,4 @@ org.springframework:spring-web:6.2.1=compileClasspath,productionRuntimeClasspath
 org.springframework:spring-webmvc:6.2.1=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.xmlunit:xmlunit-core:2.10.0=testCompileClasspath,testRuntimeClasspath
 org.yaml:snakeyaml:2.3=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-empty=annotationProcessor,developmentOnly,testAndDevelopmentOnly,testAnnotationProcessor
+empty=annotationProcessor,cyclonedxBom,developmentOnly,testAndDevelopmentOnly,testAnnotationProcessor
